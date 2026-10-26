@@ -1,0 +1,47 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -Eeuo pipefail
+ROOT="$HOME/.local/share/mhc-full-installer/bin"
+case "${1:-}" in
+  remote-panel) shift; exec node "$ROOT/remote-panel.mjs" "$@";;
+  node-guard) shift; exec node "$ROOT/node-role-guard.mjs" "$@";;
+  auto-primary) shift; exec node "$ROOT/auto-primary.mjs" "$@";;
+  primary-select) shift; exec node "$ROOT/manual-primary.mjs" "$@";;
+  writer-audit) shift; exec node "$ROOT/writer-path-audit.mjs" "$@";;
+  fence-probe) shift; exec node "$ROOT/lab-fence-probe.mjs" "$@";;
+  physical-accept) shift; exec node "$ROOT/physical-lab-attest.mjs" "$@";;
+  field-drill) shift; exec node "$ROOT/field-recovery-drill.mjs" "$@";;
+  field-accept) shift; exec node "$ROOT/field-lab-coordinator.mjs" "$@";;
+  app-db-gate) shift; exec node "$ROOT/lab-app-database-gate.mjs" "$@";;
+  switchover-readiness) shift; exec node "$ROOT/switchover-readiness.mjs" "$@";;
+  switchover-e2e) shift; exec node "$ROOT/manual-switchover-e2e-lab.mjs" "$@";;
+  http-gate) shift; exec node "$ROOT/lab-http-write-gate.mjs" "$@";;
+  write-gate) shift; exec node "$ROOT/write-path-gate-lab.mjs" "$@";;
+  witness) shift; exec node "$ROOT/lease-witness-lab.mjs" "$@";;
+  fencing) shift; exec node "$ROOT/fencing-lease-lab.mjs" "$@";;
+  switchover) shift; exec node "$ROOT/manual-switchover-lab.mjs" "$@";;
+  lab-accept) shift; exec node "$ROOT/lab-acceptance-gate.mjs" "$@";;
+  doctor) exec "$ROOT/doctor.sh";;
+  accept) shift; exec node "$ROOT/android-acceptance.mjs" "$@";;
+  system) shift; exec "$ROOT/system.sh" "$@";;
+  panel) shift; exec "$ROOT/panel.sh" "$@";;
+  hosting-panel) shift; exec "$ROOT/legacy-panel.sh" "$@";;
+  cluster) shift; exec node "$ROOT/cluster-summary.mjs" "$@";;
+  replication) shift; case "${1:-}" in
+  remote-panel) shift; exec node "$ROOT/remote-panel.mjs" "$@";;
+  lab-status|lab-plan) exec node "$ROOT/gtid-lab.mjs" "$@";; seed-capture|seed-verify|seed-review|seed-summary) exec node "$ROOT/gtid-seed.mjs" "$@";; replica-plan|replica-attach|replica-observe) exec node "$ROOT/gtid-replica.mjs" "$@";; source-plan|source-probe|replica-check|outage-sample|outage-report) exec node "$ROOT/gtid-acceptance.mjs" "$@";; *) exec node "$ROOT/replication-observer.mjs" "$@";; esac;;
+  file-sync) shift; case "${1:-}" in
+  remote-panel) shift; exec node "$ROOT/remote-panel.mjs" "$@";;
+  peer-*) exec node "$ROOT/file-peer-lab.mjs" "$@";; checkpoint-create|apply-plan|apply-offline|consistent-status) exec node "$ROOT/file-consistent-lab.mjs" "$@";; *) exec node "$ROOT/file-delta-lab.mjs" "$@";; esac;;
+  node) shift; exec "$ROOT/node-enroll.sh" "$@";;
+  clone) shift; case "${1:-}" in
+  remote-panel) shift; exec node "$ROOT/remote-panel.mjs" "$@";;
+  readiness|prepare-lab|lab-status|smoke-static|import-sql-lab|reverify-stage) exec node "$ROOT/node-readiness.mjs" "$@";; standby-status|serve-static|wp-plan|wp-prepare|wp-probe) exec node "$ROOT/node-standby.mjs" "$@";; *) exec node "$ROOT/node-clone.mjs" "$@";; esac;;
+  sites) shift; exec "$ROOT/sites.sh" "$@";;
+  wordpress) shift; exec "$ROOT/wordpress.sh" "$@";;
+  backup) shift; if [[ "${1:-}" == verify ]]; then exec "$ROOT/backup-verify.sh" "$@"; else exec "$ROOT/daily-backup.sh" "$@"; fi;;
+  restore) shift; exec "$ROOT/restore.sh" "$@";;
+  serve) shift; exec "$ROOT/site-serve.sh" "$@";;
+  peer) shift; exec "$ROOT/peer-copy.sh" "$@";;
+  schedule) exec "$ROOT/schedule.sh";;
+  *) echo 'Usage: mhc-full node-guard plan|status|arm|check|watch|service-install | primary-select status|plan|begin|complete|abort | auto-primary plan|status|init|enable|disable|tick|watch|service-install|role|rejoin | writer-audit plan|scan (READ-ONLY, no switchover authority) | fence-probe plan|capture|verify (ACTIVE DISPOSABLE LAB CANARY ONLY) | field-drill plan|collect|verify (three-stage LAB; no writes) | field-accept plan|collect|verify (SSH LAB, admin host) | physical-accept plan|preflight|challenge|keygen|capture|verify | switchover-e2e plan|status|run (SYNTHETIC LOOPBACK ONLY) | switchover-readiness plan|status | app-db-gate plan | http-gate plan|status|init|serve (ISOLATED LAB ONLY) | write-gate plan|status|init|canary-write|preview-write|upload-fixture|job-receipt (ISOLATED LAB ONLY) | witness plan|status|gate-check|bootstrap|renew|freeze (ISOLATED CLOUD LAB ONLY) | fencing plan|scenarios|status|rehearse (OFFLINE MODEL ONLY) | switchover sample|plan|status|start|advance|abort (LAB SIMULATION ONLY) | lab-accept baseline|disconnected|recovered|files|report | doctor | accept check|report|site | system status | panel start|stop|status|token | cluster status | replication status|gtid|scan|lab-status|lab-plan|seed-capture|seed-verify|seed-review|seed-summary|replica-plan|replica-attach|replica-observe | file-sync manifest|bundle|verify|stage|status|peer-init|peer-info|peer-config|peer-send|peer-status|checkpoint-create|apply-plan|apply-offline|consistent-status | node init|cluster-init|invite|join|list|status | clone offer|revoke|fetch|stage|status|readiness|prepare-lab|lab-status|smoke-static|import-sql-lab|reverify-stage|standby-status|serve-static|wp-plan|wp-prepare|wp-probe | sites list|create-static|deploy-static|rollback-static | wordpress install SLUG | serve ... | backup run|verify | restore plan|extract|sql-lab | peer configure|push|status | schedule';exit 2;;
+esac

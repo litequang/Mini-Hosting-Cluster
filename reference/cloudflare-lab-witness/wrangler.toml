@@ -1,0 +1,11 @@
+name = "mhc-lab-witness-test"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+# Deploy ONLY to an isolated Cloudflare LAB account/zone, not monitor.thophuong.com.
+[[durable_objects.bindings]]
+name = "LAB_WITNESSES"
+class_name = "LabWitness"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LabWitness"]

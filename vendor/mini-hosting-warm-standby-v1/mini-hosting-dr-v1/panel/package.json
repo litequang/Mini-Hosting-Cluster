@@ -1,0 +1,15 @@
+{
+  "name": "android-mini-hosting-panel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-only Android Termux hosting control panel for trusted personal sites",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "setup": "node tools/setup.mjs",
+    "reset-password": "node tools/reset-password.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "engines": {"node": ">=22"},
+  "license": "UNLICENSED"
+}

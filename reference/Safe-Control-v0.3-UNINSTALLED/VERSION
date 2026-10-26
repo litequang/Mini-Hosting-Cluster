@@ -1,0 +1,3 @@
+mini-hosting-cluster 0.3.0
+Control-plane safe upgrade; no unplanned offline failover guarantee
+2026-10-24

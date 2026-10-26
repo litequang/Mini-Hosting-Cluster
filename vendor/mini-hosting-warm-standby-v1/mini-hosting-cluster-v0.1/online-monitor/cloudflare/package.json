@@ -1,0 +1,10 @@
+{
+  "name": "mini-hosting-cluster-monitor-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "devDependencies": {"wrangler": "^4.0.0"}
+}

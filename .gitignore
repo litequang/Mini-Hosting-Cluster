@@ -1,0 +1,16 @@
+.work/
+artifacts/
+node_modules/
+.wrangler/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.sql
+*.sqlite*
+*.dump
+authority.json
+*-token
+*-secret
+admin.json

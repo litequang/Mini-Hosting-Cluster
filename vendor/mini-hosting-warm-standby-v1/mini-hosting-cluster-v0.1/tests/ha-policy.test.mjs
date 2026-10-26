@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readyForTakeover,mayAcquire,isSafeGTID,isFresh} from '../src/ha-policy.mjs';
+const stamp=new Date().toISOString();
+const leader={observedAt:stamp,db:{gtidBinlogPos:'0-42-100'},assets:{verified:true,checkpoint:'a'.repeat(64)}};
+const candidate={observedAt:stamp,db:{available:true,gtidSlavePos:'0-42-100',slaveIo:'Yes',slaveSql:'Yes',secondsBehind:0},services:{miniWeb:'down',tunnel:'down'},assets:{verified:true,checkpoint:'a'.repeat(64)}};
+test('GTID parser excludes empty/injected strings',()=>{assert.equal(isSafeGTID('0-1-123'),true);assert.equal(isSafeGTID('0-1-2,1-2-300'),true);for(const x of ['', 'DROP DATABASE', '0-1-12;rm -rf /', 'a-1-2'])assert.equal(isSafeGTID(x),false);});
+test('No zero-loss auto claim even with matching snapshots/positions',()=>{const r=readyForTakeover(candidate,leader,Date.now(),0);assert.equal(r.ready,false);assert.match(r.reasons.join(' '),/Zero-loss/);});
+test('Guard requires SQL catchup and matching assets within accepted RPO',()=>{assert.equal(readyForTakeover(candidate,leader,Date.now(),60).ready,true);assert.equal(readyForTakeover({...candidate,db:{...candidate.db,gtidSlavePos:'0-42-99'}},leader,Date.now(),60).ready,false);assert.equal(readyForTakeover({...candidate,assets:{verified:false,checkpoint:'a'.repeat(64)}},leader,Date.now(),60).ready,false);assert.equal(readyForTakeover({...candidate,services:{miniWeb:'run',tunnel:'down'}},leader,Date.now(),60).ready,false);});
+test('Lease cannot be stolen during active term',()=>{const now=Date.now();assert.equal(mayAcquire({leaderId:'m51',expiresAt:now+10_000,candidateId:'x7b',now,eligible:true,mode:'auto'}).grant,false);assert.equal(mayAcquire({leaderId:'m51',expiresAt:now+10_000,candidateId:'m51',now,eligible:true,mode:'auto'}).grant,true);assert.equal(mayAcquire({leaderId:'m51',expiresAt:now-1000,candidateId:'x7b',now,eligible:true,mode:'manual',preferredNodeId:'m51'}).grant,false);});
+test('Old/invalid health is rejected',()=>{assert.equal(isFresh(new Date(Date.now()-200000).toISOString()),false);assert.equal(isFresh(new Date(Date.now()+900000).toISOString()),false);});

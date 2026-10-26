@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+for f in "$ROOT/install.sh" "$ROOT/bin/"*.sh "$ROOT/tests/"*.sh;do bash -n "$f";done
+for f in "$ROOT/bin/"*.mjs;do node --check "$f" >/dev/null;done
+for f in "$ROOT/vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/"*.mjs;do node --check "$f" >/dev/null;done
+node "$ROOT/tests/manual-primary.mjs" "$ROOT"
+node "$ROOT/tests/auto-primary.mjs" "$ROOT"
+node "$ROOT/tests/auto-recovery.mjs" "$ROOT"
+node "$ROOT/tests/node-role-guard.mjs" "$ROOT"
+node "$ROOT/tests/writer-path-audit.mjs" "$ROOT"
+node "$ROOT/tests/remote-panel.mjs" "$ROOT"
+node "$ROOT/tests/legacy-panel-bridge.mjs" "$ROOT"
+bash "$ROOT/tests/integration-backup.sh"
+bash "$ROOT/tests/site-config.sh"
+bash "$ROOT/tests/static-sites.sh"
+node "$ROOT/tests/panel-http.mjs" "$ROOT"
+node "$ROOT/tests/server-observe.mjs" "$ROOT"
+node "$ROOT/tests/replication-observer.mjs" "$ROOT"
+node "$ROOT/tests/file-delta-lab.mjs" "$ROOT"
+node "$ROOT/tests/file-peer-lab.mjs" "$ROOT"
+node "$ROOT/tests/file-consistent-lab.mjs" "$ROOT"
+node "$ROOT/tests/lab-acceptance-gate.mjs" "$ROOT"
+node "$ROOT/tests/manual-switchover-lab.mjs" "$ROOT"
+node "$ROOT/tests/manual-switchover-e2e-lab.mjs" "$ROOT"
+node "$ROOT/tests/physical-lab-attest.mjs" "$ROOT"
+node "$ROOT/tests/field-lab-coordinator.mjs" "$ROOT"
+node "$ROOT/tests/field-recovery-drill.mjs" "$ROOT"
+node "$ROOT/tests/lab-fence-probe.mjs" "$ROOT"
+node "$ROOT/tests/fencing-lease-lab.mjs" "$ROOT"
+node "$ROOT/tests/lab-witness-b2.mjs" "$ROOT"
+node "$ROOT/tests/write-path-gate-lab.mjs" "$ROOT"
+node "$ROOT/tests/write-adapters-b4.mjs" "$ROOT"
+node "$ROOT/tests/lab-http-write-gate-b5.mjs" "$ROOT"
+node "$ROOT/tests/lab-db-write-c.mjs" "$ROOT"
+node "$ROOT/tests/gtid-lab.mjs" "$ROOT"
+node "$ROOT/tests/gtid-seed.mjs" "$ROOT"
+node "$ROOT/tests/gtid-replica.mjs" "$ROOT"
+node "$ROOT/tests/gtid-acceptance.mjs" "$ROOT"
+node "$ROOT/tests/cluster-summary.mjs" "$ROOT"
+node "$ROOT/tests/member-telemetry.mjs" "$ROOT"
+node "$ROOT/tests/node-enrollment.mjs" "$ROOT"
+node "$ROOT/tests/node-clone.mjs" "$ROOT"
+node "$ROOT/tests/node-readiness.mjs" "$ROOT"
+node "$ROOT/tests/termux-compat.mjs" "$ROOT"
+node "$ROOT/tests/node-standby.mjs" "$ROOT"
+node "$ROOT/tests/android-acceptance.mjs" "$ROOT"
+python3 - "$ROOT/bin/safe-zip-extract.py" "$ROOT/bin/safe-tar-inspect.py" <<'PYAST'
+import ast,sys
+for f in sys.argv[1:]:
+    ast.parse(open(f, encoding="utf8").read(), filename=f)
+PYAST
+echo 'PASS: all TEST 0.5.0C-REMOTE-PANEL source self-tests (device runtime untested)'

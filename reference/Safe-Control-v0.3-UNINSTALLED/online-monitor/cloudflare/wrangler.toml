@@ -1,0 +1,29 @@
+name = "mini-hosting-cluster-monitor"
+main = "src/worker.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+# Dedicated, independent cloud monitor. Never forward these hostnames to M51/X7b.
+[[routes]]
+pattern = "monitor.thophuong.com"
+custom_domain = true
+
+[[routes]]
+pattern = "telemetry.thophuong.com"
+custom_domain = true
+
+[[durable_objects.bindings]]
+name = "STORE"
+class_name = "MonitorStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MonitorStore"]
+
+[[durable_objects.bindings]]
+name = "CONTROL"
+class_name = "ClusterArbiter"
+
+[[migrations]]
+tag = "v2-arbiter"
+new_sqlite_classes = ["ClusterArbiter"]
