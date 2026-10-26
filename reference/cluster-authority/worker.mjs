@@ -4,13 +4,12 @@ const TOKEN=/^[A-Za-z0-9_-]{43,128}$/;
 export const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
 const metricNumber=(x,lo,hi)=>typeof x==='number'&&Number.isFinite(x)&&x>=lo&&x<=hi?x:null;
 const metricStatus=x=>['running','stopped','unknown'].includes(x)?x:'unknown';
-const metricServices=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx'];
+const metricServices=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx','named-tunnel','php-fpm','mhc-full-daily-backup'];
 function telemetrySafe(v){
  if(!v||v.v!==1||typeof v!=='object'||Array.isArray(v))fail('TELEMETRY_INVALID');
  const safeStr=(v,n)=>typeof v==='string'?Array.from(v).filter(c=>c.charCodeAt(0)>=32&&c.charCodeAt(0)!==127).join('').slice(0,n):'';
  const num=(x,max)=>metricNumber(x,0,max);
  return {v:1,device:safeStr(v.device,55),android:safeStr(v.android,12),
-  cpu:{usagePct:metricNumber(v.cpu?.usagePct,0,100),cores:metricNumber(v.cpu?.cores,1,256)},
   memory:{totalMiB:num(v.memory?.totalMiB,1e8),freeMiB:num(v.memory?.freeMiB,1e8)},
   storage:{totalMiB:num(v.storage?.totalMiB,1e9),freeMiB:num(v.storage?.freeMiB,1e9)},
   network:{rxKiBs:num(v.network?.rxKiBs,1e9),txKiBs:num(v.network?.txKiBs,1e9),interfaces:num(v.network?.interfaces,128)},
@@ -18,11 +17,19 @@ function telemetrySafe(v){
    status:['CHARGING','DISCHARGING','FULL','NOT_CHARGING','UNAVAILABLE','UNKNOWN'].includes(v.battery?.status)?v.battery.status:'UNKNOWN',
    health:['GOOD','OVERHEAT','DEAD','OVER_VOLTAGE','UNSPECIFIED_FAILURE','COLD','UNKNOWN'].includes(v.battery?.health)?v.battery.health:null},
   uptimeSec:num(v.uptimeSec,1e10),
+  wifi:{state:v.wifi?.state==='connected'?'connected':'unknown',
+   rssiDbm:metricNumber(v.wifi?.rssiDbm,-127,0)},
+  processes:(Array.isArray(v.processes)?v.processes:[]).slice(0,6).map(p=>({
+   name:['Mini Hosting Panel','Cluster Agent','LAN Monitor','Web Node.js','Node.js khác'].includes(p?.name)?p.name:'Node.js khác',
+   rssMiB:num(p?.rssMiB,1e7)})),
+  snapshot:{name:/^snapshot-\d{8}$/.test(v.snapshot?.name||'')?v.snapshot.name:null,
+   recordedAt:typeof v.snapshot?.recordedAt==='string'&&/^\d{4}-\d\d-\d\dT/.test(v.snapshot.recordedAt)?v.snapshot.recordedAt.slice(0,32):null,
+   verified:false},
   services:Object.fromEntries(metricServices.map(id=>[id,metricStatus(v.services?.[id])]))};
 }
 function metricPoint(m,now){
- return {at:new Date(now).toISOString(),cpuPct:m.cpu.usagePct,ramUsedMiB:m.memory.totalMiB!==null&&m.memory.freeMiB!==null?Math.max(0,m.memory.totalMiB-m.memory.freeMiB):null,
-  batteryPct:m.battery.percentage,tempC:m.battery.temperatureC,diskFreeMiB:m.storage.freeMiB,rxKiBs:m.network.rxKiBs,txKiBs:m.network.txKiBs};
+ return {at:new Date(now).toISOString(),ramUsedMiB:m.memory.totalMiB!==null&&m.memory.freeMiB!==null?Math.max(0,m.memory.totalMiB-m.memory.freeMiB):null,
+  batteryPct:m.battery.percentage,tempC:m.battery.temperatureC,diskFreeMiB:m.storage.freeMiB,rxKiBs:m.network.rxKiBs,txKiBs:m.network.txKiBs,wifiRssiDbm:m.wifi.rssiDbm};
 }
 
 const reply=(body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});
