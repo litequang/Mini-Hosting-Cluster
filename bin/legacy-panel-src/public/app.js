@@ -51,122 +51,186 @@ async function dashboard(){const s=await req('/api/overview');state.stats=s;cons
 // Modules and Cluster are integrated into the ORIGINAL 9090 Panel, behind its existing session cookie.
 // Never display env vars, credentials, raw remote reports or claim that labels establish HA authority.
 const safeNum=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max?v:null;
-// MHC_MONITOR_ALL_NODES_V2: local measurements + shared remote node metrics (no separate Panel).
-const monitorServices={
- 'amh-panel':'Panel quản trị','sshd':'SSH','nginx':'Nginx','mysqld':'MariaDB',
- 'mini-web':'Node Web','mhc-authority-agent':'Cluster Agent','mhc-panel-tunnel':'Tunnel Panel',
- 'mhc-full-wp-php':'PHP-FPM / WP','mhc-full-wp-nginx':'WP Nginx',
- 'named-tunnel':'Tunnel website','php-fpm':'PHP-FPM','mhc-full-daily-backup':'Backup hằng ngày'
-};
+// MHC_MONITOR_EXPANDED_ALL_NODES_V3: render entire cluster without per-node selection.
 function mhcDuration(seconds){
  if(!Number.isFinite(seconds)||seconds<0)return '—';
  const day=Math.floor(seconds/86400),hour=Math.floor((seconds%86400)/3600);
  return day?day+' ngày '+hour+' giờ':hour+' giờ '+Math.floor((seconds%3600)/60)+' phút';
 }
-function monitorTrend(points,key,label){
- const p=(Array.isArray(points)?points:[]).filter(v=>safeNum(v[key],-1e9,1e9)!==null).slice(-144);
- if(p.length<2)return '<div class="help">Chưa đủ mẫu để hiển thị biểu đồ '+esc(label)+'.</div>';
- const data=p.map(v=>Number(v[key])),min=Math.min(...data),max=Math.max(...data),spread=Math.max(1,max-min);
- const poly=data.map((y,i)=>(i*298/(data.length-1)+1).toFixed(1)+','+(73-64*(y-min)/spread).toFixed(1)).join(' ');
- return `<div class="card"><b>${esc(label)} · 12 giờ gần đây</b><svg viewBox="0 0 300 84" preserveAspectRatio="none" style="width:100%;height:105px;margin-top:10px" aria-label="${esc(label)}"><line x1="0" y1="73" x2="300" y2="73" stroke="currentColor" stroke-opacity=".16"/><polyline points="${poly}" fill="none" stroke="#55b6a1" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><small class="muted">Nhỏ nhất: ${esc(min.toFixed(1))} · Lớn nhất: ${esc(max.toFixed(1))} · ${p.length} mẫu</small></div>`;
+function mhcMonFormat(n,digits=0,unit=''){
+ const v=typeof n==='number'&&Number.isFinite(n)?n:null;
+ return v===null?'—':v.toFixed(digits)+unit;
 }
-async function mhcMonitorPage(){
- if(state.monitorLoading)return;state.monitorLoading=true;
- try{
-  const [localResult,sharedResult]=await Promise.allSettled([req('/api/mhc/monitor'),req('/api/mhc/cluster')]);
-  if(state.tab!=='monitor')return;
-  const local=localResult.status==='fulfilled'?localResult.value:null;
-  const shared=sharedResult.status==='fulfilled'?sharedResult.value:null;
-  const nodes=Array.isArray(shared?.nodes)?shared.nodes:[];
-  const selected=state.monitorSelected||'local';
-  const chosen=nodes.find(n=>n.nodeId===selected);
-  if(!local&&!chosen){page('Monitor toàn cụm','<div class="info">Chưa đọc được thông số thiết bị hoặc Shared Authority. Kiểm tra trạng thái Panel/Agent.</div>');return;}
-  const m=selected==='local'?local:chosen?.telemetry||null;
-  const fresh=selected==='local'?!!local:chosen?.telemetryRecent===true;
-  const age=selected==='local'?local?.at:chosen?.metricsAt;
-  const num=(v,lo=0,hi=1e9)=>safeNum(v,lo,hi);
-  const disp=(v,suffix='')=>v===null||v===undefined?'—':v+suffix;
-  const mem=num(m?.memory?.totalMiB),free=num(m?.memory?.freeMiB);
-  const disk=num(m?.storage?.totalMiB),available=num(m?.storage?.freeMiB);
-  const battery=num(m?.battery?.percentage,0,100),temp=num(m?.battery?.temperatureC,-25,100);
-  const memUsed=mem!==null&&free!==null?Math.max(0,mem-free):null;
-  const diskUsed=disk!==null&&available!==null?Math.max(0,disk-available):null;
-  const serviceRows=Object.entries(monitorServices).map(([k,name])=>{
-   const v=m?.services?.[k]||'unknown';
-   const label=v==='running'?'Đang chạy':v==='stopped'?'Đã dừng':'Chưa rõ';
-   return `<tr><td>${esc(name)}</td><td><span class="badge ${v==='running'?'good':v==='stopped'?'bad':''}">${esc(label)}</span></td></tr>`;
-  }).join('');
-  const cards=nodes.map(n=>{
-   const c=n.telemetry,b=n.telemetryRecent===true,h=n.heartbeatRecent===true;
-   const status=!h?'Mất heartbeat':!b?'Thông số cũ':'Đang báo cáo';
-   const detail=c?`RAM trống ${disp(num(c.memory?.freeMiB),' MiB')} · Pin ${disp(num(c.battery?.percentage,0,100),'%')} · Wi-Fi ${c.wifi?.state==='connected'?'đã kết nối':'chưa rõ'}`:'Agent chưa gửi thông số v2';
-   const services=c?.services||{},serviceBadge=(label,kind)=>{
-    const v=services[kind]||'unknown';
-    return `<span class="badge ${v==='running'?'good':v==='stopped'?'bad':''}">${esc(label)}: ${v==='running'?'run':v==='stopped'?'down':'—'}</span>`;
-   };
-   return `<div class="card"><div class="flex"><b>${esc(n.label||'Node')}</b><span class="badge ${h&&b?'good':'bad'}">${esc(status)}</span></div>
-    <p class="help">Vai trò: ${esc(n.role||'Chưa xác minh')} · ${esc(detail)}</p>
-    <small class="muted">Heartbeat: ${esc(mhcAge(n.lastSeenAt))} trước · Dữ liệu: ${esc(mhcAge(n.metricsAt))} trước</small>
-    <div class="btnrow" style="margin-top:8px;flex-wrap:wrap">${serviceBadge('DB','mysqld')}${serviceBadge('Web','mini-web')}${serviceBadge('Tunnel','named-tunnel')}${serviceBadge('Panel','amh-panel')}<span class="badge">Sync: chưa xác minh</span></div>
-    <p class="help">Snapshot: ${esc(c?.snapshot?.name||'chưa ghi nhận')} (chưa xác minh)</p>
-    <div class="toolbar">${btn(selected===n.nodeId?'Đang xem':'Chi tiết','monitor-node:'+n.nodeId)}</div></div>`;
-  }).join('');
-  let alerts=[];
-  if(!fresh)alerts.push('Thông số của node đang xem không còn mới. Không suy luận trạng thái thực từ dữ liệu cũ.');
-  if(battery!==null&&battery<20)alerts.push('Pin yếu (dưới 20%).');
-  if(temp!==null&&temp>=42)alerts.push('Nhiệt độ pin cao (từ 42°C).');
-  if(mem&&free!==null&&free/mem<.15)alerts.push('RAM khả dụng dưới 15%.');
-  if(disk&&available!==null&&available/disk<.10)alerts.push('Dung lượng trống dưới 10%.');
-  const wifiSignal=num(m?.wifi?.rssiDbm,-127,0);
-  const nodeJobs=(Array.isArray(m?.processes)?m.processes:[]).slice(0,6);
-  const nodeProcessRows=nodeJobs.map(p=>`<tr><td>${esc(p.name||'Node.js')}</td><td>${disp(num(p.rssMiB),' MiB')}</td></tr>`).join('');
-  const snap=m?.snapshot?.name||null;
-  let chart='<div class="help">Chọn một node thuộc Shared Authority để xem lịch sử 12 giờ.</div>';
-  if(chosen){
-   const cached=state.monitorHistory;
-   if(!cached||cached.nodeId!==chosen.nodeId||Date.now()-cached.fetchedAt>90000){
+
+function mhcMonAge(ts){
+ const time=Date.parse(ts||'');
+ if(!Number.isFinite(time))return 'chưa có';
+ const delta=Date.now()-time;
+ if(delta<0)return 'vừa nhận';
+ if(delta<60000)return 'vừa nhận';
+ if(delta<3600000)return Math.floor(delta/60000)+' phút trước';
+ if(delta<86400000)return Math.floor(delta/3600000)+' giờ trước';
+ return Math.floor(delta/86400000)+' ngày trước';
+}
+
+function mhcMonSpark(points,key,title){
+ const a=(Array.isArray(points)?points:[]).filter(x=>typeof x?.[key]==='number'&&Number.isFinite(x[key])).slice(-144);
+ if(a.length<2)return `<div class="mhc-spark"><span>${esc(title)}</span><small>Chưa đủ mẫu</small></div>`;
+ const data=a.map(x=>x[key]),lo=Math.min(...data),hi=Math.max(...data),span=Math.max(1,hi-lo);
+ const coords=data.map((n,i)=>`${(i*190/(data.length-1)+3).toFixed(1)},${(44-(n-lo)*36/span).toFixed(1)}`).join(' ');
+ return `<div class="mhc-spark"><div class="mhc-spark-title"><span>${esc(title)}</span><b>${esc(mhcMonFormat(data[data.length-1],1))}</b></div><svg viewBox="0 0 196 48" preserveAspectRatio="none" aria-label="${esc(title)}"><polyline fill="none" stroke="currentColor" stroke-width="2.3" vector-effect="non-scaling-stroke" points="${coords}"/></svg></div>`;
+}
+
+function mhcMonHistoryHtml(points){
+ const safe=Array.isArray(points)?points:[];
+ const gapCount=safe.reduce((total,p,i)=>i&&Date.parse(p.at||'')-Date.parse(safe[i-1].at||'')>720000?total+1:total,0);
+ return `<div class="mhc-history-label">Lịch sử 12 giờ <span>mỗi 5 phút · ${safe.length} mẫu${gapCount?' · '+gapCount+' khoảng gián đoạn':''}</span></div>
+ <div class="mhc-sparklines">${mhcMonSpark(safe,'batteryPct','Pin %')}${mhcMonSpark(safe,'ramUsedMiB','RAM dùng · MiB')}${mhcMonSpark(safe,'tempC','Nhiệt độ pin °C')}${mhcMonSpark(safe,'wifiRssiDbm','Wi-Fi · dBm')}${mhcMonSpark(safe,'diskFreeMiB','Bộ nhớ trống · MiB')}${mhcMonSpark(safe,'rxKiBs','Mạng nhận · KiB/s')}</div>`;
+}
+
+function mhcMonCard(n,local=false){
+ const m=n.telemetry||null;
+ const fresh=local?Number.isFinite(Date.parse(m?.at||''))&&Date.now()-Date.parse(m.at)<180000:n.telemetryRecent===true;
+ const reachable=local?!!m:n.heartbeatRecent===true;
+ const status=reachable?(fresh?'ĐANG KẾT NỐI':'THÔNG SỐ CŨ'):'MẤT TÍN HIỆU';
+ const klass=reachable?(fresh?'ok':'stale'):'off';
+ const role=n.role==='PRIMARY_VERIFIED'?'PRIMARY':n.role==='STANDBY_NO_WRITER_GRANT'?'STANDBY':'CHƯA XÁC MINH';
+ const numeric=(v,min=0,max=1e10)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max?v:null;
+ const bat=numeric(m?.battery?.percentage,0,100),temp=numeric(m?.battery?.temperatureC,-25,100);
+ const ram=numeric(m?.memory?.totalMiB),ramFree=numeric(m?.memory?.freeMiB);
+ const disk=numeric(m?.storage?.totalMiB),diskFree=numeric(m?.storage?.freeMiB);
+ const percentage=(f,t)=>f===null||t===null||t===0?null:Math.max(0,Math.min(100,f*100/t));
+ const batteryBar=bat===null?0:bat;
+ const wifi=numeric(m?.wifi?.rssiDbm,-127,0);
+ const statusMap={running:'run',stopped:'down',unknown:'unknown'};
+ const serviceItems=[
+  ['mysqld','DB'],['mini-web','Web Node.js'],['nginx','Nginx'],['mhc-full-wp-php','WordPress PHP'],
+  ['php-fpm','PHP-FPM'],['amh-panel','Panel'],['sshd','SSH'],
+  ['named-tunnel','Web Tunnel'],['mhc-panel-tunnel','Panel Tunnel'],
+  ['mhc-authority-agent','Cluster Agent'],['mhc-full-daily-backup','Backup'],
+  ['mhc-full-wp-nginx','WordPress Nginx']
+ ];
+ const svcHtml=serviceItems.map(([key,label])=>{
+  const v=m?.services?.[key]||'unknown';
+  return `<span class="mhc-service ${v==='running'?'run':v==='stopped'?'down':'unknown'}" title="${esc(label)}: ${esc(statusMap[v]||'unknown')}"><span class="mhc-service-dot"></span>${esc(label)} <strong>${esc(statusMap[v]||'unknown')}</strong></span>`;
+ }).join('');
+ const processes=(Array.isArray(m?.processes)?m.processes:[]).slice(0,6);
+ const procHtml=processes.length?processes.map(p=>`<div class="mhc-process"><span>${esc(p.name||'Node.js')}</span><strong>${esc(mhcMonFormat(numeric(p.rssMiB),0,' MiB'))}</strong></div>`).join(''):'<p class="mhc-note">Chưa có dữ liệu tiến trình Node.js</p>';
+ const snap=m?.snapshot?.name||'Chưa ghi nhận';
+ const warnings=[];
+ if(!fresh)warnings.push('Dữ liệu đã cũ; các số liệu bên dưới là lần đo cuối, không phải trạng thái hiện tại.');
+ if(bat!==null&&bat<20)warnings.push('Pin thấp dưới 20%');
+ if(temp!==null&&temp>=42)warnings.push('Nhiệt độ pin từ 42°C');
+ if(ram&&ramFree!==null&&ramFree/ram<.15)warnings.push('RAM còn dưới 15%');
+ if(disk&&diskFree!==null&&diskFree/disk<.1)warnings.push('Bộ nhớ còn dưới 10%');
+ const meter=(f,t,css='')=>{
+  const pc=percentage(f,t);
+  return `<div class="mhc-meter ${css}"><span style="width:${pc===null?0:pc.toFixed(1)}%"></span></div>`;
+ };
+ const historyId=typeof n.nodeId==='string'&&/^[0-9a-f-]{36}$/.test(n.nodeId)?n.nodeId:null;
+ const label=n.label||m?.device||'Android';
+ const update=local?m?.at:n.metricsAt;
+ return `<article class="mhc-node ${klass}" aria-label="Monitor ${esc(label)}">
+  <header class="mhc-node-head">
+   <div><div class="mhc-role">CẤU HÌNH: ${esc(role)}${local?' · PANEL NÀY':''}</div><h2>${esc(label)}</h2>
+   <p>${esc(m?.device||'Android')} · Android ${esc(m?.android||'—')} · ${esc(mhcMonAge(update))}</p></div>
+   <span class="mhc-node-status ${klass}"><span class="mhc-led"></span>${esc(status)}</span>
+  </header>
+  ${warnings.length?`<div class="mhc-alerts">${warnings.map(w=>`<span>${esc(w)}</span>`).join('')}</div>`:''}
+  <div class="mhc-metrics">
+    <div class="mhc-metric"><span>Pin</span><b>${esc(mhcMonFormat(bat,0,'%'))}</b><small>${esc(m?.battery?.status||'Chưa rõ')} · ${esc(m?.battery?.health||'Sức khỏe chưa rõ')}</small>${meter(bat,100,'battery')}</div>
+    <div class="mhc-metric"><span>Nhiệt độ pin</span><b>${esc(mhcMonFormat(temp,1,'°C'))}</b><small>Nhiệt độ cảm biến pin</small></div>
+    <div class="mhc-metric"><span>RAM còn khả dụng</span><b>${esc(mhcMonFormat(ramFree,0,' MiB'))}</b><small>Tổng ${esc(mhcMonFormat(ram,0,' MiB'))}</small>${meter(ramFree,ram)}</div>
+    <div class="mhc-metric"><span>Bộ nhớ còn trống</span><b>${esc(mhcMonFormat(diskFree,0,' MiB'))}</b><small>Tổng ${esc(mhcMonFormat(disk,0,' MiB'))}</small>${meter(diskFree,disk)}</div>
+    <div class="mhc-metric"><span>Thời gian hoạt động</span><b>${esc(mhcDuration(m?.uptimeSec))}</b><small>Tính từ lần Android khởi động</small></div>
+    <div class="mhc-metric"><span>Wi-Fi</span><b>${m?.wifi?.state==='connected'?'Đã kết nối':'Chưa rõ'}</b><small>${wifi===null?'Không đo được tín hiệu':wifi+' dBm'} · không thu SSID</small></div>
+    <div class="mhc-metric"><span>Mạng nhận / gửi</span><b>${esc(mhcMonFormat(numeric(m?.network?.rxKiBs),0,' KiB/s'))}</b><small>Gửi ${esc(mhcMonFormat(numeric(m?.network?.txKiBs),0,' KiB/s'))}</small></div>
+    <div class="mhc-metric"><span>Node.js</span><b>${processes.length} tiến trình</b><small>RAM được đo nếu Android cho phép</small></div>
+  </div>
+  <div class="mhc-node-sections">
+   <section class="mhc-node-panel"><h3>Trạng thái dịch vụ</h3><div class="mhc-service-grid">${svcHtml}</div></section>
+   <section class="mhc-node-panel"><h3>Đồng bộ &amp; bản sao lưu</h3>
+    <p><span>Đồng bộ</span><strong class="mhc-unknown">CHƯA XÁC MINH</strong></p>
+    <p><span>Snapshot gần nhất</span><strong>${esc(snap)}</strong></p>
+    <p><span>Thời điểm ghi nhận</span><strong>${esc(m?.snapshot?.recordedAt||'—')}</strong></p>
+    <small>Snapshot chưa được xác minh checksum/khôi phục; không suy ra dữ liệu giữa các node giống nhau.</small>
+   </section>
+   <section class="mhc-node-panel"><h3>Tiến trình Node.js (${processes.length})</h3>${procHtml}</section>
+   <section class="mhc-node-panel"><h3>Trạng thái cụm</h3>
+    <p><span>Heartbeat gần nhất</span><strong>${esc(local?'Trực tiếp':mhcMonAge(n.lastSeenAt))}</strong></p>
+    <p><span>Thông số gần nhất</span><strong>${esc(mhcMonAge(update))}</strong></p>
+    <p><span>Quyền ghi Primary</span><strong>${role==='PRIMARY'?'Đã xác minh':'Chưa được cấp'}</strong></p>
+   </section>
+  </div>
+  <section class="mhc-history" ${historyId?`data-mhc-history="${historyId}"`:''}>${historyId?'<div class="mhc-history-label">Lịch sử 12 giờ <span>Đang tải dữ liệu...</span></div>':'<p class="mhc-note">Lịch sử sẽ có sau khi node ghép vào Shared Authority.</p>'}</section>
+ </article>`;
+}
+
+async function mhcMonLoadHistory(nodes,version){
+ // Cards render immediately; fetch histories separately at bounded concurrency.
+ const queue=nodes.filter(n=>/^[0-9a-f-]{36}$/.test(n.nodeId||''));
+ const cache=state.monitorHistoryCache||(state.monitorHistoryCache=new Map());
+ let index=0;
+ const worker=async()=>{
+  while(index<queue.length){
+   const n=queue[index++],id=n.nodeId;
+   let entry=cache.get(id);
+   if(!entry||Date.now()-entry.at>90000){
     try{
-     const res=await req('/api/mhc/monitor/history?'+qs({nodeId:chosen.nodeId}));
-     state.monitorHistory={nodeId:chosen.nodeId,fetchedAt:Date.now(),points:res.history?.points||[]};
-    }catch{state.monitorHistory={nodeId:chosen.nodeId,fetchedAt:Date.now(),points:[]};}
+     const response=await req('/api/mhc/monitor/history?'+qs({nodeId:id}));
+     entry={at:Date.now(),points:Array.isArray(response.history?.points)?response.history.points:[]};
+    }catch{entry={at:Date.now(),points:[]};}
+    cache.set(id,entry);
    }
-   const points=state.monitorHistory.points;
-   const gaps=[];
-   for(let i=1;i<points.length;i++){
-    const before=Date.parse(points[i-1].at||''),after=Date.parse(points[i].at||'');
-    if(Number.isFinite(before)&&Number.isFinite(after)&&after-before>12*60000)
-     gaps.push('Không có mẫu từ '+new Date(before).toLocaleTimeString('vi-VN')+' đến '+new Date(after).toLocaleTimeString('vi-VN'));
-   }
-   chart='<div class="grid two">'+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+monitorTrend(points,'diskFreeMiB','Dung lượng trống (MiB)')+monitorTrend(points,'rxKiBs','Mạng nhận (KiB/s)')+monitorTrend(points,'txKiBs','Mạng gửi (KiB/s)')+monitorTrend(points,'wifiRssiDbm','Wi-Fi RSSI (dBm)')+'</div><div class="card"><b>Khoảng thời gian thiếu báo cáo</b><p class="help">'+(gaps.length?gaps.slice(-6).map(v=>esc(v)).join(' · '):'Chưa thấy khoảng trống lớn giữa các mẫu đã nhận.')+'</p><small class="muted">Thiếu báo cáo không chứng minh điện thoại tắt nguồn; có thể là Doze, Wi-Fi hoặc Cloudflare gián đoạn.</small></div>';
+   if(state.tab!=='monitor'||version!==state.monitorRenderVersion)return;
+   const target=document.querySelector(`[data-mhc-history="${id}"]`);
+   if(target)target.innerHTML=mhcMonHistoryHtml(entry.points);
   }
+ };
+ await Promise.all(Array.from({length:Math.min(3,queue.length)},worker));
+}
+
+async function mhcMonitorPage(){
+ if(state.monitorLoading)return;
+ state.monitorLoading=true;
+ try{
+  const results=await Promise.allSettled([req('/api/mhc/monitor'),req('/api/mhc/cluster')]);
+  if(state.tab!=='monitor')return;
+  const local=results[0].status==='fulfilled'?results[0].value:null;
+  const shared=results[1].status==='fulfilled'?results[1].value:null;
+  const nodes=Array.isArray(shared?.nodes)?shared.nodes:[];
+  let list=nodes.map(n=>({...n,local:false}));
+  const localMatch=local?.nodeId&&list.find(n=>n.nodeId===local.nodeId);
+  if(localMatch){
+   localMatch.telemetry=local;
+   localMatch.local=true;
+   localMatch.telemetryRecent=Number.isFinite(Date.parse(local.at||''))&&Date.now()-Date.parse(local.at)<180000;
+  }else if(local)list.unshift({nodeId:null,label:local.nodeLabel||local.device||'Panel hiện tại',role:'LOCAL_PANEL',
+    telemetry:local,local:true,heartbeatRecent:true,telemetryRecent:true,lastSeenAt:local.at,metricsAt:local.at});
+  if(!list.length){
+   page('Monitor toàn cụm','<div class="info">Chưa đọc được thông số và danh sách node. Kiểm tra Panel hoặc Cloudflare Authority.</div>');return;
+  }
+  const seen=nodes.filter(n=>n.heartbeatRecent===true).length;
+  const fresh=nodes.filter(n=>n.heartbeatRecent===true&&n.telemetryRecent===true).length;
+  const outdated=nodes.filter(n=>n.heartbeatRecent!==true).length;
+  const banner=results[1].status==='rejected'||shared?.mode==='AUTHORITY_UNAVAILABLE'?
+   '<div class="info danger">Cloudflare Shared Authority chưa phản hồi. Chỉ có số liệu trực tiếp của Panel này; không thể xác minh trạng thái các node khác.</div>':
+   '<p class="mhc-footnote">Các trạng thái lấy từ heartbeat/telemetry, không phải kết quả kiểm tra website hoặc quyền Primary. Không nhận heartbeat không đồng nghĩa điện thoại đã tắt.</p>';
+  const version=(state.monitorRenderVersion||0)+1;
+  state.monitorRenderVersion=version;
   page('Monitor toàn cụm',`
-   <div class="sectionhead"><div><h2>Node đang kết nối</h2><p>Thông số cập nhật khi có heartbeat; không bao gồm dữ liệu riêng tư trên điện thoại.</p></div>${btn('Làm mới','monitor-refresh')}</div>
-   <div class="grid two"><div class="card"><b>Panel đang mở</b><p>${esc(local?.device||'Android')} · máy này</p><p class="help">Thông số trực tiếp tại ${esc(local?.at||'Chưa đọc')}</p>${btn(selected==='local'?'Đang xem':'Chi tiết máy này','monitor-node:local')}</div>${cards||'<div class="card">Chưa có node được Shared Authority trả về.</div>'}</div>
-   <div class="info">Theo dõi toàn cụm: ${esc(shared?.mode||'AUTHORITY_UNAVAILABLE')} · ${nodes.filter(n=>n.heartbeatRecent===true).length}/${nodes.length} node có heartbeat gần đây. Máy hiện tại vẫn đọc được thông số khi Cloudflare mất kết nối.</div>
-   <div class="sectionhead"><div><h2>${esc(selected==='local'?(local?.device||'Máy này'):(chosen?.label||'Node'))}</h2><p>${fresh?'Dữ liệu gần đây':'Chưa có dữ liệu mới'} · Quan sát: ${esc(age||'Chưa có')}</p></div></div>
-   ${alerts.length?'<div class="info">'+alerts.map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>':''}
-   <div class="grid">
-    <div class="card stat"><div class="tag">RAM</div><b>${disp(memUsed,' MiB')}</b><small>Đang sử dụng / ${disp(mem,' MiB')} tổng · Trống ${disp(free,' MiB')}</small></div>
-    <div class="card stat"><div class="tag">LƯU TRỮ</div><b>${disp(diskUsed,' MiB')}</b><small>Đang sử dụng / ${disp(disk,' MiB')} tổng · Trống ${disp(available,' MiB')}</small></div>
-    <div class="card stat"><div class="tag">PIN</div><b>${disp(battery,'%')}</b><small>${esc(m?.battery?.status||'Không đọc được')} · Sức khỏe: ${esc(m?.battery?.health||'—')}</small></div>
-    <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Cảm biến nhiệt độ pin Android</small></div>
-    <div class="card stat"><div class="tag">MẠNG NHẬN</div><b>${disp(num(m?.network?.rxKiBs),' KiB/s')}</b><small>Tốc độ ước tính · /proc/net/dev có thể bị chặn</small></div>
-    <div class="card stat"><div class="tag">MẠNG GỬI</div><b>${disp(num(m?.network?.txKiBs),' KiB/s')}</b><small>${disp(num(m?.network?.interfaces),' giao diện mạng đọc được')}</small></div>
-    <div class="card stat"><div class="tag">WI-FI</div><b>${m?.wifi?.state==='connected'?'Đã kết nối':'Chưa xác định'}</b><small>${wifiSignal===null?'RSSI không đọc được':wifiSignal+' dBm'} · Không thu SSID</small></div>
-    <div class="card stat"><div class="tag">TIẾN TRÌNH NODE.JS</div><b>${nodeJobs.length}</b><small>RAM tiến trình được Android cho phép đọc</small></div>
-    <div class="card stat"><div class="tag">ĐỒNG BỘ DỮ LIỆU</div><b style="font-size:17px">Chưa xác minh</b><small>Heartbeat và backup không đồng nghĩa dữ liệu đã đồng bộ</small></div>
-    <div class="card stat"><div class="tag">UPTIME ANDROID</div><b style="font-size:18px">${esc(mhcDuration(m?.uptimeSec))}</b><small>Android ${esc(m?.android||'—')} · ${esc(m?.device||'—')}</small></div>
-   </div>
-   <div class="sectionhead"><h2>Backup / Snapshot</h2></div>
-   <div class="card"><b>${esc(snap||'Chưa có snapshot được ghi nhận')}</b><p class="help">Lần ghi nhận: ${esc(m?.snapshot?.recordedAt||'Chưa rõ')} · Độ toàn vẹn: chưa xác minh</p></div>
-   <div class="sectionhead"><h2>Tiến trình Node.js (${nodeJobs.length})</h2></div>
-   <div class="tablewrap"><table><thead><tr><th>Ứng dụng</th><th>RAM</th></tr></thead><tbody>${nodeProcessRows||'<tr><td colspan="2">Chưa đọc được tiến trình Node.js</td></tr>'}</tbody></table></div>
-   <div class="sectionhead"><h2>Dịch vụ node</h2></div><div class="tablewrap"><table><thead><tr><th>Dịch vụ</th><th>Trạng thái</th></tr></thead><tbody>${serviceRows}</tbody></table></div>
-   <div class="sectionhead"><h2>Lịch sử đo đạc</h2></div>${chart}
-   <div class="help">Lịch sử lấy mẫu tối đa 12 giờ, mỗi 5 phút, chỉ khi Agent đang gửi dữ liệu về Cloudflare. Heartbeat không xác nhận website, database hoặc quyền Primary. Không đọc được chỉ số sẽ hiển thị — thay vì tự suy đoán.</div>
+   <section class="mhc-monitor-head"><div><h2>Toàn bộ node</h2><p>Mở Monitor là thấy tất cả thiết bị và dịch vụ, tự cập nhật sau mỗi 15 giây.</p></div>
+    ${btn('Làm mới','monitor-refresh','primary')}</section>
+   <div class="mhc-monitor-totals"><div><span>Node đã đăng ký</span><strong>${nodes.length}</strong></div><div><span>Nhận heartbeat</span><strong>${seen}</strong></div><div><span>Đang gửi thông số</span><strong>${fresh}</strong></div><div><span>Mất tín hiệu</span><strong>${outdated}</strong></div></div>
+   ${banner}
+   <div class="mhc-all-nodes">${list.map(n=>mhcMonCard(n,n.local===true)).join('')}</div>
+   <p class="mhc-footnote">Không hiển thị chỉ số CPU vì Android thường không cấp quyền đọc. Các chỉ số không đo được để trống, không tự suy đoán. Biểu đồ có thể cần thêm thời gian tích lũy mẫu.</p>
   `);
+  // Important: history is optional; displaying live cards never waits for it.
+  mhcMonLoadHistory(list,version).catch(()=>{});
  }finally{state.monitorLoading=false;}
 }
+
 // No polling occurs before authentication; a single tab may refresh only while visible.
 setInterval(()=>{if(state.user&&state.tab==='monitor'&&!document.hidden)mhcMonitorPage().catch(()=>{});},15000);
 async function mhcModulesPage(){
@@ -316,10 +380,7 @@ const actions={
  'file-delete':async()=>{const file=state.selectedFile;if(!file||!confirm('Xóa '+file+'?'))return;await req(`/api/files/${state.selectedSite}/delete`,{method:'POST',body:{path:file,confirm:file}});state.selectedFile='';filesPage();},
 };
 async function dynamicAction(key,element){let [type,...rest]=key.split(':');const value=rest.join(':');
- if(type==='monitor-refresh'){state.monitorHistory=null;await mhcMonitorPage();return;}
- if(type==='monitor-node'){
-  state.monitorSelected=value||'local';state.monitorHistory=null;await mhcMonitorPage();return;
- }
+ if(type==='monitor-refresh'){state.monitorHistoryCache=new Map();await mhcMonitorPage();return;}
  if(type==='cluster-invite'){
   if(!confirm('Tạo mã ghép một lần, hết hạn sau 10 phút? Mã cũ chưa dùng sẽ không còn hiệu lực.'))return;
   const x=await req('/api/mhc/pairing/invite',{method:'POST',body:{}});
