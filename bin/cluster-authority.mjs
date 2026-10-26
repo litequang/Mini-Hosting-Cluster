@@ -147,6 +147,7 @@ export async function sharedAction(body){
  return authorityRequest(config('panel'),body.action,{requestId:body.requestId,expectedRevision:body.expectedRevision,
   ...(body.action==='begin'?{targetNodeId:body.id}:{operationId:body.id})});
 }
+let lastTelemetryWarning=0;
 async function heartbeat(){
  const c=config('agent'),s=await authorityRequest(c,'status');
  let telemetry=null;
@@ -154,7 +155,14 @@ async function heartbeat(){
   // This module is deployed to Termux with the agent; no raw files or PII sent.
   const module=await import('./node-monitor.mjs');
   telemetry=module.compactTelemetry(await module.collectNodeMetrics());
- }catch{/* monitoring failure must never block membership heartbeat */}
+ }catch(error){
+  // Keep cluster heartbeat alive, but report a bounded non-secret error class for diagnosis.
+  if(Date.now()-lastTelemetryWarning>300000){
+   const kind=String(error?.code||error?.name||'COLLECTOR_ERROR').replace(/[^A-Z0-9_]/gi,'').slice(0,45);
+   console.error('MHC_MONITOR_V2_COLLECT_FAILED',kind);
+   lastTelemetryWarning=Date.now();
+  }
+ }
  return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now(),...(telemetry?{telemetry}:{})});
 }
 
