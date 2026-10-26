@@ -37,3 +37,11 @@ User log 12:17–12:18 UTC cho thấy browser request đến origin có JWT như
 - Log `RUNSVDIR_MISSING`: `~/mhc-full node-doctor --repair`, kiểm tra `$PREFIX/etc/profile.d/start-services.sh`, `sv status ...`, và log runit; boot script cũ được backup trước khi thay.
 - Agent RUNNING nhưng Monitor không có node: chẩn đoán `WORKER_NEEDS_MONITOR_DEPLOY` vs `MONITOR_SCHEMA_V2`, xác minh Worker đã deploy đúng `mhc-cluster-authority-lab`, Agent có private authority config, và heartbeat. Nếu chỉ dữ liệu cũ, đợi heartbeat mới; không đánh đồng máy offline.
 - `termux-battery-status` không có JSON dù đã cài `pkg termux-api`: xác minh ứng dụng Termux:API từ nguồn ký tương thích, chạy mở ứng dụng, cấp quyền/battery unrestricted, kiểm tra lại. Không in secrets/tokens hay xóa dữ liệu.
+
+
+## Node hiển thị CHƯA CÓ MONITOR V2 (2026-10-26)
+- UI chỉ có heartbeat, chưa có `node.telemetry` trong phản hồi Shared Authority. Có thể do Worker còn schema M2 cũ, Agent còn mã cũ, Agent không chạy, hoặc collector bị lỗi; không chứng minh điện thoại offline.
+- Trên điện thoại: `~/mhc-full node-doctor --check`. Bản chuẩn từ GitHub `e36b804a237b34c5042c853fc87656df10b801e9` phân biệt `Local Monitor v2: MONITOR_V2_OK` / COLLECT_FAILED / TIMEOUT, `Cloudflare shared Monitor: MONITOR_SCHEMA_V2` / WORKER_NEEDS_MONITOR_DEPLOY, và trạng thái `mhc-authority-agent`.
+- Nếu `WORKER_NEEDS_MONITOR_DEPLOY`: triển khai `reference/cluster-authority/worker.mjs` của nhánh đúng vào Worker **hiện có** `mhc-cluster-authority-lab`; giữ nguyên DO/secrets. Không cài Termux:API lại để sửa lỗi Worker.
+- Nếu local collector OK, Worker V2, nhưng node vẫn thiếu telemetry: kiểm tra service `sv status "$PREFIX/var/service/mhc-authority-agent"`, boot và `node "$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs" status` (không cần in secret). Agent đã được cập nhật ghi log dạng `MHC_MONITOR_V2_COLLECT_FAILED <error-class>` tối đa 1 lần/5 phút.
+- Có pin phần trăm `unknown` nhưng `MONITOR_V2_OK` nghĩa là API pin lỗi riêng, **không** phải lý do thiếu toàn bộ telemetry v2. Chỉ xử lý Termux:API sau khi kiểm tra collector/Worker.
