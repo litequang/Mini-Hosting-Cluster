@@ -34,26 +34,49 @@ async function keysFor(team,fetcher){
   cache={team,keys,expires:Date.now()+300000};return keys;
  }finally{clearTimeout(timer);}
 }
-export async function verifyAccess(token,c,fetcher=fetch){
- if(typeof token!=='string'||token.length>12000||!TOKEN.test(token))return false;
+
+// Internal-only, rate-limited rejection codes. Never log JWTs, cookies, claims or raw host values.
+const deniedAt=new Map();
+function deny(reason){
+ const now=Date.now();
+ if(now-(deniedAt.get(reason)||0)>30000){
+  deniedAt.set(reason,now);
+  console.warn('MHC_REMOTE_ACCESS_DENIED',reason);
+ }
+ return null;
+}
+export async function verifyAccess(token,c,fetcher=fetch,onReject=()=>{}){
+ const reject=reason=>{onReject(reason);return false;};
+ if(token===undefined||token===null||token==='')return reject('JWT_MISSING');
+ if(typeof token!=='string'||token.length>12000||!TOKEN.test(token))return reject('JWT_FORMAT');
  try{
-  const parts=token.split('.');const header=JSON.parse(decode64(parts[0]).toString('utf8'));
+  const parts=token.split('.');
+  const header=JSON.parse(decode64(parts[0]).toString('utf8'));
   const claims=JSON.parse(decode64(parts[1]).toString('utf8'));
-  if(header.alg!=='RS256'||header.typ!=='JWT'||typeof header.kid!=='string'||header.kid.length>256)return false;
+  if(header.alg!=='RS256'||header.typ!=='JWT'||typeof header.kid!=='string'||header.kid.length>256)return reject('JWT_HEADER_INVALID');
   const now=Math.floor(Date.now()/1000);
-  if(claims.iss!==`https://${c.teamDomain}`||!(Array.isArray(claims.aud)?claims.aud.includes(c.audience):claims.aud===c.audience)||
-    !Number.isSafeInteger(claims.exp)||claims.exp<=now||claims.exp>now+86400||
-    (claims.nbf!==undefined&&(!Number.isSafeInteger(claims.nbf)||claims.nbf>now+30))||
-    (claims.iat!==undefined&&(!Number.isSafeInteger(claims.iat)||claims.iat>now+30)))return false;
-  const keys=await keysFor(c.teamDomain,fetcher);
-  const jwk=keys.find(k=>k.kid===header.kid);if(!jwk)return false;
-  return crypto.verify('RSA-SHA256',Buffer.from(parts[0]+'.'+parts[1]),crypto.createPublicKey({key:jwk,format:'jwk'}),decode64(parts[2]));
- }catch{return false;}
+  if(claims.iss!==`https://${c.teamDomain}`)return reject('JWT_ISSUER_MISMATCH');
+  if(!(Array.isArray(claims.aud)?claims.aud.includes(c.audience):claims.aud===c.audience))return reject('JWT_AUDIENCE_MISMATCH');
+  if(!Number.isSafeInteger(claims.exp)||claims.exp<=now)return reject('JWT_EXPIRED_OR_INVALID');
+  if(claims.exp>now+86400)return reject('JWT_EXPIRY_OVER_POLICY');
+  if(claims.nbf!==undefined&&(!Number.isSafeInteger(claims.nbf)||claims.nbf>now+30))return reject('JWT_NOT_YET_VALID');
+  if(claims.iat!==undefined&&(!Number.isSafeInteger(claims.iat)||claims.iat>now+30))return reject('JWT_IAT_IN_FUTURE');
+  let keys;
+  try{keys=await keysFor(c.teamDomain,fetcher);}catch{return reject('JWKS_FETCH_FAILED');}
+  const jwk=keys.find(k=>k.kid===header.kid);
+  if(!jwk)return reject('JWKS_KID_UNKNOWN');
+  if(!crypto.verify('RSA-SHA256',Buffer.from(parts[0]+'.'+parts[1]),crypto.createPublicKey({key:jwk,format:'jwk'}),decode64(parts[2])))return reject('JWT_SIGNATURE_INVALID');
+  return true;
+ }catch{return reject('JWT_PARSE_OR_CRYPTO_ERROR');}
 }
 export async function authorizeRequest(req,port,fetcher=fetch){
  const host=String(req.headers.host||'').toLowerCase();
  if(host===`127.0.0.1:${port}`||host===`localhost:${port}`)return {remote:false,host};
- const c=config();if(!c||host!==c.hostname)return null;
- if(!(await verifyAccess(req.headers['cf-access-jwt-assertion'],c,fetcher)))return null;
+ const c=config();
+ if(!c)return deny('REMOTE_CONFIG_INVALID');
+ // Some reverse proxies include the standard HTTPS port in Host.
+ if(host!==c.hostname&&host!==c.hostname+':443')return deny('HOST_MISMATCH');
+ let reason='JWT_REJECTED';
+ if(!(await verifyAccess(req.headers['cf-access-jwt-assertion'],c,fetcher,r=>{reason=r;})))return deny(reason);
  return {remote:true,host};
 }
