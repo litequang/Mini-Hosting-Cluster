@@ -1,3 +1,9 @@
+## 26/10/2026 — P3 manual Primary LAB route source (NOT production-ready)
+- Implemented opt-in exact-allowlist Cloudflare DNS adapter with pre-verified CNAME targets, crash-retry-safe DO `ROUTING_REQUESTED` and `DNS_SWITCHED_AWAITING_HTTP_CONFIRM` phases, 30s resume guard, operator attestations in original Panel, and metadata `declaredPrimary` only after public HTTP/Panel operator confirmation.
+- No default DNS mutation: Worker requires explicitly enabled `MHC_P3_LAB_ENABLED`, privately configured `MHC_P3_CF_TOKEN`, `MHC_P3_ROUTES_JSON`, and initial incumbent UUID. Existing M2 monitoring/join not promoted or re-routed by source commit.
+- Mocked DNS adapter isolated evaluation **PASS**: site then panel DNS checks/patches, no duplicate PATCH on repeat, unexpected DNS content refused, feature disabled by default. JS syntax check of Worker, UI, route adapter PASS; Node test runner, device/Worker/Access real tests NOT RUN.
+- **P3 remains INCOMPLETE end to end:** cannot independently fence old DB/site writers, start target services or verify actual target application/Panel; no independent recovery-panel route if incumbent phone is dead. Do not declare live true Primary or safe automatic failover. Details `docs/P3-LAB-MANUAL-CUTOVER.md`.
+
 ## 26/10/2026 — Roadmap thêm Cloudflare multi-domain auto-subdomain
 - Đã ghi **P2.5** trong `docs/ROADMAP-TO-V1.md`: list domains theo zone permissions, chọn domain + subdomain từ Mini Hosting, DNS/Tunnel ingress/Nginx tự cấu hình bằng API, HTTPS verify, rollback, không cần IP tĩnh; token ở control plane, wildcard optional; route adapter dùng chung P3/P4.
 - **SOURCE STATE VERIFIED**: `Mini Hosting > Thêm website` hiện `/api/sites` chỉ tạo thư mục/Nginx và dịch vụ Node.js. `/api/domains` báo `manual:true`. Không có Cloudflare DNS/Tunnel mutation trong đường tạo website; cần implement P2.5. Không tuyên bố đã tự tạo subdomain.
