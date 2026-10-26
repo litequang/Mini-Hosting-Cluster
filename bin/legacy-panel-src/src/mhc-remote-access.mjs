@@ -53,7 +53,11 @@ export async function verifyAccess(token,c,fetcher=fetch,onReject=()=>{}){
   const parts=token.split('.');
   const header=JSON.parse(decode64(parts[0]).toString('utf8'));
   const claims=JSON.parse(decode64(parts[1]).toString('utf8'));
-  if(header.alg!=='RS256'||header.typ!=='JWT'||typeof header.kid!=='string'||header.kid.length>256)return reject('JWT_HEADER_INVALID');
+  if(!header||typeof header!=='object'||Array.isArray(header))return reject('JWT_HEADER_INVALID');
+  if(header.alg!=='RS256')return reject('JWT_ALG_UNSUPPORTED');
+  // RFC 7519 §5.1 makes "typ" optional. If specified, it must identify a JWT.
+  if(header.typ!==undefined&&(typeof header.typ!=='string'||header.typ.toUpperCase()!=='JWT'))return reject('JWT_TYP_UNSUPPORTED');
+  if(typeof header.kid!=='string'||header.kid.length===0||header.kid.length>256)return reject('JWT_KID_INVALID');
   const now=Math.floor(Date.now()/1000);
   if(claims.iss!==`https://${c.teamDomain}`)return reject('JWT_ISSUER_MISMATCH');
   if(!(Array.isArray(claims.aud)?claims.aud.includes(c.audience):claims.aud===c.audience))return reject('JWT_AUDIENCE_MISMATCH');
