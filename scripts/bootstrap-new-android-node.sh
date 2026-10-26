@@ -22,6 +22,11 @@ mkdir -p "$(dirname "$src")"
 echo '[2/5] Fetching the canonical complete MHC source'
 git clone --depth 1 --single-branch --branch codex/m1-m2-foundation \
  https://github.com/litequang/Mini-Hosting-Cluster.git "$src" || fail 'Git clone failed; inspect network'
+# Keep all new phones on exactly the same released source revision.
+release='cfeffaccb89d112eb91e929806c0b6b147e838c6'
+git -C "$src" fetch --depth 1 origin "$release" || fail 'Pinned MHC release fetch failed'
+git -C "$src" checkout --detach FETCH_HEAD >/dev/null || fail 'Pinned MHC release checkout failed'
+[[ "$(git -C "$src" rev-parse HEAD)" == "$release" ]] || fail 'Released source revision mismatch'
 [[ -f "$src/install.sh" && -f "$src/bin/node-monitor.mjs" &&
    -f "$src/bin/legacy-panel-src/src/mhc-remote-access.mjs" ]] || fail 'Partial source checkout'
 echo '[3/5] Running supported original full installer, fresh node only'
