@@ -1,3 +1,10 @@
+## 26/10/2026 — unified Monitor V3 expanded release
+
+- **SOURCE PUSHED**: every Shared Authority node visible as expanded card in original Panel 9090 Monitor, no click to expand; pin/temperature/RAM/storage/Wi-Fi/network/uptime/service states, Node.js process RSS, snapshots, unverified sync, freshness, 12-hour per-node trends. Local/current nodes first; 15s polling and lazy history loads. CPU fully hidden in UI and CPU fallback collection removed.
+- **UPDATED USER-VISIBLE ERROR**: `CHƯA CÓ MONITOR V2` where the node's heartbeat exists but no new telemetry; `DỮ LIỆU ĐÃ CŨ` for old metrics; `MẤT TÍN HIỆU` for stale heartbeat. No false claims about offline.
+- **RELEASE INSTALLER** `scripts/update-existing-android-node.sh` at commit `33480440f9b5e7652467ff59d31a67332c231dc0`, pinned to code snapshot `30e64673f84f035394e1c2a8069f68198acc5e5f`. Validated all **13** GitHub blob hashes match, JavaScript page parsed, static UI/state/security checks passed. Corrected check for ESM modules via stdin and rollback on explicit install failures.
+- **NOT RUN**: Termux physical source install, browser render on real Vsmart/XZ3 and Cloudflare Worker deploy in this session. User must run installer on both nodes and confirm `APPLIED_OK` and Monitor UI. Worker supports telemetry only after separate deployment. No change to production Primary or routing.
+
 # MHC — trạng thái thực thi duy nhất
 
 ## 26/10/2026 — monitor installer failure fixed, CPU hidden, legacy node card improved
