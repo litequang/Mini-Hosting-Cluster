@@ -4,6 +4,14 @@ Cập nhật sau checkpoint có ý nghĩa; không sao chép trạng thái sang b
 
 Branch `codex/m1-m2-foundation`. Ngày ghi nhận 26/10/2026. Vsmart Termux aarch64, Node v26.12.1, PHP 8.5.12, SSH `192.168.1.4:8022`. Người dùng cho phép push checkpoint.
 
+## Bổ sung 26/10/2026 — hai Android M2 có heartbeat (bằng chứng người dùng)
+
+- **OBSERVED BY USER (17:19 giờ VN)**: Vsmart-LAB và Sony-XZ3 đã truy cập cùng Cloudflare authority; output `~/mhc-full cluster-authority status` từ Sony hiển thị `nodeCount:2`, `mode:SHARED_AUTHORITY_PREPARE_ONLY`, Vsmart `4ed4c025-62ae-4c2a-8d68-65dd76ecf550` và XZ3 `4a9672d1-bb62-4286-946a-a78b73e57b24` đều có `heartbeatRecent:true` tại thời điểm đọc; cluster ID `2c1ea7c0-1d1f-4802-8336-0925a529c431`. Đây là lần đầu có bằng chứng người dùng về **hai máy Android thật** cùng authority; Codex chưa tự nghiệm thu reboot, failover, browser hoặc cutover.
+- **Not M3/M4**: `declaredPrimary:null`, `revision:0`, `writeLeaseGranted:false`, `automaticFailover:false`, `canComplete:false`. Đăng ký/heartbeat thật KHÔNG chứng minh website, replication, fence hoặc HA.
+- **UI source đã push**: commit `f0c94a4` thay `bin/legacy-panel-src/public/app.js` để sửa bảng Heartbeat thiếu dữ liệu (`heartbeatRecent/lastSeenAt`) và thêm tổng quan Cluster ngắn + trang kỹ thuật LAB cũ; JS parse PASS, GitHub re-fetch PASS; **chưa có browser Android test**. Các node phải source-only upgrade và `hosting-panel apply` riêng mới nhìn thấy bản này.
+- **Public Panel Access còn lỗi**: khi cả hai máy offline user nhận Cloudflare 1033; sau online `panel.giaouoc.com` nhận `{"error":"Remote Access verification required"}` từ Panel origin. Chưa kết luận nguyên nhân; cần xác nhận route thực đang đến node nào, `remote-panel status`, trạng thái Tunnel và Access JWT Team Domain/AUD; không tắt xác minh JWT. Xem `docs/CLUSTER-UI-HEARTBEAT-REMOTE-ACCESS-2026-10-26.md`.
+- Các ghi nhận `NOT RUN` về Worker thật/hai Android trong checkpoint lịch sử phía dưới là **trước** bằng chứng mới và cần được phân biệt theo thời điểm; phần Panel Internet end-to-end và tuyến dự phòng vẫn **CHƯA ĐẠT**.
+
 ## M1 — Hosting một node: IN PROGRESS
 
 - **Hoạt động thực:** source-only upgrade và Panel 9090; mật khẩu mới giữ nguyên; login/session/CSRF; static demo, nginx → PHP-FPM, MariaDB, WordPress LAB HTTP. Tạo/đọc bài và nhập ảnh WP-CLI; thêm đăng nhập HTTP, nonce, multipart upload ảnh và GET ảnh thật qua nginx/PHP/DB. Backup site/SQL, checksum, restore vào DB/thư mục riêng, phục vụ bản restore HTTP. Site gốc và Panel khỏe sau rehearsal.
