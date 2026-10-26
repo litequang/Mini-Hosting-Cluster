@@ -12,12 +12,14 @@ PASS="$(openssl rand -hex 24)"
 mariadb --no-defaults -u root -e 'SELECT 1' >/dev/null || { echo 'MariaDB local root socket not available';exit 1; }
 mkdir -p "$DIR"; chmod 700 "$DIR"
 trap 'echo "WordPress provisioning interrupted. Inspect site directory and DB before retry."' ERR
+# Download/extract first: a network or PHP memory failure must not create orphan DB users.
+(cd "$DIR" && wp core download --allow-root)
 mariadb --no-defaults -u root <<SQL
 CREATE DATABASE \`$DB\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER '$DBUSER'@'localhost' IDENTIFIED BY '$PASS';
 GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$DBUSER'@'localhost';
 SQL
-(cd "$DIR" && wp core download --allow-root && wp config create --dbname="$DB" --dbuser="$DBUSER" --dbpass="$PASS" --dbhost=localhost --skip-check --allow-root)
+(cd "$DIR" && wp config create --dbname="$DB" --dbuser="$DBUSER" --dbpass="$PASS" --dbhost=localhost --skip-check --allow-root)
 chmod 600 "$DIR/wp-config.php"
 cat > "$CONF/$SLUG.env" <<CFG
 SITE_SLUG=$SLUG
