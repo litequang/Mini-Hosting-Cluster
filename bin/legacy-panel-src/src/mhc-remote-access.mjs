@@ -19,7 +19,7 @@ export function config(){
   return {hostname:c.hostname,teamDomain:c.teamDomain,audience:c.audience};
  }catch{return null;}
 }
-export function publicStatus(){const c=config();return {configured:!!c,remoteHostname:c?.hostname||null,accessJwtRequired:true,usesOriginalPanel:true,port:9090,cloudflareAccessDeploymentVerified:false,controllerRoleVerified:false,notice:c?'Remote HTTPS requires a valid Cloudflare Access JWT AND Panel password. This configuration does not create a Tunnel, Access policy or controller.':'Remote panel is disabled. Localhost/SSH forwarding remains available.'};}
+export function publicStatus(){const c=config();return {configured:!!c,remoteHostname:c?.hostname||null,accessJwtRequired:true,usesOriginalPanel:true,port:9090,cloudflareAccessDeploymentVerified:false,controllerRoleVerified:false,notice:c?'Remote HTTPS requires a verified Cloudflare Access JWT and an Access Allow policy. Panel password remains available only on localhost/SSH forwarding.':'Remote panel is disabled. Localhost/SSH forwarding remains available.'};}
 function decode64(s){if(s.length>16384||!/^[A-Za-z0-9_-]+$/.test(s))throw Error('Invalid JWT encoding');return Buffer.from(s,'base64url');}
 async function keysFor(team,fetcher){
  if(cache.team===team&&Date.now()<cache.expires&&cache.keys.length)return cache.keys;
