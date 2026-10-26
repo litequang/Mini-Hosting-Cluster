@@ -13,7 +13,7 @@ function safeParent(){const d=path.dirname(dest);const st=fs.lstatSync(d);if(!st
 function read(){try{const st=fs.lstatSync(dest);if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)||st.size>2048)stop('Unsafe configuration');return JSON.parse(fs.readFileSync(dest,'utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}}
 const [cmd,...args]=process.argv.slice(2);
 try{
- if(cmd==='plan')console.log(JSON.stringify({mode:'CONFIGURE_ONLY',panel:'original localhost:9090',requires:['Cloudflare Access self-hosted application with identity policy','Named Cloudflare Tunnel (on independent controller) published HTTPS hostname -> http://127.0.0.1:9090','Account Team Domain + application Audience Tag','Valid Access JWT at origin AND Panel password'],changesCloudflare:false,opensTcpPort:false,changesPrimary:false},null,2));
+ if(cmd==='plan')console.log(JSON.stringify({mode:'CONFIGURE_ONLY',panel:'original localhost:9090 on each node',requires:['Cloudflare Access self-hosted application with identity policy','Node Tunnel published HTTPS hostname -> http://127.0.0.1:9090; shared management failover requires a separate routing plan','Account Team Domain + application Audience Tag','Valid Access JWT at origin AND Panel password'],changesCloudflare:false,opensTcpPort:false,changesPrimary:false},null,2));
  else if(cmd==='status') {const c=read();console.log(JSON.stringify({configured:!!c,hostname:c?.hostname||null,accessJwtRequired:!!c,cloudflareDeployedVerified:false,controllerRoleVerified:false},null,2));}
  else if(cmd==='configure'){
   const [host,team,aud,confirm]=args;

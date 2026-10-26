@@ -11,6 +11,61 @@ const home=()=>process.env.HOME||os.homedir();
 const configPath=()=>path.join(home(),'.config/mhc-full-installer/authority.json');
 export function authorityConfigured(){try{fs.lstatSync(configPath());return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
 function privateRead(file){const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)||st.size>8192)throw Error('AUTHORITY_PRIVATE_FILE_UNSAFE');return fs.readFileSync(file,'utf8');}
+function labDirectory(){
+ const dir=path.dirname(configPath()),st=fs.lstatSync(dir);
+ if(!st.isDirectory()||st.isSymbolicLink()||(st.mode&0o077))throw Error('AUTHORITY_CONFIG_DIRECTORY_UNSAFE');
+ if(['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'].some(p=>fs.existsSync(path.join(home(),p))))throw Error('PRODUCTION_FOOTPRINT_BLOCKS_AUTHORITY_LAB');
+ if(fs.readFileSync(path.join(dir,'installed'),'utf8').trim()!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux'||fs.existsSync(path.join(dir,'install-incomplete')))throw Error('UPGRADE_TEST_SOURCE_FIRST');
+ return dir;
+}
+function writeExclusive(file,value){
+ // Android may prohibit hardlinks. Serialize cooperating writers with a private
+ // lock directory, then atomically rename only after an absent-target check.
+ // Crash leaves a lock for inspection; never remove another writer's lock.
+ const lock=file+'.lock',tmp=file+'.'+crypto.randomUUID()+'.tmp';
+ fs.mkdirSync(lock,{mode:0o700});
+ try{
+  if(fs.lstatSync(file,{throwIfNoEntry:false}))throw Object.assign(Error('EXISTING_PRIVATE_FILE'),{code:'EEXIST'});
+  const fd=fs.openSync(tmp,'wx',0o600);
+  try{fs.writeFileSync(fd,value);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  fs.renameSync(tmp,file);
+ }finally{if(fs.existsSync(tmp))fs.unlinkSync(tmp);fs.rmdirSync(lock);}
+}
+function enrollment(){
+ const dir=labDirectory(),self=JSON.parse(privateRead(path.join(dir,'node-identity.json')));
+ if(!UUID.test(self.nodeId)||typeof self.label!=='string'||!self.label.length||self.label.length>80)throw Error('RUN_NODE_INIT_FIRST');
+ const file=path.join(dir,'authority-enrollment.json');
+ let value;
+ try{value=JSON.parse(privateRead(file));}catch(e){
+  if(e.code!=='ENOENT')throw e;
+  value={schema:1,nodeId:self.nodeId,label:self.label,agentKey:crypto.randomBytes(32).toString('base64url'),panelKey:crypto.randomBytes(32).toString('base64url')};
+  try{writeExclusive(file,JSON.stringify(value)+'\n');}catch(err){if(err.code!=='EEXIST')throw err;value=JSON.parse(privateRead(file));}
+ }
+ if(value.schema!==1||value.nodeId!==self.nodeId||value.label!==self.label||![value.agentKey,value.panelKey].every(k=>/^[A-Za-z0-9_-]{43,128}$/.test(k))||value.agentKey===value.panelKey)throw Error('AUTHORITY_ENROLLMENT_INVALID');
+ return {dir,file,value};
+}
+export function prepareEnrollment(){const {file,value}=enrollment();return {nodeId:value.nodeId,label:value.label,privateEnrollmentFile:file,configured:authorityConfigured(),writeLeaseGranted:false};}
+export async function configureAuthority(origin,clusterId){
+ const {dir,value}=enrollment();
+ const base={schema:1,url:origin,clusterId,nodeId:value.nodeId};
+ // Both role credentials must work against the live endpoint before installing anything.
+ const agent=await authorityRequest({...base,token:value.agentKey},'status');
+ const panel=await authorityRequest({...base,token:value.panelKey},'status');
+ if(![agent,panel].every(s=>s.nodes.some(n=>n.nodeId===value.nodeId)))throw Error('AUTHORITY_MEMBERSHIP_MISSING');
+ const credentialDir=path.join(dir,'authority-credentials');
+ try{fs.mkdirSync(credentialDir,{mode:0o700});}catch(e){if(e.code!=='EEXIST')throw e;}
+ const st=fs.lstatSync(credentialDir);if(!st.isDirectory()||st.isSymbolicLink()||(st.mode&0o077))throw Error('AUTHORITY_CREDENTIAL_DIRECTORY_UNSAFE');
+ for(const [role,key] of [['agent',value.agentKey],['panel',value.panelKey]]){
+  const file=path.join(credentialDir,role+'-token');
+  try{writeExclusive(file,key+'\n');}catch(e){if(e.code!=='EEXIST')throw e;if(privateRead(file).trim()!==key)throw Error('EXISTING_AUTHORITY_TOKEN_DIFFERS');}
+  base[role+'TokenFile']=file;
+ }
+ if(authorityConfigured()){
+  const old=JSON.parse(privateRead(configPath()));
+  if(Object.keys(base).some(k=>old[k]!==base[k]))throw Error('EXISTING_AUTHORITY_CONFIG_DIFFERS');
+ }else writeExclusive(configPath(),JSON.stringify(base,null,2)+'\n');
+ return {configured:true,nodeId:value.nodeId,clusterId,mode:panel.mode,revision:panel.revision,writeLeaseGranted:false,serviceInstalled:false};
+}
 function config(role){
  const p=configPath(),dir=fs.lstatSync(path.dirname(p));if(!dir.isDirectory()||dir.isSymbolicLink()||(dir.mode&0o077))throw Error('AUTHORITY_CONFIG_DIRECTORY_UNSAFE');
  const c=JSON.parse(privateRead(p));
@@ -45,6 +100,8 @@ export async function sharedAction(body){
 }
 async function heartbeat(){const c=config('agent'),s=await authorityRequest(c,'status');return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now()});}
 async function main(args){
+ if(args.length===1&&args[0]==='prepare')return prepareEnrollment();
+ if(args.length===4&&args[0]==='configure'&&args[3]==='--confirm=CONFIGURE_LAB_PREPARE_ONLY')return configureAuthority(args[1],args[2]);
  if(args[0]==='service-install'){
   if(args.length!==2||args[1]!=='--confirm=INSTALL_LAB_AUTHORITY_AGENT'||process.env.PREFIX!=='/data/data/com.termux/files/usr')throw Error('LAB_TERMUX_SERVICE_CONFIRMATION_REQUIRED');
   config('agent');

@@ -3,6 +3,9 @@
 ## M1/M2 đang triển khai 26/10/2026
 - `reference/cluster-authority/`: Worker/DO cho shared membership + pending preparation, chưa cấp writer/route.
 - `bin/cluster-authority.mjs`: client private config, heartbeat/watch/runit agent, shared Panel request.
+- `reference/cluster-authority/prepare-secrets.mjs`: gom enrollment private cho Wrangler, không xuất token.
+- `bin/prepare-panel-tunnel-token.sh`: nhập Tunnel token ẩn trên TTY Termux LAB.
+- `tests/authority-http-panels.mjs`: hai Panel HTTP process + HTTPS client, DO storage fixture, chạy POSIX/Termux.
 - `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
 - `docs/LIVE-PROGRESS.md`: nguồn trạng thái thực thi duy nhất, checkpoint và bằng chứng.
 - `docs/CONTINUE-MHC.md`: kết nối/phục hồi sau gián đoạn, GitHub branch.

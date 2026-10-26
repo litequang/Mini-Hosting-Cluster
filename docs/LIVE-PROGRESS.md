@@ -6,26 +6,29 @@ Branch `codex/m1-m2-foundation`. Ngày ghi nhận 26/10/2026. Vsmart Termux aarc
 
 ## M1 — Hosting một node: IN PROGRESS
 
-- **Hoạt động thực:** source-only upgrade và Panel 9090; mật khẩu mới giữ nguyên; login/session/CSRF; static demo, nginx → PHP-FPM, MariaDB, WordPress LAB HTTP. Tạo/đọc bài và nhập ảnh qua WP-CLI thật. Backup site/SQL, checksum, restore vào DB/thư mục riêng, phục vụ bản restore qua HTTP. Site gốc và Panel khỏe sau rehearsal.
+- **Hoạt động thực:** source-only upgrade và Panel 9090; mật khẩu mới giữ nguyên; login/session/CSRF; static demo, nginx → PHP-FPM, MariaDB, WordPress LAB HTTP. Tạo/đọc bài và nhập ảnh WP-CLI; thêm đăng nhập HTTP, nonce, multipart upload ảnh và GET ảnh thật qua nginx/PHP/DB. Backup site/SQL, checksum, restore vào DB/thư mục riêng, phục vụ bản restore HTTP. Site gốc và Panel khỏe sau rehearsal.
 - **Commit mã triển khai:** `889786e` (base full upgrade `f05f569`). SHA256 ba script sửa cuối khớp source trên node.
 - **PASS — Windows mock/source:** service environment, guard management, authority/storage fixture và nhóm hồi quy liên quan.
 - **PASS — Vsmart Android:** full source self-test `ba0be57`, full installer self-test `f05f569`; focused `wordpress-provision`, `site-probe-cleanup`, `integration-backup`, `static-sites`, `node-clone` ở `889786e` (runner dùng fixtures dù chạy Android). HTTP/SQL/Panel và backup→restore trên là runtime thật; log `~/mhc-lab-runs/m1-m2-20261026/acceptance.log`.
 - **FAIL đã xử lý:** executable bit từ Windows tar; WP-CLI TAR thiếu file, PHP memory limit/socket MariaDB; probe EXIT trap; curl pipefail trong helper. Nhóm liên quan đã chạy lại PASS. Exit 23 cũ trong `final-deploy.log` không còn là lỗi chưa xử lý.
-- **NOT RUN:** reboot/Doze Android, upload qua trình duyệt WP, full suite lại ở `889786e` (đã chạy nhóm chịu ảnh hưởng), nhiều Android.
-- **Thiếu DoD:** M1-05 reboot/lifecycle; kiểm giao diện upload HTTP. Không gọi M1 DONE chỉ vì hosting hoạt động.
+- **NOT RUN:** reboot/Doze Android, thao tác giao diện trình duyệt (đường HTTP upload đã PASS bằng client), full suite lại ở `889786e` (đã chạy nhóm chịu ảnh hưởng), nhiều Android.
+- **Thiếu DoD:** M1-05 reboot/lifecycle. Có `~/.termux/boot/10-start-hosting`, chưa chứng minh tự hồi phục sau reboot. Không gọi M1 DONE chỉ vì hosting hoạt động.
 - **Blocker cần user:** reboot vật lý/Termux:Boot và mở lại Termux nếu Android không tự chạy; chưa reboot từ SSH không đặc quyền.
-- **Việc tiếp theo:** kiểm boot setup chỉ đọc và upload WordPress HTTP; sau đó tập trung M2, không lặp full self-test đã đạt.
+- **Việc tiếp theo:** phối hợp reboot thực khi có người mở lại Termux nếu cần; chuyển trọng tâm thi công sang M2 trong lúc chờ, không lặp full self-test đã đạt.
 
 ## M2 — Panel mọi node và authority chung: IN PROGRESS
 
-- **Hoạt động thực:** Panel nâng cấp trên Vsmart; chưa bật authority.json/agent chung trên site đang phục vụ.
+- **Hoạt động thực:** Panel nâng cấp trên Vsmart; origin Access JWT đã cấu hình với Team/AUD user cung cấp cho `panel.giaouoc.com`, JWKS HTTPS reachable, restart riêng Panel và auth/CSRF/password PASS. Chưa bật authority.json/agent chung trên site đang phục vụ. Cloudflared 2026.10.3 sẵn có; helper nhập Tunnel token đã đặt trên node, chưa khởi chạy connector mới.
 - **Mới có source:** Worker/SQLite DO membership, heartbeat riêng agent, revision/epoch/CAS, journal/receipt/audit begin/abort; client HTTPS fail-closed; Panel bridge chung; chặn manual/auto cũ khi cấu hình authority. PREPARE_ONLY, không writer grant/Primary commit/route.
-- **Commit kết quả:** `f05f569`; nền test `d316311`/`ba0be57`.
+- **Commit kết quả đã push trước checkpoint này:** `783cb80` (ghi runtime), `f05f569` (M2 bridge); SHA của bootstrap/HTTP integration mới tra commit chứa file này như hướng dẫn cuối trang.
+- **Source mới ở checkpoint này:** `cluster-authority prepare/configure` tạo credentials riêng 0600, prepare không bật shared mode; configure kiểm HTTPS và cả hai role trước ghi, không overwrite config khác. `prepare-secrets.mjs` gom membership đầy đủ vào JSON private ngoài source/Git để user nạp Wrangler qua stdin. Helper nhập Tunnel token trên TTY, không argv/stdout.
 - **PASS — Windows mock và Vsmart fixture:** concurrency chỉ một begin, auth phân vai, replay/idempotency, restart object, lỗi storage, fail-closed, bridge Panel và chặn legacy. Không tương đương Cloudflare runtime/nhiều Android.
+- **PASS — Vsmart, hai process cách ly:** `tests/authority-http-panels.mjs` chạy Panel HTTP thật + TLS client + Worker/storage fixture: private enrollment/retry, production-footprint/file permissions, handshake lỗi không cài config, CSRF/auth, hai begin chỉ một thắng, receipt replay, restart DO fixture, tắt một Panel vẫn abort từ Panel kia, authority outage không fallback. Log `~/mhc-lab-runs/m1-m2-20261026/authority-http-panels.log`. Hai HOME/process trên một Vsmart, không phải hai Android. Windows bài này NOT RUN vì cần POSIX/openssl.
+- **FAIL đã sửa trong integration mới:** Android từ chối hardlink; writer private file chuyển sang lock-directory + fsync/rename, không dùng hardlink, test chạy lại PASS.
 - **NOT RUN:** Worker thật, hai Panel Android chung authority, Access/JWT Internet, URL quản trị sống khi một node offline.
-- **Thiếu DoD:** bootstrap/config dễ triển khai, hai Panel HTTP thật, Cloudflare/node thứ hai, tuyến Panel dự phòng độc lập Primary.
+- **Thiếu DoD:** deploy/kiểm authority Cloudflare, hai Android, Panel Internet và tuyến dự phòng độc lập Primary. Bootstrap và hai Panel HTTP một máy đã có; không tính thành multi-device DoD.
 - **BLOCKED — nghiệm thu Cloudflare/nhiều Android:** cần user cấu hình tài khoản và cung cấp SSH node LAB thứ hai. User đã nhận lời cả hai; không dùng M51/X7b thay thế.
-- **Việc tiếp theo:** hoàn thiện Cloudflare LAB/private enrollment và kiểm nhiều Panel HTTP với authority fixture; ghi rõ giới hạn mô phỏng.
+- **Việc tiếp theo:** triển khai helper prepare trên Vsmart, tạo private enrollment/bulk secrets; khi user nhập Tunnel token và deploy Worker thì nối endpoint thực. Tiếp tục executor M3 nếu nghiệm thu cloud/node vẫn chờ.
 
 ## M3 — Manual Primary end-to-end: NOT STARTED
 
