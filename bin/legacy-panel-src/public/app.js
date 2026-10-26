@@ -110,6 +110,13 @@ async function mhcClusterPage(){
    return `<div class='card'><div class='flex'><h3 style='margin:0'>${esc(n.label||'Node')}</h3><span class='badge ${shared?(good?'good':'bad'):''}'>${esc(label)}</span></div><p>Nhận tín hiệu cách đây: <b>${esc(mhcAge(seen))}</b></p><small class='muted'>Lần cuối: ${esc(mhcTime(seen))}</small><p class='muted'>Vai trò: ${esc(shared?'STANDBY_NO_WRITER_GRANT':n.role||'Chưa xác minh')}</p><small class='mono muted' style='overflow-wrap:anywhere'>${esc(n.nodeId||'')}</small></div>`;
   }).join('');
   const notice=failure?'Cloudflare Shared Authority không truy cập được: chưa thể xác minh tình trạng node.':shared?'Heartbeat chỉ xác nhận liên lạc gần đây với Cloudflare, không chứng minh website hoặc database đã sẵn sàng.':'Chỉ có metadata quan sát cục bộ; chưa có quyền Primary được xác minh.';
+  // M3 entry point: persist an operator-selected candidate in the shared authority.
+  // This is not an active writer, route switch, or a Primary grant.
+  state.primarySelection=shared?d:null;
+  const targets=nodes.filter(n=>n.heartbeatRecent===true);
+  const primaryChoices=targets.map(n=>`<option value="${esc(n.nodeId)}">${esc(n.label)}</option>`).join('');
+  const intent=d.pending&&shared?`<div class="info"><b>Đã chọn ứng viên: ${esc(d.pending.label||'Node')}</b><p>Phiên ${esc(d.pending.status||'PREPARED_NO_WRITER_GRANT')} · Epoch ${Number(d.pending.epoch)||0}. Chưa kích hoạt website, chưa khóa máy cũ và chưa chuyển Cloudflare.</p><div class="btnrow">${btn('Hủy lựa chọn','primary-abort','tiny warn')}</div></div>`:'';
+  const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác này lưu lựa chọn dùng chung cho mọi Panel, KHÔNG thực hiện chuyển Primary thật. Chỉ chọn node có heartbeat gần đây.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Để hoàn tất chuyển Primary cần dừng đường ghi cũ, khởi động/kiểm tra đích và chuyển route đã xác minh. Phần này chưa được tự động hóa.</p></div>`:'';
   page('Cluster — tổng quan',`
   <div class='sectionhead'><div><h2>Cụm máy chủ</h2><p>Trạng thái từ Cloudflare, tự cập nhật mỗi 20 giây khi mở trang</p></div><div class='btnrow'>${btn('Làm mới','cluster-overview')}${btn('Kỹ thuật LAB','cluster-advanced')}</div></div>
   <div class='grid two'>
@@ -120,6 +127,7 @@ async function mhcClusterPage(){
   </div>
   <div class='sectionhead'><h2>Thiết bị</h2></div><div class='grid two'>${cards||'<div class="card">Chưa có dữ liệu node.</div>'}</div>
   <div class='info' style='margin-top:16px'>${esc(notice)}</div>
+  ${selection}
   ${shared?`<div class='card' style='margin-top:16px'><b>Shared Authority M2</b><p>Revision ${Number.isSafeInteger(d.revision)?d.revision:'—'} · Epoch ${Number.isSafeInteger(d.epoch)?d.epoch:'—'} · Phiên chuẩn bị ${d.pending?'đang mở':'không có'}</p><p class='help'>PREPARE_ONLY: chưa cấp quyền Primary, không chuyển dịch vụ hay đồng bộ dữ liệu.</p></div>`:''}
   `);
  }finally{state.clusterOverviewLoading=false;}
@@ -208,8 +216,14 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='primary-begin'){
   const id=$('#primaryTarget')?.value;
   if(!id||!confirm('Chuẩn bị chuyển Primary thủ công tới node đã chọn? CHƯA đổi tuyến hay dừng dịch vụ.'))return;
-  const shared=state.primarySelection?.mode==='SHARED_AUTHORITY_PREPARE_ONLY';
-  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'begin',id,...(shared?{requestId:crypto.randomUUID(),expectedRevision:state.primarySelection.revision}:{})}});toast('Đã tạo phiên chuẩn bị, chưa đổi Primary');await nav('cluster');return;
+  // Re-check current shared revision + heartbeat instead of trusting stale 20s UI.
+  const live=await req('/api/mhc/primary-selection');
+  if(live.mode==='SHARED_AUTHORITY_PREPARE_ONLY'){
+   if(live.pending)throw Error('Đã có phiên chuẩn bị khác. Làm mới trang Cluster.');
+   if(!live.nodes?.some(n=>n.nodeId===id&&n.heartbeatRecent===true))throw Error('Node đã hết heartbeat hoặc không còn trong Cluster.');
+  }
+  const shared=live.mode==='SHARED_AUTHORITY_PREPARE_ONLY';
+  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'begin',id,...(shared?{requestId:crypto.randomUUID(),expectedRevision:live.revision}:{})}});toast('Đã tạo phiên chuẩn bị, chưa đổi Primary');await nav('cluster');return;
  }
  if(type==='primary-abort'){
   const p=await req('/api/mhc/primary-selection');if(!p.pending)return;
