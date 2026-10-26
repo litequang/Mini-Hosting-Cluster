@@ -55,3 +55,13 @@
 - `scripts/apply-primary-candidate-ui.sh` sao lưu / xác minh Git blob SHA, triển khai riêng `public/app.js` trên Vsmart/XZ3 LAB. Không restart, không sửa backend DB/Cloudflare.
 - `tests/manual-candidate-ui.mjs` xác nhận cấu trúc UI/authority fail closed (chưa thực chạy).
 - `reference/cluster-authority/worker.mjs` vẫn chỉ `begin/abort` PREPARE_ONLY, không writer grant / declaredPrimary. M3 executor, route và guard thật còn thiếu.
+
+## Monitor V2 toàn cụm (26/10/2026; source pushed, runtime NOT RUN)
+- `bin/node-monitor.mjs`: thu thập giới hạn CPU/RAM/pin/nhiệt độ pin/storage mạng + 9 trạng thái runit, không gửi địa chỉ IP/SSID/log/process args.
+- `bin/cluster-authority.mjs`: heartbeat mở rộng với telemetry allowlisted; panel token truy vấn `history` (512 KiB max response, GET), agent token không có quyền.
+- `reference/cluster-authority/worker.mjs`: mô hình DO cũ vẫn `SHARED_AUTHORITY_PREPARE_ONLY`; lưu telemetry mới nhất và lịch sử 12h x 5 phút per-node; chỉ panel mới được xem history.
+- `bin/legacy-panel-src/src/mhc-integration.mjs`: collector node chạy local và bridge history Cloudflare; có fallback khi chưa cài collector.
+- `bin/legacy-panel-src/src/server.mjs`: API bảo vệ `/api/mhc/monitor/history?nodeId`; giữ Access/session/CSRF hiện hành.
+- `bin/legacy-panel-src/public/app.js`: Monitor toàn cụm trong Panel gốc, CPU/RAM/pin/nhệt độ/storage/network/services, cảnh báo, đồ thị và khoảng thiếu báo cáo (không coi là proof offline).
+- `scripts/apply-monitor-all-nodes.sh`: opt-in LAB installer SHA pin + backup/rollback, không triển khai Cloudflare Worker. `tests/monitor-all-nodes.mjs`: tests node/Worker từ dữ liệu giả (NOT RUN trong phiên ChatGPT).
+- `docs/MONITOR-V2-ALL-NODES.md`: source map, hướng dẫn triển khai hai điện thoại và Worker cùng binding, checklist.
