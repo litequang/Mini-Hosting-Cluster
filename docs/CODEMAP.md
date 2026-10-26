@@ -65,3 +65,10 @@
 - `bin/legacy-panel-src/public/app.js`: Monitor toàn cụm trong Panel gốc, CPU/RAM/pin/nhệt độ/storage/network/services, cảnh báo, đồ thị và khoảng thiếu báo cáo (không coi là proof offline).
 - `scripts/apply-monitor-all-nodes.sh`: opt-in LAB installer SHA pin + backup/rollback, không triển khai Cloudflare Worker. `tests/monitor-all-nodes.mjs`: tests node/Worker từ dữ liệu giả (NOT RUN trong phiên ChatGPT).
 - `docs/MONITOR-V2-ALL-NODES.md`: source map, hướng dẫn triển khai hai điện thoại và Worker cùng binding, checklist.
+
+## 26/10 — fix monitor installer and legacy parity
+- `scripts/apply-monitor-all-nodes.sh`: no longer mistakes server.mjs for JWT verifier; checks local `src/mhc-remote-access.mjs` RS256 guard, pins SHA of CPU-free all-node UI.
+- `bin/node-monitor.mjs`: omits CPU, adds wifi RSSI, allowlisted Node.js processes RSS, local snapshot metadata, 12 runit service status values; no SSID/BSSID/process cmd.
+- `reference/cluster-authority/worker.mjs`: strips unexpected private fields and persists sanitized metrics; history includes RSSI, not CPU.
+- `bin/legacy-panel-src/public/app.js`: no CPU in dashboard, process list or Monitor; node cards include role, DB/Web/Tunnel/Panel/Sync badges, last snapshot; details include Wifi/RSSI/process RAM, verified-unknown handling.
+- `docs/MONITOR-V2-PAIRING-DESIGN.md`: one-use 10min pairing target; current shared Cloudflare authority static membership cannot use old inventory-only invite unchanged.
