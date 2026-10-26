@@ -14,12 +14,12 @@ grep -Fq "crypto.verify('RSA-SHA256'" "$panel/src/mhc-remote-access.mjs" || fail
 mkdir -p "$HOME/.cache"
 tmp="$(mktemp -d "$HOME/.cache/mhc-release.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-pin='cfeffaccb89d112eb91e929806c0b6b147e838c6'
+pin='2f14deb8d6fc31118a4bbc6b0a67e38bc2049767'
 origin="https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/$pin"
 # Each manifest line: relative source path | installed destination | immutable Git blob SHA1.
 manifest="$tmp/manifest"
 cat > "$manifest" <<'MANIFEST'
-bin/cluster-authority.mjs|BIN/cluster-authority.mjs|9b5ad1812de8ff545ca99290cc659194b5a94169
+bin/cluster-authority.mjs|BIN/cluster-authority.mjs|aba5764293b3b816240d53726887ab1b4aa1dfa0
 bin/node-monitor.mjs|BIN/node-monitor.mjs|e79689cfd868d35c4bc09ea3cea3d7ef57593636
 bin/node-boot.sh|BIN/node-boot.sh|de0f6a0f5f281f257fe38fc72b7ab2b528010fa4
 bin/node-doctor.sh|BIN/node-doctor.sh|7f0685f351f8852bc23f5e07bd0a30c75865c2f9
