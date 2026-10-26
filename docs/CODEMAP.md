@@ -72,3 +72,14 @@
 - `reference/cluster-authority/worker.mjs`: strips unexpected private fields and persists sanitized metrics; history includes RSSI, not CPU.
 - `bin/legacy-panel-src/public/app.js`: no CPU in dashboard, process list or Monitor; node cards include role, DB/Web/Tunnel/Panel/Sync badges, last snapshot; details include Wifi/RSSI/process RAM, verified-unknown handling.
 - `docs/MONITOR-V2-PAIRING-DESIGN.md`: one-use 10min pairing target; current shared Cloudflare authority static membership cannot use old inventory-only invite unchanged.
+
+
+## 26/10 — một lệnh setup node mới, một mã ghép, khôi phục reboot XZ3
+- `scripts/bootstrap-new-android-node.sh`: fresh-only full Termux aarch64 install, source pin `2f14deb8`, integrates original Panel/Monitor CSS, PHP/Nginx/Node/MariaDB/SSH/runit, Termux:API and managed boot diagnostics; no existing-node overwrite or writer activation.
+- `scripts/update-existing-android-node.sh`: update release nguồn 9 file SHA pin, backup/rollback Panel, Agent, Boot, source verification; dành riêng Vsmart/XZ3 LAB, giữ admin JWT/DB/Tunnel.
+- `bin/node-boot.sh` + `bin/node-doctor.sh`: Termux:Boot wake lock, start-services/runsvdir, SSH, Panel, Agent enrolled, boot-last.log, pin/API diagnostics, Worker schema/heartbeat distinction.
+- `bin/cluster-authority.mjs`: `sharedInvite`, `joinWithCode`, CLI `mhc-full join MHC1...`, local identity+keys, HTTPS DO enrollment and agent start. `bin/mhc-full-wrapper` maps join and node-doctor.
+- `reference/cluster-authority/worker.mjs`: authenticated Panel-only invite, dynamic hashed credentials, 10-min single-use invitation, Node identity validation, transaction, dynamic member heartbeat; no writer grant.
+- `bin/legacy-panel-src/src/mhc-integration.mjs` + `server.mjs` + `public/app.js`: Panel invite endpoint with existing session/CSRF; Monitor all-node cards auto expanded; `public/style.css` responsive redesign.
+- `tests/cluster-pairing.mjs` and `tests/monitor-all-nodes.mjs`: fixture coverage, `bin/self-test.sh` includes both tests and new shell syntax. Node runner NOT RUN in ChatGPT runtime.
+- `docs/ONE-COMMAND-NODE-SETUP.md`: one command and pairing/reboot runbook. Worker deployment + Android permissions still operator actions.
