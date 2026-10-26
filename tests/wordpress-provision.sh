@@ -7,7 +7,7 @@ for name in php php-fpm curl unzip nginx;do printf '#!/usr/bin/env bash\nexit 0\
 cat > "$TMP/bin/wp" <<'SH'
 #!/usr/bin/env bash
 echo "$1 $2" >> "$TEST_LOG"
-[[ "$1 $2" != 'core download' ]]
+[[ "$1 $2" != "$TEST_FAIL_AT" ]]
 SH
 cat > "$TMP/bin/mariadb" <<'SH'
 #!/usr/bin/env bash
@@ -17,7 +17,11 @@ cat >/dev/null
 SH
 chmod 700 "$TMP/bin/"*
 export TEST_LOG="$TMP/actions"
-if HOME="$TMP/home" PATH="$TMP/bin:$PATH" bash "$ROOT/bin/wordpress.sh" install lab > "$TMP/output" 2>&1;then echo 'FAIL: download failure accepted';exit 1;fi
-grep -qx 'core download' "$TEST_LOG"
-if grep -q DATABASE_MUTATION "$TEST_LOG";then echo 'FAIL: DB changed before download succeeded';exit 1;fi
-echo 'PASS: failed WordPress download creates no database/user'
+for phase in download verify-checksums;do
+ export TEST_FAIL_AT="core $phase"
+ : > "$TEST_LOG"
+ if HOME="$TMP/home-$phase" PATH="$TMP/bin:$PATH" bash "$ROOT/bin/wordpress.sh" install lab > "$TMP/output" 2>&1;then echo 'FAIL: download/checksum failure accepted';exit 1;fi
+ grep -qx "$TEST_FAIL_AT" "$TEST_LOG"
+ if grep -q DATABASE_MUTATION "$TEST_LOG";then echo 'FAIL: DB changed before download/checksum succeeded';exit 1;fi
+done
+echo 'PASS: failed WordPress download or checksum creates no database/user'

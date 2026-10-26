@@ -85,21 +85,14 @@ if (( count > 0 || static_count > 0 ));then
   tar -czf "$TMP/websites.tar.gz" -C "$HOME" websites
   # Clone-safe configuration archive: never transfer MHC node identities, remote-control
   # credentials or Panel admin credentials into another node's restore set.
-  tar -czf "$TMP/site-config.tar.gz" -C "$HOME/.config" \
-    --exclude='mhc-full-installer/node-identity.json' \
-    --exclude='mhc-full-installer/node-auth.json' \
-    --exclude='mhc-full-installer/joined.json' \
-    --exclude='mhc-full-installer/cluster.json' \
-    --exclude='mhc-full-installer/members.json' \
-    --exclude='mhc-full-installer/pending-invite.json' \
-    --exclude='mhc-full-installer/clone-offers.json' \
-    --exclude='mhc-full-installer/panel-admin-token' \
-    --exclude='mhc-full-installer/peer.conf' \
-    --exclude='mhc-full-installer/.clone-operation-lock' \
-    --exclude='mhc-full-installer/.enrollment-lock' \
-    --exclude='mhc-full-installer/installed' \
-    --exclude='mhc-full-installer/install-incomplete' \
-    mhc-full-installer
+  # Allowlist instead of chasing new authority/Panel/Cloudflare credential filenames.
+  config_paths=()
+  for kind in sites static;do
+    p="$HOME/.config/mhc-full-installer/$kind"
+    [[ ! -L "$p" ]] || fail 'Site registry directory is a symlink'
+    [[ ! -d "$p" ]] || config_paths+=("mhc-full-installer/$kind")
+  done
+  tar -czf "$TMP/site-config.tar.gz" -C "$HOME/.config" "${config_paths[@]}"
 fi
 if [[ "$TPP_FLAG" == 1 ]];then
   mariadb-dump --no-defaults -u root --single-transaction --quick --routines --triggers --events --hex-blob --max-allowed-packet=128M thophuong_pro | gzip -1 > "$TMP/databases/thophuong_pro.sql.gz"

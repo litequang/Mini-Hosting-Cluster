@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 bash "$ROOT/tests/service-environment.sh"
+bash "$ROOT/tests/wordpress-provision.sh"
+bash "$ROOT/tests/site-probe-cleanup.sh"
 node "$ROOT/tests/guard-management.mjs"
 node "$ROOT/tests/cluster-authority.mjs"
 node "$ROOT/tests/authority-panel.mjs" "$ROOT"

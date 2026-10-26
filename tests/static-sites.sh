@@ -61,9 +61,14 @@ PYTAR
 if python3 "$SOURCE/bin/safe-tar-inspect.py" "$TMP/unsafe.tar.gz" >/dev/null 2>&1;then echo 'FAIL: tar traversal accepted';exit 1;fi
 if python3 "$SOURCE/bin/safe-tar-inspect.py" "$TMP/link.tar.gz" >/dev/null 2>&1;then echo 'FAIL: tar symlink accepted';exit 1;fi
 cp "$SOURCE/bin/daily-backup.sh" "$SOURCE/bin/backup-verify.sh" "$HOME/.local/share/mhc-full-installer/bin/"
+printf 'PRIVATE_AUTHORITY_FIXTURE' > "$HOME/.config/mhc-full-installer/authority.json"
+printf 'PRIVATE_PANEL_FIXTURE' > "$HOME/.config/mhc-full-installer/panel-login-once"
+mkdir -p "$HOME/.config/mhc-full-installer/manual-primary"
+printf 'PRIVATE_ROUTE_FIXTURE' > "$HOME/.config/mhc-full-installer/manual-primary/auto-config.json"
 bash "$SOURCE/bin/daily-backup.sh" run
 SNAP="$(cat "$HOME/hosting-backups/mhc-full/latest-success-path")"
 bash "$SOURCE/bin/backup-verify.sh" verify "$SNAP"
+if tar -tzf "$SNAP/site-config.tar.gz" | grep -Ev '^mhc-full-installer/(sites|static)(/|$)' | grep -q .;then echo 'FAIL: backup includes non-site config';exit 1;fi
 tar -tzf "$SNAP/websites.tar.gz" | grep -q '^websites/demo/index.html$'
 [[ ! -e "$SNAP/databases/demo.sql.gz" ]] || { echo 'FAIL: unexpected DB dump for static-only backup';exit 1; }
 printf 'PASS: tar traversal, symlink, concurrent lock, static-only backup guards\n' 

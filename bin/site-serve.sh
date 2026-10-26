@@ -198,7 +198,8 @@ probe(){
   grep -Fxq "    server_name $host;" "$ROOT/nginx/sites/$slug.conf" || fail 'Hostname mismatch'
   root="$HOME/websites/$slug"; token="$(openssl rand -hex 16)"; file="$root/mhc-probe-$token.php"
   [[ ! -e "$file" ]] || fail 'Probe collision'
-  trap 'rm -f -- "$file"' EXIT
+  # EXIT runs after this function returns; capture the safely quoted path now.
+  trap "rm -f -- $(printf '%q' "$file")" EXIT
   printf '<?php header("Content-Type: text/plain"); echo "%s"; ?>\n' "$token" > "$file"; chmod 600 "$file"
   answer="$(curl -fsS --max-time 8 -H "Host: $host" "http://127.0.0.1:18080/$(basename "$file")")" || fail 'HTTP PHP smoke test failed'
   [[ "$answer" == "$token" ]] || fail 'PHP was not executed correctly'
