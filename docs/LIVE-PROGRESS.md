@@ -118,3 +118,11 @@ PASS: original WordPress and Panel healthy after restore rehearsal
 ```
 
 Không lưu secrets/dump. SHA của chính bản ghi checkpoint tra bằng `git log -1 --format=%H -- docs/LIVE-PROGRESS.md` (không ghi SHA tự tham chiếu).
+
+
+## 26/10 — one-command node bootstrap + joining and XZ3 reboot repair, source pushed
+- Source release pinned `2f14deb8d6fc31118a4bbc6b0a67e38bc2049767`. Published fresh bootstrap `e4bd8cfbdebfa0aa8a3b2c1956cb04f44ee92f34` and existing-LAB unified update `34569eabc5a0c6c0a347fe7fd687d6f9a732515c`. Verified exact all 9 blobs against release SHA; backup/rollback and boot doctor sources included.
+- One-use invite/candidate membership Worker code + Panel invite endpoint + node join CLI and management agent autostart; original Panel shows full Monitor cards for all nodes without clicks and no CPU. Existing Worker needs deploy with same binding/secrets.
+- **PASS in mock Durable Object fixture** for Panel invitation, one-time 192-bit code, dynamic node membership, Agent heartbeat, unauthorized Agent invite denied, code replay denied, no Primary/writer grant. Crypto in isolated fixture was mocked; not a real signed Cloudflare deployment.
+- **NOT RUN**: real Node automated test suite (`tests/cluster-pairing.mjs`), clean Termux installer, Android reboot/Termux:Boot, screen-off XZ3, end-to-end Worker rollout, physical third-node pairing. User-reported XZ3 stopped services after reboot; cause has not been proven on phone. The integrated boot repair is source code, not yet deployed to XZ3. `docs/ONE-COMMAND-NODE-SETUP.md` has exact operator commands.
+- Remote Panel app/site deploy orchestration, actual Primary cutover and auto failover **remain unimplemented**; no mislabeling.
