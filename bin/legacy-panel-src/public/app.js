@@ -33,18 +33,17 @@ async function dashboard(){const s=await req('/api/overview');state.stats=s;cons
  const batteryWarn=Number.isFinite(b.percentage)&&b.percentage<20?' · Pin thấp':'';
  const heatWarn=Number.isFinite(b.temperature)&&b.temperature>=40?' · Nhiệt độ cao':'';
  const rows=Object.entries(s.services).map(([name,v])=>`<tr><td class="titlecell">${esc(name)}</td><td>${serviceBadge(v)}</td><td class="muted mini mono">${esc((v.out||v.err||'').slice(0,120))}</td></tr>`).join('');
- const nodeRows=(s.nodeProcesses?.processes||[]).map(p=>`<tr><td class="titlecell">${esc(p.name)}</td><td class="mono">${p.pid}</td><td>${p.ppid}</td><td>${Number.isFinite(p.cpuPct)?p.cpuPct.toFixed(1)+'%':'—'}</td><td>${fmtBytes(p.rssBytes)}</td></tr>`).join('');
+ const nodeRows=(s.nodeProcesses?.processes||[]).map(p=>`<tr><td class="titlecell">${esc(p.name)}</td><td class="mono">${p.pid}</td><td>${p.ppid}</td><td>${fmtBytes(p.rssBytes)}</td></tr>`).join('');
  page('Tổng quan',`<div class="grid">
  <div class="card stat"><div class="tag">WEBSITES</div><b>${s.sites}</b><small>Đang quản lý</small></div>
  <div class="card stat"><div class="tag">RAM ĐANG DÙNG</div><b>${fmtBytes(s.mem.total-s.mem.available)}</b><small>/ ${fmtBytes(s.mem.total)} RAM</small><div class="progress"><div style="width:${Math.round((s.mem.total-s.mem.available)*100/s.mem.total)}%"></div></div></div>
  <div class="card stat"><div class="tag">BỘ NHỚ TRỐNG</div><b>${fmtBytes(s.disk?.available)}</b><small>Trong ${fmtBytes(s.disk?.total)}</small></div>
- <div class="card stat"><div class="tag">CPU HIỆN TẠI</div><b>${s.cpuPct===null?'—':s.cpuPct+'%'}</b><small>Android 12 có thể chặn CPU toàn hệ thống</small></div><div class="card stat"><div class="tag">PIN ĐIỆN THOẠI</div><b>${esc(batteryPercent)}</b><small>${batteryMeta}${batteryWarn}</small></div>
+<div class="card stat"><div class="tag">PIN ĐIỆN THOẠI</div><b>${esc(batteryPercent)}</b><small>${batteryMeta}${batteryWarn}</small></div>
  <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${esc(batteryTemperature)}</b><small>${b.available?'Android Battery API · '+esc(b.health||''):'Không đọc được'}${heatWarn}</small></div>
  <div class="card stat"><div class="tag">NODE.JS</div><b>${esc(s.node)}</b><small>${esc(s.arch)} • local</small></div><div class="card stat"><div class="tag">UPTIME ANDROID</div><b>${Math.floor(s.uptime/3600)} giờ</b><small>Từ lần khởi động gần nhất</small></div></div>
  <div class="sectionhead"><h2>Dịch vụ máy chủ</h2>${btn('Xem logs','tab-services')}</div><div class="tablewrap"><table><thead><tr><th>Tên</th><th>Trạng thái</th><th>Chi tiết</th></tr></thead><tbody>${rows}</tbody></table></div>
  <div class="sectionhead"><h2>Tiến trình Node.js</h2></div>
- <p class="help">CPU theo từng tiến trình: 1 lõi = 100%; có thể trên 100% nếu dùng nhiều lõi. Cần ít nhất hai lần làm mới để đo biến thiên. Android 12 có thể chặn /proc/PID/stat; lúc đó hiển thị —.</p>
- <div class="tablewrap"><table><thead><tr><th>Ứng dụng</th><th>PID</th><th>PPID</th><th>CPU</th><th>RAM tiến trình</th></tr></thead><tbody>${nodeRows||'<tr><td colspan="5" class="empty">Không đọc được danh sách tiến trình Node.js</td></tr>'}</tbody></table></div>
+ <div class="tablewrap"><table><thead><tr><th>Ứng dụng</th><th>PID</th><th>PPID</th><th>RAM tiến trình</th></tr></thead><tbody>${nodeRows||'<tr><td colspan="4" class="empty">Không đọc được danh sách tiến trình Node.js</td></tr>'}</tbody></table></div>
  <div class="sectionhead"><h2>Hành động nhanh</h2></div><div class="btnrow">${btn('+ Tạo website','create-site','primary')}${btn('+ Tạo database','create-database')}${btn('Domain & Nginx','tab-domains')}</div>
  <p class="help">Panel chạy tại <code>127.0.0.1:9090</code>; truy cập bằng SSH forwarding hoặc Cloudflare Access được bảo vệ. Dịch vụ đang chạy không có nghĩa đã hoạt động ổn định sau reboot — hãy kiểm thử riêng.</p>`);
 }
@@ -55,8 +54,9 @@ const safeNum=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=m
 // MHC_MONITOR_ALL_NODES_V2: local measurements + shared remote node metrics (no separate Panel).
 const monitorServices={
  'amh-panel':'Panel quản trị','sshd':'SSH','nginx':'Nginx','mysqld':'MariaDB',
- 'mini-web':'Node Web','mhc-authority-agent':'Cluster Agent','mhc-panel-tunnel':'Cloudflare Tunnel',
- 'mhc-full-wp-php':'PHP-FPM / WP','mhc-full-wp-nginx':'WP Nginx'
+ 'mini-web':'Node Web','mhc-authority-agent':'Cluster Agent','mhc-panel-tunnel':'Tunnel Panel',
+ 'mhc-full-wp-php':'PHP-FPM / WP','mhc-full-wp-nginx':'WP Nginx',
+ 'named-tunnel':'Tunnel website','php-fpm':'PHP-FPM','mhc-full-daily-backup':'Backup hằng ngày'
 };
 function mhcDuration(seconds){
  if(!Number.isFinite(seconds)||seconds<0)return '—';
@@ -86,7 +86,7 @@ async function mhcMonitorPage(){
   const age=selected==='local'?local?.at:chosen?.metricsAt;
   const num=(v,lo=0,hi=1e9)=>safeNum(v,lo,hi);
   const disp=(v,suffix='')=>v===null||v===undefined?'—':v+suffix;
-  const pct=num(m?.cpu?.usagePct,0,100),mem=num(m?.memory?.totalMiB),free=num(m?.memory?.freeMiB);
+  const mem=num(m?.memory?.totalMiB),free=num(m?.memory?.freeMiB);
   const disk=num(m?.storage?.totalMiB),available=num(m?.storage?.freeMiB);
   const battery=num(m?.battery?.percentage,0,100),temp=num(m?.battery?.temperatureC,-25,100);
   const memUsed=mem!==null&&free!==null?Math.max(0,mem-free):null;
@@ -99,7 +99,7 @@ async function mhcMonitorPage(){
   const cards=nodes.map(n=>{
    const c=n.telemetry,b=n.telemetryRecent===true,h=n.heartbeatRecent===true;
    const status=!h?'Mất heartbeat':!b?'Thông số cũ':'Đang báo cáo';
-   const detail=c?`CPU ${disp(num(c.cpu?.usagePct,0,100),'%')} · RAM trống ${disp(num(c.memory?.freeMiB),' MiB')} · Pin ${disp(num(c.battery?.percentage,0,100),'%')}`:'Agent chưa gửi thông số v2';
+   const detail=c?`RAM trống ${disp(num(c.memory?.freeMiB),' MiB')} · Pin ${disp(num(c.battery?.percentage,0,100),'%')} · Wi-Fi ${c.wifi?.state==='connected'?'đã kết nối':'chưa rõ'}`:'Agent chưa gửi thông số v2';
    return `<div class="card"><div class="flex"><b>${esc(n.label||'Node')}</b><span class="badge ${h&&b?'good':'bad'}">${esc(status)}</span></div><p class="help">${esc(detail)}</p><small class="muted">Heartbeat: ${esc(mhcAge(n.lastSeenAt))} trước · Dữ liệu: ${esc(mhcAge(n.metricsAt))} trước</small><div class="toolbar">${btn(selected===n.nodeId?'Đang xem':'Chi tiết','monitor-node:'+n.nodeId)}</div></div>`;
   }).join('');
   let alerts=[];
@@ -108,6 +108,10 @@ async function mhcMonitorPage(){
   if(temp!==null&&temp>=42)alerts.push('Nhiệt độ pin cao (từ 42°C).');
   if(mem&&free!==null&&free/mem<.15)alerts.push('RAM khả dụng dưới 15%.');
   if(disk&&available!==null&&available/disk<.10)alerts.push('Dung lượng trống dưới 10%.');
+  const wifiSignal=num(m?.wifi?.rssiDbm,-127,0);
+  const nodeJobs=(Array.isArray(m?.processes)?m.processes:[]).slice(0,6);
+  const nodeProcessRows=nodeJobs.map(p=>`<tr><td>${esc(p.name||'Node.js')}</td><td>${disp(num(p.rssMiB),' MiB')}</td></tr>`).join('');
+  const snap=m?.snapshot?.name||null;
   let chart='<div class="help">Chọn một node thuộc Shared Authority để xem lịch sử 12 giờ.</div>';
   if(chosen){
    const cached=state.monitorHistory;
@@ -124,7 +128,7 @@ async function mhcMonitorPage(){
     if(Number.isFinite(before)&&Number.isFinite(after)&&after-before>12*60000)
      gaps.push('Không có mẫu từ '+new Date(before).toLocaleTimeString('vi-VN')+' đến '+new Date(after).toLocaleTimeString('vi-VN'));
    }
-   chart='<div class="grid two">'+monitorTrend(points,'cpuPct','CPU (%)')+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+monitorTrend(points,'diskFreeMiB','Dung lượng trống (MiB)')+monitorTrend(points,'rxKiBs','Mạng nhận (KiB/s)')+monitorTrend(points,'txKiBs','Mạng gửi (KiB/s)')+'</div><div class="card"><b>Khoảng thời gian thiếu báo cáo</b><p class="help">'+(gaps.length?gaps.slice(-6).map(v=>esc(v)).join(' · '):'Chưa thấy khoảng trống lớn giữa các mẫu đã nhận.')+'</p><small class="muted">Thiếu báo cáo không chứng minh điện thoại tắt nguồn; có thể là Doze, Wi-Fi hoặc Cloudflare gián đoạn.</small></div>';
+   chart='<div class="grid two">'+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+monitorTrend(points,'diskFreeMiB','Dung lượng trống (MiB)')+monitorTrend(points,'rxKiBs','Mạng nhận (KiB/s)')+monitorTrend(points,'txKiBs','Mạng gửi (KiB/s)')+monitorTrend(points,'wifiRssiDbm','Wi-Fi RSSI (dBm)')+'</div><div class="card"><b>Khoảng thời gian thiếu báo cáo</b><p class="help">'+(gaps.length?gaps.slice(-6).map(v=>esc(v)).join(' · '):'Chưa thấy khoảng trống lớn giữa các mẫu đã nhận.')+'</p><small class="muted">Thiếu báo cáo không chứng minh điện thoại tắt nguồn; có thể là Doze, Wi-Fi hoặc Cloudflare gián đoạn.</small></div>';
   }
   page('Monitor toàn cụm',`
    <div class="sectionhead"><div><h2>Node đang kết nối</h2><p>Thông số cập nhật khi có heartbeat; không bao gồm dữ liệu riêng tư trên điện thoại.</p></div>${btn('Làm mới','monitor-refresh')}</div>
@@ -133,15 +137,21 @@ async function mhcMonitorPage(){
    <div class="sectionhead"><div><h2>${esc(selected==='local'?(local?.device||'Máy này'):(chosen?.label||'Node'))}</h2><p>${fresh?'Dữ liệu gần đây':'Chưa có dữ liệu mới'} · Quan sát: ${esc(age||'Chưa có')}</p></div></div>
    ${alerts.length?'<div class="info">'+alerts.map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>':''}
    <div class="grid">
-    <div class="card stat"><div class="tag">CPU</div><b>${disp(pct,'%')}</b><small>${disp(num(m?.cpu?.cores,1,256),' lõi')} · Android có thể chặn đọc</small></div>
     <div class="card stat"><div class="tag">RAM</div><b>${disp(memUsed,' MiB')}</b><small>Đang sử dụng / ${disp(mem,' MiB')} tổng · Trống ${disp(free,' MiB')}</small></div>
     <div class="card stat"><div class="tag">LƯU TRỮ</div><b>${disp(diskUsed,' MiB')}</b><small>Đang sử dụng / ${disp(disk,' MiB')} tổng · Trống ${disp(available,' MiB')}</small></div>
     <div class="card stat"><div class="tag">PIN</div><b>${disp(battery,'%')}</b><small>${esc(m?.battery?.status||'Không đọc được')} · Sức khỏe: ${esc(m?.battery?.health||'—')}</small></div>
     <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Không phải nhiệt độ CPU</small></div>
     <div class="card stat"><div class="tag">MẠNG NHẬN</div><b>${disp(num(m?.network?.rxKiBs),' KiB/s')}</b><small>Tốc độ ước tính · /proc/net/dev có thể bị chặn</small></div>
     <div class="card stat"><div class="tag">MẠNG GỬI</div><b>${disp(num(m?.network?.txKiBs),' KiB/s')}</b><small>${disp(num(m?.network?.interfaces),' giao diện mạng đọc được')}</small></div>
+    <div class="card stat"><div class="tag">WI-FI</div><b>${m?.wifi?.state==='connected'?'Đã kết nối':'Chưa xác định'}</b><small>${wifiSignal===null?'RSSI không đọc được':wifiSignal+' dBm'} · Không thu SSID</small></div>
+    <div class="card stat"><div class="tag">TIẾN TRÌNH NODE.JS</div><b>${nodeJobs.length}</b><small>RAM tiến trình được Android cho phép đọc</small></div>
+    <div class="card stat"><div class="tag">ĐỒNG BỘ DỮ LIỆU</div><b style="font-size:17px">Chưa xác minh</b><small>Heartbeat và backup không đồng nghĩa dữ liệu đã đồng bộ</small></div>
     <div class="card stat"><div class="tag">UPTIME ANDROID</div><b style="font-size:18px">${esc(mhcDuration(m?.uptimeSec))}</b><small>Android ${esc(m?.android||'—')} · ${esc(m?.device||'—')}</small></div>
    </div>
+   <div class="sectionhead"><h2>Backup / Snapshot</h2></div>
+   <div class="card"><b>${esc(snap||'Chưa có snapshot được ghi nhận')}</b><p class="help">Lần ghi nhận: ${esc(m?.snapshot?.recordedAt||'Chưa rõ')} · Độ toàn vẹn: chưa xác minh</p></div>
+   <div class="sectionhead"><h2>Tiến trình Node.js (${nodeJobs.length})</h2></div>
+   <div class="tablewrap"><table><thead><tr><th>Ứng dụng</th><th>RAM</th></tr></thead><tbody>${nodeProcessRows||'<tr><td colspan="2">Chưa đọc được tiến trình Node.js</td></tr>'}</tbody></table></div>
    <div class="sectionhead"><h2>Dịch vụ node</h2></div><div class="tablewrap"><table><thead><tr><th>Dịch vụ</th><th>Trạng thái</th></tr></thead><tbody>${serviceRows}</tbody></table></div>
    <div class="sectionhead"><h2>Lịch sử đo đạc</h2></div>${chart}
    <div class="help">Lịch sử lấy mẫu tối đa 12 giờ, mỗi 5 phút, chỉ khi Agent đang gửi dữ liệu về Cloudflare. Heartbeat không xác nhận website, database hoặc quyền Primary. Không đọc được chỉ số sẽ hiển thị — thay vì tự suy đoán.</div>
