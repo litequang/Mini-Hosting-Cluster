@@ -76,7 +76,7 @@
 
 ## 26/10 — một lệnh setup node mới, một mã ghép, khôi phục reboot XZ3
 - `scripts/bootstrap-new-android-node.sh`: fresh-only full Termux aarch64 install, source pin `2f14deb8`, integrates original Panel/Monitor CSS, PHP/Nginx/Node/MariaDB/SSH/runit, Termux:API and managed boot diagnostics; no existing-node overwrite or writer activation.
-- `scripts/update-existing-android-node.sh`: update release nguồn 9 file SHA pin, backup/rollback Panel, Agent, Boot, source verification; dành riêng Vsmart/XZ3 LAB, giữ admin JWT/DB/Tunnel.
+- `scripts/update-existing-android-node.sh`: update release nguồn 13 file SHA pin (gồm live Panel và managed source), backup/rollback Panel, Agent, Boot, source verification; dành riêng Vsmart/XZ3 LAB, giữ admin JWT/DB/Tunnel.
 - `bin/node-boot.sh` + `bin/node-doctor.sh`: Termux:Boot wake lock, start-services/runsvdir, SSH, Panel, Agent enrolled, boot-last.log, pin/API diagnostics, Worker schema/heartbeat distinction.
 - `bin/cluster-authority.mjs`: `sharedInvite`, `joinWithCode`, CLI `mhc-full join MHC1...`, local identity+keys, HTTPS DO enrollment and agent start. `bin/mhc-full-wrapper` maps join and node-doctor.
 - `reference/cluster-authority/worker.mjs`: authenticated Panel-only invite, dynamic hashed credentials, 10-min single-use invitation, Node identity validation, transaction, dynamic member heartbeat; no writer grant.
