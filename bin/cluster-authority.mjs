@@ -78,11 +78,11 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','history'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
- try{response=await fetcher(url,{method:action==='status'?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json'},
-  body:action==='status'?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
+ try{response=await fetcher(url,{method:['status','history'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
+  body:['status','history'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
  const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
  if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>131072){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
@@ -92,13 +92,26 @@ export async function authorityRequest(c,action,body={},fetcher=fetch){
  return v;
 }
 export async function sharedStatus(role='panel'){return authorityRequest(config(role),'status');}
+export async function sharedHistory(targetNodeId){
+ if(!UUID.test(targetNodeId||''))throw Error('MONITOR_NODE_ID_INVALID');
+ return authorityRequest(config('panel'),'history',{targetNodeId});
+}
 export async function sharedAction(body){
  if(['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'].some(p=>fs.existsSync(path.join(home(),p))))throw Error('PRODUCTION_FOOTPRINT_BLOCKS_AUTHORITY_LAB');
  if(!['begin','abort'].includes(body?.action)||!UUID.test(body.requestId||'')||!UUID.test(body.id||'')||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)throw Error('AUTHORITY_ACTION_INVALID');
  return authorityRequest(config('panel'),body.action,{requestId:body.requestId,expectedRevision:body.expectedRevision,
   ...(body.action==='begin'?{targetNodeId:body.id}:{operationId:body.id})});
 }
-async function heartbeat(){const c=config('agent'),s=await authorityRequest(c,'status');return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now()});}
+async function heartbeat(){
+ const c=config('agent'),s=await authorityRequest(c,'status');
+ let telemetry=null;
+ try{
+  // This module is deployed to Termux with the agent; no raw files or PII sent.
+  const module=await import('./node-monitor.mjs');
+  telemetry=module.compactTelemetry(await module.collectNodeMetrics());
+ }catch{/* monitoring failure must never block membership heartbeat */}
+ return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now(),...(telemetry?{telemetry}:{})});
+}
 async function main(args){
  if(args.length===1&&args[0]==='prepare')return prepareEnrollment();
  if(args.length===4&&args[0]==='configure'&&args[3]==='--confirm=CONFIGURE_LAB_PREPARE_ONLY')return configureAuthority(args[1],args[2]);
