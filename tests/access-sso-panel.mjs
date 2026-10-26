@@ -78,7 +78,7 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  assert.equal((await request(p,host,'/api/sites',{jwt,cookie:remoteCookie})).status,200,'Access-only authenticated API');
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/session',{cookie:remoteCookie})).data.loggedIn,false,'remote cookie does not grant localhost admin');
  assert.equal((await request(p,host,'/api/sites',{jwt,cookie:localCookie})).status,401,'localhost password session not valid remotely');
- assert.equal((await request(p,host,'/api/sites',{jwt:sign(),cookie:remoteCookie})).status,401,'remote session is bound to original verified JWT');
+ assert.equal((await request(p,host,'/api/sites',{jwt:sign({iat:Math.floor(Date.now()/1000)-15}),cookie:remoteCookie})).status,401,'remote session is bound to original verified JWT');
  assert.equal((await request(p,host,'/api/logout',{method:'POST',jwt,cookie:remoteCookie,origin:'https://'+host})).status,403,'CSRF still required');
  const logout=await request(p,host,'/api/logout',{method:'POST',jwt,cookie:remoteCookie,csrf:remote.data.csrf,origin:'https://'+host});
  assert.equal(logout.status,200);assert.equal(logout.data.accessLogout,true);
