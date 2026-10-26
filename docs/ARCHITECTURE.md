@@ -33,3 +33,9 @@ Hình là **kiến trúc đề xuất, chưa triển khai**. Không ép tính n�
 
 ## Giới hạn hiện tại
 Checkpoint hiện hành **không** có multi-panel authority. local manual-primary/auto-primary đã có source nhưng còn dựa trên controller đơn, các bài test giả lập không tương đương nghiệm thu hai Android thật.
+
+
+## Bổ sung P2.5 — Cloudflare domain automation và Panel resilience (26/10/2026)
+- `Zone discovery (read-only)` từ token theo allowlist account/zone -> chọn `subdomain + base domain` -> verify không trùng -> tạo site/Nginx + test localhost -> cập nhật DNS CNAME/Tunnel ingress đúng hostname -> HTTPS healthcheck và audit/rollback. URL/Zone ID đã được xác minh trước khi mutation, không giữ DNS edit token trên các node Standby. Nếu nhiều zone/token, phải cô lập quyền theo profile.
+- Named Tunnel đưa HTTP tới Nginx trên node; không dùng public Android IP. Cập nhật CNAME/ingress cấu hình của **Tunnel hiện có**, không thay tràn lan chính sách Access hoặc bản ghi đã tồn tại. Wildcard là opt-in, tránh xung đột.
+- `panel.giaouoc.com` là admin ingress khác website, có tuyến hồi phục vào một node Standby đủ quyền nếu Primary offline. Shared Authority độc lập giữ node-role và route intent; redirect Panel không tự mở writer. Phần routing/activation vẫn chưa triển khai.
