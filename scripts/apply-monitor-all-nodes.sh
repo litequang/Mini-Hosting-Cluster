@@ -24,7 +24,7 @@ command -v node >/dev/null || fail 'Node runtime required'
 mkdir -p "$HOME/.cache";chmod 700 "$HOME/.cache"
 work="$(mktemp -d "$HOME/.cache/mhc-monitor.XXXXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
-pin='d93f39c54c57a87d84c8ee6aa999300442927d60'
+pin='b77f557778c291ec486b9b59ff3693b137367d45'
 origin="https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/$pin"
 paths=(
  'bin/node-monitor.mjs'
@@ -35,7 +35,7 @@ paths=(
 )
 hashes=(
  'a77aa0399277af0ef5fc3c7afe7b69b0217d700a'
- 'c34a9ca409dc9cfdea7d50bb030a36a361033769'
+ '92ad8caa27f35b9767190d3d0c0dc69181196590'
  'fad031b93eaf451b9797fdda5d3b85d4aa95ecd4'
  '46f6396764f7acdb4e3defecda4c085cd88d57d7'
  '2d3b1e9be37d10f68b7e8dcd920887b93cd5477f'
