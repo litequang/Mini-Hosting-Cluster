@@ -9,6 +9,7 @@
 - `tests/authority-http-panels.mjs`: hai Panel HTTP process + HTTPS client, DO storage fixture, chạy POSIX/Termux.
 - `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
 - `docs/LIVE-PROGRESS.md`: nguồn trạng thái thực thi duy nhất, checkpoint và bằng chứng.
+- `docs/CLUSTER-UI-HEARTBEAT-REMOTE-ACCESS-2026-10-26.md`: cập nhật 2 Android đã kết nối M2 theo bằng chứng người dùng; bản sửa heartbeat Cluster (commit `f0c94a4`), hướng dẫn deploy UI và kiểm tra HTTP 403 khi Cloudflare Access tới Panel.
 - `docs/CONTINUE-MHC.md`: kết nối/phục hồi sau gián đoạn, GitHub branch.
 - `tests/cluster-authority.mjs`, `tests/authority-panel.mjs`, `tests/guard-management.mjs`, `tests/service-environment.sh`: các regression mới.
 
