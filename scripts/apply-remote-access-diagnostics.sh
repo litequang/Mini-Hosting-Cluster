@@ -14,7 +14,7 @@ mkdir -p "$HOME/.cache"
 chmod 700 "$HOME/.cache"
 work="$(mktemp -d "$HOME/.cache/mhc-remote-diagnostic.XXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
-url='https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/8a0ca26111b4f097b0859506359bbffb8c3aeb3d/bin/legacy-panel-src/src/mhc-remote-access.mjs'
+url='https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/ce9a2307cb5c9614c76d5dc8f7ef9fff3b428b53/bin/legacy-panel-src/src/mhc-remote-access.mjs'
 if ! curl -fLsS --retry 2 --connect-timeout 8 --max-time 30 "$url" -o "$work/mhc-remote-access.mjs"; then
  echo 'FAIL: could not download pinned source'; exit 5
 fi
@@ -47,4 +47,4 @@ if [[ "$healthy" != 1 ]]; then
 fi
 echo "APPLIED_OK: safe auth diagnostics live; localhost Panel HTTP 200"
 echo "BACKUP=$saved"
-echo 'Next: open https://panel.giaouoc.com after Cloudflare login, then check private Panel logs.'
+echo 'Next: Access login, then grep MHC_REMOTE_ACCESS_DENIED in private Panel logs if still rejected.'
