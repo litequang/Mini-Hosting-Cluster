@@ -4,7 +4,8 @@
 - `reference/cluster-authority/`: Worker/DO cho shared membership + pending preparation, chưa cấp writer/route.
 - `bin/cluster-authority.mjs`: client private config, heartbeat/watch/runit agent, shared Panel request.
 - `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
-- `docs/CONTINUE-MHC.md`: checkpoint/đường dẫn để tiếp tục sau gián đoạn, GitHub branch.
+- `docs/LIVE-PROGRESS.md`: nguồn trạng thái thực thi duy nhất, checkpoint và bằng chứng.
+- `docs/CONTINUE-MHC.md`: kết nối/phục hồi sau gián đoạn, GitHub branch.
 - `tests/cluster-authority.mjs`, `tests/authority-panel.mjs`, `tests/guard-management.mjs`, `tests/service-environment.sh`: các regression mới.
 
 - `install.sh`: Termux fresh install/upgrade guard, marker và rollback code.

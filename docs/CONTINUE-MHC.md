@@ -1,49 +1,47 @@
-# Tiếp tục sau gián đoạn — 26/10/2026
+# Tiếp tục MHC sau gián đoạn
 
-## Nguồn đang làm
+**Nguồn trạng thái thực thi duy nhất: [LIVE-PROGRESS.md](LIVE-PROGRESS.md).** File này chỉ giữ cách tìm source, kết nối và phục hồi.
 
-- Remote được người dùng cung cấp: `https://github.com/litequang/Mini-Hosting-Cluster.git` (trống khi tiếp quản).
-- Branch đang làm: `codex/m1-m2-foundation`. Người dùng đã yêu cầu chủ động commit/push checkpoint.
-- Checkout Git local: `E:\CODE\MHC\MHC\.work\repository`; cây làm việc đang chỉnh ở `E:\CODE\MHC\MHC`, cần đối chiếu trước khi copy vào checkout. Không reset/giải nén đè.
-- Baseline Git `af8666e`: import source REMOTE-PANEL bàn giao, không phải lịch sử cũ.
-- Bản trước sửa local: `.work/before-m1-m2.zip` (không đưa vào Git).
+## Source và Git
 
-## Thiết bị / quyền
+- Remote: `https://github.com/litequang/Mini-Hosting-Cluster.git`.
+- Branch: `codex/m1-m2-foundation`; commit/push sau checkpoint có ý nghĩa.
+- Checkout Git: `E:\CODE\MHC\MHC\.work\repository`. Cây ngoài là workspace bàn giao; đối chiếu thay đổi trước khi copy vào checkout, không reset/giải nén đè.
+- Khi mất máy, clone repo và checkout branch trên. Đọc AGENTS và tài liệu theo thứ tự, sau đó LIVE-PROGRESS; kiểm Git status/log.
+- Tạo gói bằng `git archive` để giữ executable bit/LF. Không gói `.work`, secrets, database hoặc backup thiết bị.
 
-- Vsmart LAB hiện tại: `u0_a180@192.168.1.4:8022`. Host key đã được SSH tin cậy; StrictHostKeyChecking=yes.
-- Người dùng thiết lập key riêng tại `%USERPROFILE%\.ssh\id_ed25519_mhc_lab`; không đọc/commit khóa.
-- Người dùng xác nhận dữ liệu demo có thể xóa/bỏ qua, nhưng hiện chưa cần xóa.
-- Không sửa M51/X7b hoặc Cloudflare production. Account Cloudflare do user thiết lập.
+## Truy cập Vsmart
 
-## Checkpoint đang thực hiện (chưa nghiệm thu)
+SSH: `u0_a180@192.168.1.4:8022`, key `%USERPROFILE%\.ssh\id_ed25519_mhc_lab`. Host key đã được tin cậy. Không đọc/copy private key.
 
-- Sửa SVDIR cho SSH không tương tác; guard giữ named-tunnel, thử dừng mọi writer dù một service lỗi.
-- M2 source: Worker/DO có membership, auth agent/Panel riêng, revision/epoch, heartbeat sequence, journal begin/abort idempotent; client + Panel bridge. Chỉ PREPARE, không writer activation/route/commit Primary.
-- PASS mới trên Windows: service-environment, guard-management, cluster-authority (storage fixture), termux-compat.
-- FAIL môi trường: manual-primary trên Windows (quyền POSIX); không hạ kiểm quyền để làm test qua.
-- Vsmart thực: aarch64, Node v26.12.1, marker TEST 0.4.0B3, Panel HTTP 9090=200; nginx/PHP/MariaDB chạy qua runit đường dẫn đầy đủ.
-- `~/mhc-full serve status` cũ báo sai do thiếu SVDIR. Probe demo chưa đạt do hostname đoán `localhost` không đúng; cần lấy hostname từ cấu hình Nginx của demo.
-- Full self-test đang chạy từ source riêng, log `~/mhc-lab-runs/m1-m2-20261026/self-test.log`; chưa coi PASS toàn bộ.
-- Source archive đầu tiên SHA256 `724b7c13b4736a9bfd02e39444ac02f292f0c091c078d7e8ef7d25edb0a4cd02`.
+Chạy PowerShell, giữ cửa sổ mở. Nếu đã có tunnel cùng cổng, dùng lại hoặc Ctrl+C cửa sổ cũ trước:
 
-## Việc tiếp theo
+```powershell
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:9090:127.0.0.1:9090 -L 127.0.0.1:18080:127.0.0.1:18080 u0_a180@192.168.1.4
+```
 
-### Cập nhật mới nhất trong phiên
+- Panel: http://127.0.0.1:9090, tài khoản `admin`.
+- WordPress LAB: http://127.0.0.1:18080, quản trị `/wp-admin/`, tài khoản `mhcadmin`.
+- Người dùng tự sao chép mật khẩu qua SSH vào clipboard; không hiển thị qua tool/chat/log:
 
-- GitHub đã push checkpoint `d316311` và sửa đóng gói `ba0be57` lên branch công việc. Shell scripts có executable bit, gói deploy tạo bằng `git archive`.
-- Full `bash bin/self-test.sh` từ `ba0be57` đã kết thúc **PASS trên Vsmart Termux**. Log riêng `~/mhc-lab-runs/m1-m2-20261026/self-test-git.log`. Đây là chạy test trên Android, không phải nghiệm thu HA hai Android.
-- HTTP static demo, Panel 9090, SQL SELECT 1 thực đều PASS; PHP-FPM đang chạy.
-- Đã backup runtime/config/Panel/site/SQL trên Vsmart; đường backup được ghi trong `~/mhc-lab-runs/m1-m2-20261026/recovery-path`, quyền private. Không tải về GitHub.
-- Người dùng yêu cầu đổi mật khẩu Panel: đã đổi, restart amh-panel, xác minh đăng nhập PASS. Mật khẩu mới chỉ nằm trong private file trên node; đã hướng dẫn user lấy bằng SSH vào clipboard. Không khôi phục admin-before.json khi upgrade; so sánh với admin-after-authorized-reset.json.
-- Domain người dùng chốt: giaouoc.com, Panel dự kiến panel.giaouoc.com; chưa DNS/Tunnel/Access.
-- WordPress localhost đang được provision bằng script riêng `vsmart-wordpress.sh`, log `wordpress.log`. Kiểm log trước chạy lại để tránh tạo trùng.
-- Sau ba thay đổi nhỏ ở client/guard/Panel, focused tests Windows PASS; chuẩn bị upgrade chạy lại full test theo installer. Xem `SHARED-AUTHORITY-M2.md` cho phạm vi chuẩn bị chung, chưa cutover.
+```powershell
+# Panel
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 u0_a180@192.168.1.4 'cat ~/.config/mhc-full-installer/panel-login-once' | Set-Clipboard
+# WordPress
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 u0_a180@192.168.1.4 'cat ~/mhc-lab-runs/m1-m2-20261026/wordpress-admin-password' | Set-Clipboard
+```
 
-1. Đọc AGENTS và HANDOFF; kiểm Git status/log. Xác nhận source nào mới nhất.
-2. Đọc phần cuối self-test log trên Vsmart; xử lý lỗi, chạy lại đúng nhóm ảnh hưởng.
-3. Hoàn tất test Panel chung, cấu hình/runbook authority và giới hạn M2. Chưa deploy Cloudflare.
-4. Backup source/config/Panel/DB trên Vsmart vào vùng riêng 0700; không tải secrets/dump vào repo hoặc chat.
-5. Nâng source-only khi self-test đạt, kiểm Panel apply/rollback và password giữ nguyên; HTTP demo/PHP/DB, backup/restore vùng riêng.
-6. Cập nhật báo cáo PASS/FAIL/NOT RUN và file này, commit/push. M3/M4/hai Android/reboot/Cloudflare thật chưa nghiệm thu.
+## Phục hồi và bằng chứng trên node
 
-Không ghi lại mật khẩu đã được cung cấp trong chat. Dùng key SSH hiện có.
+Thư mục private: `~/mhc-lab-runs/m1-m2-20261026/`. Không chạy lại script tạo site/DB/restore mù vì tài nguyên đã tồn tại.
+
+- `recovery-path`: trỏ backup runtime/SQL trước upgrade; checksum đã kiểm tại node. Không đưa lên GitHub.
+- `admin-after-authorized-reset.json` trong recovery là baseline mật khẩu Panel mới. Không phục hồi `admin-before.json` làm mất lần đổi mật khẩu user yêu cầu.
+- Source rollback: `~/.local/share/mhc-full-installer/rollback/20261026-114341-29443`.
+- Panel apply/rollback/reapply đã kiểm; rollback ID cuối `20261026-114350-5139`. Chỉ restart `amh-panel` khi cần.
+- `runtime-fix-backup-path`: bản trước ba sửa WordPress/probe/backup; cần đánh giá regression trước rollback.
+- Snapshot hosting: `~/hosting-backups/mhc-full/snapshot-20261026`.
+- Restore rehearsal: `restore-drill/`, DB `mhc_restore_m120261026`. HTTP preview 18081 chỉ tồn tại trong bài thử. Không thay site đang phục vụ bằng bản này.
+- Logs `self-test-git.log`, `upgrade.log`, `final-deploy.log`, `acceptance.log` giữ trên node; chỉ lấy kết quả đã lọc. Trạng thái nghiệm thu nằm trong LIVE-PROGRESS.
+
+M51/X7b và Cloudflare production không thuộc quyền triển khai LAB. Domain mới: `giaouoc.com`, quản trị `panel.giaouoc.com`.
