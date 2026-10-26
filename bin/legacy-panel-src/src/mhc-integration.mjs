@@ -146,6 +146,10 @@ export async function mhcMonitor(){
  monitorCacheAt=Date.now();return monitorCache;
 }
 
+export async function mhcGenerateInvite(){
+ if(!sharedConfigured())throw Error('SHARED_AUTHORITY_REQUIRED_FOR_PAIRING');
+ return (await sharedClient()).sharedInvite();
+}
 export async function mhcMonitorHistory(nodeId){
  if(!sharedConfigured())return {mode:'LOCAL_ONLY',history:{nodeId,points:[]},notice:'Chưa bật Shared Authority; lịch sử cụm không có.'};
  const r=await (await sharedClient()).sharedHistory(nodeId);
