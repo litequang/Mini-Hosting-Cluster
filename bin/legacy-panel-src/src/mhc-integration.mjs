@@ -109,6 +109,16 @@ export async function mhcBackups(){
   notice:'Metadata only. Snapshot existence and SHA manifest presence are NOT current checksum or restore verification. Daily runit service alone cannot guarantee scheduling while Android sleeps.'};
 }
 export async function mhcMonitor(){
+ // v2 collector shared with the heartbeat agent. Gracefully retain old local monitor if
+ // this LAB node has not received the opt-in node-monitor.mjs asset yet.
+ const collector=path.join(BIN,'node-monitor.mjs');
+ if(regular(collector))try{
+  const monitor=await import(pathToFileURL(collector).href);
+  const metrics=await monitor.collectNodeMetrics();
+  return {...metrics,scope:'LOCAL_ANDROID_NODE',
+   battery:{...metrics.battery,available:metrics.battery.percentage!==null||metrics.battery.temperatureC!==null},
+   notice:'Trạng thái thiết bị đang quan sát, không xác nhận quyền Primary. CPU/mạng có thể bị Android hạn chế quyền truy cập.'};
+ }catch{/* not a reason to break the original Panel */}
  // Cached so multiple browsers cannot repeatedly launch Termux:API subprocesses.
  if(monitorCache&&Date.now()-monitorCacheAt<9000)return monitorCache;
  const cpus=os.cpus()||[];
@@ -134,6 +144,12 @@ export async function mhcMonitor(){
   uptimeSec:safeCount(Math.round(os.uptime()),0,1e10),battery,
   notice:'Battery temperature is NOT CPU temperature. Measurements are observations, not HA/Primary evidence.'};
  monitorCacheAt=Date.now();return monitorCache;
+}
+
+export async function mhcMonitorHistory(nodeId){
+ if(!sharedConfigured())return {mode:'LOCAL_ONLY',history:{nodeId,points:[]},notice:'Chưa bật Shared Authority; lịch sử cụm không có.'};
+ const r=await (await sharedClient()).sharedHistory(nodeId);
+ return {mode:r.mode,history:r.history||{nodeId,points:[]},notice:'Dữ liệu lấy mẫu tối đa 12 giờ qua Cloudflare Shared Authority; đo đạc có thể bị Android hạn chế.'};
 }
 
 
