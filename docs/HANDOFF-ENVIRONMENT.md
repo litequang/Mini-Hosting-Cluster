@@ -1,5 +1,11 @@
 # Môi trường tiếp quản và các đầu vào còn thiếu
 
+## Cập nhật trực tiếp 26/10/2026
+
+Người dùng đã cung cấp repo `https://github.com/litequang/Mini-Hosting-Cluster.git` và cho phép chủ động push checkpoint; branch `codex/m1-m2-foundation`. Vsmart hiện ở `u0_a180@192.168.1.4:8022`, SSH key riêng đã hoạt động. Node đang có MHC 0.4.0B3 trước nâng cấp, demo static, Panel 9090 và stack PHP/MariaDB. Người dùng cho phép xóa/bỏ qua demo vì dùng làm server mới; không có quyền sửa M51/X7b/Cloudflare production từ việc này.
+
+Domain mới là `giaouoc.com`; Panel dự kiến `panel.giaouoc.com`. Chưa cấu hình DNS/Tunnel/Access/authority cho domain này. Các IP/domain bên dưới là hồ sơ cũ, không dùng làm đích triển khai mới.
+
 ## Thông tin được ghi nhận, chưa xác minh lại ở lượt bàn giao
 
 | Hạng mục | Giá trị / nguồn | Cách dùng |

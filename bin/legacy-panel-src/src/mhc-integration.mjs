@@ -335,7 +335,7 @@ export async function mhcNodeGuard(){
  const script=path.join(BIN,'node-role-guard.mjs');const fallback={armed:false,services:[],lastCheck:null,independentFencingProven:false};
  if(!regular(script))return fallback;
  const raw=await run(process.execPath,[script,'status'],2500);if(!raw)return fallback;
- try{const x=JSON.parse(raw);return {armed:x.armed===true,services:(Array.isArray(x.services)?x.services:[]).filter(v=>/^(mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|named-tunnel|mini-web)$/.test(v)).slice(0,6),
+ try{const x=JSON.parse(raw);return {armed:x.armed===true,services:(Array.isArray(x.services)?x.services:[]).filter(v=>/^(mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|mysqld|mhc-full-wp-nginx|mhc-full-wp-php|named-tunnel|mini-web)$/.test(v)).slice(0,6),
   lastCheck:x.lastCheck?{at:clean(x.lastCheck.at,48),reason:clean(x.lastCheck.reason,70),allowed:x.lastCheck.allowed===true}:null,
   independentFencingProven:false};}catch{return fallback;}
 }

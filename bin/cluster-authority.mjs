@@ -28,7 +28,9 @@ export async function authorityRequest(c,action,body={},fetcher=fetch){
  let response;
  try{response=await fetcher(url,{method:action==='status'?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json'},
   body:action==='status'?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
- const raw=await response.text();if(raw.length>131072)throw Error('AUTHORITY_REPLY_TOO_LARGE');
+ const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
+ if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
+ while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>131072){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
  let v;try{v=JSON.parse(raw);}catch{throw Error('AUTHORITY_REPLY_INVALID');}
  if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z_]{1,60}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
  if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||v.writeLeaseGranted!==false||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
@@ -43,6 +45,21 @@ export async function sharedAction(body){
 }
 async function heartbeat(){const c=config('agent'),s=await authorityRequest(c,'status');return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now()});}
 async function main(args){
+ if(args[0]==='service-install'){
+  if(args.length!==2||args[1]!=='--confirm=INSTALL_LAB_AUTHORITY_AGENT'||process.env.PREFIX!=='/data/data/com.termux/files/usr')throw Error('LAB_TERMUX_SERVICE_CONFIRMATION_REQUIRED');
+  config('agent');
+  if(['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'].some(p=>fs.existsSync(path.join(home(),p))))throw Error('PRODUCTION_FOOTPRINT_BLOCKS_AUTHORITY_LAB');
+  const marker=fs.readFileSync(path.join(home(),'.config/mhc-full-installer/installed'),'utf8').trim();
+  if(marker!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')throw Error('UPGRADE_TEST_SOURCE_FIRST');
+  const service=path.join(process.env.PREFIX,'var/service/mhc-authority-agent');
+  const run='#!/data/data/com.termux/files/usr/bin/sh\nexec /data/data/com.termux/files/usr/bin/node "$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs" watch\n';
+  if(fs.existsSync(service)){
+   if(fs.lstatSync(service).isSymbolicLink()||fs.readFileSync(path.join(service,'run'),'utf8')!==run)throw Error('EXISTING_SERVICE_REQUIRES_REVIEW');
+   return {installed:true,alreadyPresent:true};
+  }
+  fs.mkdirSync(service,{mode:0o700});fs.writeFileSync(path.join(service,'run'),run,{mode:0o700,flag:'wx'});
+  return {installed:true,scope:'HEARTBEAT_ONLY_NO_WRITER_GRANT'};
+ }
  if(args.length!==1||!['status','heartbeat','watch'].includes(args[0]))throw Error('Usage: cluster-authority status|heartbeat|watch');
  if(args[0]==='status')return sharedStatus();
  if(args[0]==='heartbeat')return heartbeat();

@@ -1,5 +1,12 @@
 # CODEMAP — MHC checkpoint 0.5C-REMOTE-PANEL
 
+## M1/M2 đang triển khai 26/10/2026
+- `reference/cluster-authority/`: Worker/DO cho shared membership + pending preparation, chưa cấp writer/route.
+- `bin/cluster-authority.mjs`: client private config, heartbeat/watch/runit agent, shared Panel request.
+- `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
+- `docs/CONTINUE-MHC.md`: checkpoint/đường dẫn để tiếp tục sau gián đoạn, GitHub branch.
+- `tests/cluster-authority.mjs`, `tests/authority-panel.mjs`, `tests/guard-management.mjs`, `tests/service-environment.sh`: các regression mới.
+
 - `install.sh`: Termux fresh install/upgrade guard, marker và rollback code.
 - `bin/mhc-full-wrapper`: CLI dispatcher `~/mhc-full`; lệnh `primary-select`, `auto-primary`, `remote-panel`, `node-guard`, `hosting-panel`, `clone`, `node`, `file-sync`, `replication`, `sites`, `serve`, `backup`, `restore`.
 - `bin/legacy-panel.sh`: bridge sửa **original Panel 9090**, plan/apply/rollback; phải bảo vệ `~/android-hosting-panel/data/admin.json`.

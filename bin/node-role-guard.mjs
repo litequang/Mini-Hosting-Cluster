@@ -16,7 +16,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const HOST=/^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const USER=/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
-const SERVICE=/^(?:mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|mini-web)$/;
+const SERVICE=/^(?:mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|mysqld|mhc-full-wp-nginx|mhc-full-wp-php|mini-web)$/;
 // A shared tunnel can carry Panel/agent traffic. Never demote management ingress.
 export function guardedServices(services){
  if(!Array.isArray(services)||services.length<1||services.length>6||new Set(services).size!==services.length||services.some(s=>s!=='named-tunnel'&&!SERVICE.test(s)))fail('Invalid guarded service list');
@@ -61,9 +61,11 @@ function check(){safety();const cfg=read(CFG);if(cfg?.schema!==1||cfg.armed!==tr
  const services=guardedServices(cfg.services);
  let allowed=false,reason='CONTROLLER_UNREACHABLE_OR_INVALID';
  let nodeId=null;
- try{const b=base();nodeId=b.nodeId;const {reply,nonce}=inquire(b);allowed=allowWriteReply(reply,{...b,nonce});reason=reply.role==='PRIMARY_RECORDED_ONLY'?'CONTROLLER_PRIMARY_RECORDED':'CONTROLLER_STANDBY_OR_UNVERIFIED';}
+ try{
+  if(fs.lstatSync(path.join(ROOT,'authority.json'),{throwIfNoEntry:false}))reason='SHARED_AUTHORITY_NO_WRITER_ACTIVATION';
+  else{const b=base();nodeId=b.nodeId;const {reply,nonce}=inquire(b);allowed=allowWriteReply(reply,{...b,nonce});reason=reply.role==='PRIMARY_RECORDED_ONLY'?'CONTROLLER_PRIMARY_RECORDED':'CONTROLLER_STANDBY_OR_UNVERIFIED';}
+ }
  catch{} // communication failure is fail-closed, never permission to start.
- if(fs.lstatSync(path.join(ROOT,'authority.json'),{throwIfNoEntry:false})){allowed=false;reason='SHARED_AUTHORITY_NO_WRITER_ACTIVATION';}
  // A node previously demoted is NEVER automatically restarted after a role changes.
  const verdict=decide(allowed,services);let stopError;
  if(!allowed&&services.length)try{stopServices(services);}catch(e){stopError=e;}
