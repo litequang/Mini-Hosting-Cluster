@@ -52,16 +52,95 @@ async function dashboard(){const s=await req('/api/overview');state.stats=s;cons
 // Modules and Cluster are integrated into the ORIGINAL 9090 Panel, behind its existing session cookie.
 // Never display env vars, credentials, raw remote reports or claim that labels establish HA authority.
 const safeNum=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max?v:null;
+// MHC_MONITOR_ALL_NODES_V2: local measurements + shared remote node metrics (no separate Panel).
+const monitorServices={
+ 'amh-panel':'Panel quản trị','sshd':'SSH','nginx':'Nginx','mysqld':'MariaDB',
+ 'mini-web':'Node Web','mhc-authority-agent':'Cluster Agent','mhc-panel-tunnel':'Cloudflare Tunnel',
+ 'mhc-full-wp-php':'PHP-FPM / WP','mhc-full-wp-nginx':'WP Nginx'
+};
+function mhcDuration(seconds){
+ if(!Number.isFinite(seconds)||seconds<0)return '—';
+ const day=Math.floor(seconds/86400),hour=Math.floor((seconds%86400)/3600);
+ return day?day+' ngày '+hour+' giờ':hour+' giờ '+Math.floor((seconds%3600)/60)+' phút';
+}
+function monitorTrend(points,key,label){
+ const p=(Array.isArray(points)?points:[]).filter(v=>safeNum(v[key],-1e9,1e9)!==null).slice(-144);
+ if(p.length<2)return '<div class="help">Chưa đủ mẫu để hiển thị biểu đồ '+esc(label)+'.</div>';
+ const data=p.map(v=>Number(v[key])),min=Math.min(...data),max=Math.max(...data),spread=Math.max(1,max-min);
+ const poly=data.map((y,i)=>(i*298/(data.length-1)+1).toFixed(1)+','+(73-64*(y-min)/spread).toFixed(1)).join(' ');
+ return `<div class="card"><b>${esc(label)} · 12 giờ gần đây</b><svg viewBox="0 0 300 84" preserveAspectRatio="none" style="width:100%;height:105px;margin-top:10px" aria-label="${esc(label)}"><line x1="0" y1="73" x2="300" y2="73" stroke="currentColor" stroke-opacity=".16"/><polyline points="${poly}" fill="none" stroke="#55b6a1" stroke-width="2.5" vector-effect="non-scaling-stroke"/></svg><small class="muted">Nhỏ nhất: ${esc(min.toFixed(1))} · Lớn nhất: ${esc(max.toFixed(1))} · ${p.length} mẫu</small></div>`;
+}
 async function mhcMonitorPage(){
- const d=await req('/api/mhc/monitor');if(state.tab!=='monitor')return;
- const pct=safeNum(d.cpu?.usagePct,0,100),mem=safeNum(d.memory?.totalMiB,0,1e8),free=safeNum(d.memory?.freeMiB,0,1e8);
- const bp=safeNum(d.battery?.percentage,0,100),temp=safeNum(d.battery?.temperatureC,-25,100);
- page('Monitor thiết bị',`<p class="help">Dữ liệu quan sát tại ${esc(d.at)} · ${esc(d.device||'Android')} · tự làm mới khoảng 15 giây khi mở trang.</p>
- <div class="grid"><div class="card stat"><div class="tag">CPU</div><b>${pct===null?'—':pct+'%'}</b><small>${esc(d.cpu?.cores??'—')} lõi · có thể cần hai lần đọc</small></div>
- <div class="card stat"><div class="tag">RAM còn trống</div><b>${free===null?'—':free+' MiB'}</b><small>Trên tổng ${mem===null?'—':mem+' MiB'}</small></div>
- <div class="card stat"><div class="tag">PIN</div><b>${bp===null?'—':bp+'%'}</b><small>${esc(d.battery?.status||'Không khả dụng')}</small></div>
- <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Không phải nhiệt độ CPU</small></div></div>
- <div class="info">${esc(d.notice)}</div>`);
+ if(state.monitorLoading)return;state.monitorLoading=true;
+ try{
+  const [localResult,sharedResult]=await Promise.allSettled([req('/api/mhc/monitor'),req('/api/mhc/cluster')]);
+  if(state.tab!=='monitor')return;
+  const local=localResult.status==='fulfilled'?localResult.value:null;
+  const shared=sharedResult.status==='fulfilled'?sharedResult.value:null;
+  const nodes=Array.isArray(shared?.nodes)?shared.nodes:[];
+  const selected=state.monitorSelected||'local';
+  const chosen=nodes.find(n=>n.nodeId===selected);
+  if(!local&&!chosen){page('Monitor toàn cụm','<div class="info">Chưa đọc được thông số thiết bị hoặc Shared Authority. Kiểm tra trạng thái Panel/Agent.</div>');return;}
+  const m=selected==='local'?local:chosen?.telemetry||null;
+  const fresh=selected==='local'?!!local:chosen?.telemetryRecent===true;
+  const age=selected==='local'?local?.at:chosen?.metricsAt;
+  const num=(v,lo=0,hi=1e9)=>safeNum(v,lo,hi);
+  const disp=(v,suffix='')=>v===null||v===undefined?'—':v+suffix;
+  const pct=num(m?.cpu?.usagePct,0,100),mem=num(m?.memory?.totalMiB),free=num(m?.memory?.freeMiB);
+  const disk=num(m?.storage?.totalMiB),available=num(m?.storage?.freeMiB);
+  const battery=num(m?.battery?.percentage,0,100),temp=num(m?.battery?.temperatureC,-25,100);
+  const memUsed=mem!==null&&free!==null?Math.max(0,mem-free):null;
+  const diskUsed=disk!==null&&available!==null?Math.max(0,disk-available):null;
+  const serviceRows=Object.entries(monitorServices).map(([k,name])=>{
+   const v=m?.services?.[k]||'unknown';
+   const label=v==='running'?'Đang chạy':v==='stopped'?'Đã dừng':'Chưa rõ';
+   return `<tr><td>${esc(name)}</td><td><span class="badge ${v==='running'?'good':v==='stopped'?'bad':''}">${esc(label)}</span></td></tr>`;
+  }).join('');
+  const cards=nodes.map(n=>{
+   const c=n.telemetry,b=n.telemetryRecent===true,h=n.heartbeatRecent===true;
+   const status=!h?'Mất heartbeat':!b?'Thông số cũ':'Đang báo cáo';
+   const detail=c?`CPU ${disp(num(c.cpu?.usagePct,0,100),'%')} · RAM trống ${disp(num(c.memory?.freeMiB),' MiB')} · Pin ${disp(num(c.battery?.percentage,0,100),'%')}`:'Agent chưa gửi thông số v2';
+   return `<div class="card"><div class="flex"><b>${esc(n.label||'Node')}</b><span class="badge ${h&&b?'good':'bad'}">${esc(status)}</span></div><p class="help">${esc(detail)}</p><small class="muted">Heartbeat: ${esc(mhcAge(n.lastSeenAt))} trước · Dữ liệu: ${esc(mhcAge(n.metricsAt))} trước</small><div class="toolbar">${btn(selected===n.nodeId?'Đang xem':'Chi tiết','monitor-node:'+n.nodeId)}</div></div>`;
+  }).join('');
+  let alerts=[];
+  if(!fresh)alerts.push('Thông số của node đang xem không còn mới. Không suy luận trạng thái thực từ dữ liệu cũ.');
+  if(battery!==null&&battery<20)alerts.push('Pin yếu (dưới 20%).');
+  if(temp!==null&&temp>=42)alerts.push('Nhiệt độ pin cao (từ 42°C).');
+  if(mem&&free!==null&&free/mem<.15)alerts.push('RAM khả dụng dưới 15%.');
+  if(disk&&available!==null&&available/disk<.10)alerts.push('Dung lượng trống dưới 10%.');
+  let chart='<div class="help">Chọn một node thuộc Shared Authority để xem lịch sử 12 giờ.</div>';
+  if(chosen){
+   const cached=state.monitorHistory;
+   if(!cached||cached.nodeId!==chosen.nodeId||Date.now()-cached.fetchedAt>90000){
+    try{
+     const res=await req('/api/mhc/monitor/history?'+qs({nodeId:chosen.nodeId}));
+     state.monitorHistory={nodeId:chosen.nodeId,fetchedAt:Date.now(),points:res.history?.points||[]};
+    }catch{state.monitorHistory={nodeId:chosen.nodeId,fetchedAt:Date.now(),points:[]};}
+   }
+   const points=state.monitorHistory.points;
+   chart='<div class="grid two">'+monitorTrend(points,'cpuPct','CPU (%)')+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+'</div>';
+  }
+  page('Monitor toàn cụm',`
+   <div class="sectionhead"><div><h2>Node đang kết nối</h2><p>Thông số cập nhật khi có heartbeat; không bao gồm dữ liệu riêng tư trên điện thoại.</p></div>${btn('Làm mới','monitor-refresh')}</div>
+   <div class="grid two"><div class="card"><b>Panel đang mở</b><p>${esc(local?.device||'Android')} · máy này</p><p class="help">Thông số trực tiếp tại ${esc(local?.at||'Chưa đọc')}</p>${btn(selected==='local'?'Đang xem':'Chi tiết máy này','monitor-node:local')}</div>${cards||'<div class="card">Chưa có node được Shared Authority trả về.</div>'}</div>
+   <div class="info">Theo dõi toàn cụm: ${esc(shared?.mode||'AUTHORITY_UNAVAILABLE')} · ${nodes.filter(n=>n.heartbeatRecent===true).length}/${nodes.length} node có heartbeat gần đây. Máy hiện tại vẫn đọc được thông số khi Cloudflare mất kết nối.</div>
+   <div class="sectionhead"><div><h2>${esc(selected==='local'?(local?.device||'Máy này'):(chosen?.label||'Node'))}</h2><p>${fresh?'Dữ liệu gần đây':'Chưa có dữ liệu mới'} · Quan sát: ${esc(age||'Chưa có')}</p></div></div>
+   ${alerts.length?'<div class="info">'+alerts.map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>':''}
+   <div class="grid">
+    <div class="card stat"><div class="tag">CPU</div><b>${disp(pct,'%')}</b><small>${disp(num(m?.cpu?.cores,1,256),' lõi')} · Android có thể chặn đọc</small></div>
+    <div class="card stat"><div class="tag">RAM</div><b>${disp(memUsed,' MiB')}</b><small>Đang sử dụng / ${disp(mem,' MiB')} tổng · Trống ${disp(free,' MiB')}</small></div>
+    <div class="card stat"><div class="tag">LƯU TRỮ</div><b>${disp(diskUsed,' MiB')}</b><small>Đang sử dụng / ${disp(disk,' MiB')} tổng · Trống ${disp(available,' MiB')}</small></div>
+    <div class="card stat"><div class="tag">PIN</div><b>${disp(battery,'%')}</b><small>${esc(m?.battery?.status||'Không đọc được')} · Sức khỏe: ${esc(m?.battery?.health||'—')}</small></div>
+    <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Không phải nhiệt độ CPU</small></div>
+    <div class="card stat"><div class="tag">MẠNG NHẬN</div><b>${disp(num(m?.network?.rxKiBs),' KiB/s')}</b><small>Tốc độ ước tính · /proc/net/dev có thể bị chặn</small></div>
+    <div class="card stat"><div class="tag">MẠNG GỬI</div><b>${disp(num(m?.network?.txKiBs),' KiB/s')}</b><small>${disp(num(m?.network?.interfaces),' giao diện mạng đọc được')}</small></div>
+    <div class="card stat"><div class="tag">UPTIME ANDROID</div><b style="font-size:18px">${esc(mhcDuration(m?.uptimeSec))}</b><small>Android ${esc(m?.android||'—')} · ${esc(m?.device||'—')}</small></div>
+   </div>
+   <div class="sectionhead"><h2>Dịch vụ node</h2></div><div class="tablewrap"><table><thead><tr><th>Dịch vụ</th><th>Trạng thái</th></tr></thead><tbody>${serviceRows}</tbody></table></div>
+   <div class="sectionhead"><h2>Lịch sử đo đạc</h2></div>${chart}
+   <div class="help">Lịch sử lấy mẫu tối đa 12 giờ, mỗi 5 phút, chỉ khi Agent đang gửi dữ liệu về Cloudflare. Heartbeat không xác nhận website, database hoặc quyền Primary. Không đọc được chỉ số sẽ hiển thị — thay vì tự suy đoán.</div>
+  `);
+ }finally{state.monitorLoading=false;}
 }
 // No polling occurs before authentication; a single tab may refresh only while visible.
 setInterval(()=>{if(state.user&&state.tab==='monitor'&&!document.hidden)mhcMonitorPage().catch(()=>{});},15000);
@@ -210,6 +289,10 @@ const actions={
  'file-delete':async()=>{const file=state.selectedFile;if(!file||!confirm('Xóa '+file+'?'))return;await req(`/api/files/${state.selectedSite}/delete`,{method:'POST',body:{path:file,confirm:file}});state.selectedFile='';filesPage();},
 };
 async function dynamicAction(key,element){let [type,...rest]=key.split(':');const value=rest.join(':');
+ if(type==='monitor-refresh'){state.monitorHistory=null;await mhcMonitorPage();return;}
+ if(type==='monitor-node'){
+  state.monitorSelected=value||'local';state.monitorHistory=null;await mhcMonitorPage();return;
+ }
  if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
  if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
 
