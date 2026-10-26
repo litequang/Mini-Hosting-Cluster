@@ -100,7 +100,16 @@ async function mhcMonitorPage(){
    const c=n.telemetry,b=n.telemetryRecent===true,h=n.heartbeatRecent===true;
    const status=!h?'Mất heartbeat':!b?'Thông số cũ':'Đang báo cáo';
    const detail=c?`RAM trống ${disp(num(c.memory?.freeMiB),' MiB')} · Pin ${disp(num(c.battery?.percentage,0,100),'%')} · Wi-Fi ${c.wifi?.state==='connected'?'đã kết nối':'chưa rõ'}`:'Agent chưa gửi thông số v2';
-   return `<div class="card"><div class="flex"><b>${esc(n.label||'Node')}</b><span class="badge ${h&&b?'good':'bad'}">${esc(status)}</span></div><p class="help">${esc(detail)}</p><small class="muted">Heartbeat: ${esc(mhcAge(n.lastSeenAt))} trước · Dữ liệu: ${esc(mhcAge(n.metricsAt))} trước</small><div class="toolbar">${btn(selected===n.nodeId?'Đang xem':'Chi tiết','monitor-node:'+n.nodeId)}</div></div>`;
+   const services=c?.services||{},serviceBadge=(label,kind)=>{
+    const v=services[kind]||'unknown';
+    return `<span class="badge ${v==='running'?'good':v==='stopped'?'bad':''}">${esc(label)}: ${v==='running'?'run':v==='stopped'?'down':'—'}</span>`;
+   };
+   return `<div class="card"><div class="flex"><b>${esc(n.label||'Node')}</b><span class="badge ${h&&b?'good':'bad'}">${esc(status)}</span></div>
+    <p class="help">Vai trò: ${esc(n.role||'Chưa xác minh')} · ${esc(detail)}</p>
+    <small class="muted">Heartbeat: ${esc(mhcAge(n.lastSeenAt))} trước · Dữ liệu: ${esc(mhcAge(n.metricsAt))} trước</small>
+    <div class="btnrow" style="margin-top:8px;flex-wrap:wrap">${serviceBadge('DB','mysqld')}${serviceBadge('Web','mini-web')}${serviceBadge('Tunnel','named-tunnel')}${serviceBadge('Panel','amh-panel')}<span class="badge">Sync: chưa xác minh</span></div>
+    <p class="help">Snapshot: ${esc(c?.snapshot?.name||'chưa ghi nhận')} (chưa xác minh)</p>
+    <div class="toolbar">${btn(selected===n.nodeId?'Đang xem':'Chi tiết','monitor-node:'+n.nodeId)}</div></div>`;
   }).join('');
   let alerts=[];
   if(!fresh)alerts.push('Thông số của node đang xem không còn mới. Không suy luận trạng thái thực từ dữ liệu cũ.');
