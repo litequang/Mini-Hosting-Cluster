@@ -108,6 +108,16 @@ export async function mhcBackups(){
  return {scope:'MHC_LOCAL_ONLY',latestRecorded,snapshots,services:tasks,integrityVerifiedNow:false,
   notice:'Metadata only. Snapshot existence and SHA manifest presence are NOT current checksum or restore verification. Daily runit service alone cannot guarantee scheduling while Android sleeps.'};
 }
+function localMonitorIdentity(){
+ const file=path.join(HOME,'.config/mhc-full-installer/node-identity.json');
+ try{
+  const stat=fs.lstatSync(file);
+  if(!stat.isFile()||stat.isSymbolicLink()||stat.size>4096)return {};
+  const v=JSON.parse(fs.readFileSync(file,'utf8'));
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.nodeId||'')?
+   {nodeId:v.nodeId,nodeLabel:clean(v.label,60)}:{};
+ }catch{return {};}
+}
 export async function mhcMonitor(){
  // v2 collector shared with the heartbeat agent. Gracefully retain old local monitor if
  // this LAB node has not received the opt-in node-monitor.mjs asset yet.
@@ -115,7 +125,7 @@ export async function mhcMonitor(){
  if(regular(collector))try{
   const monitor=await import(pathToFileURL(collector).href);
   const metrics=await monitor.collectNodeMetrics();
-  return {...metrics,scope:'LOCAL_ANDROID_NODE',
+  return {...metrics,...localMonitorIdentity(),scope:'LOCAL_ANDROID_NODE',
    battery:{...metrics.battery,available:metrics.battery.percentage!==null||metrics.battery.temperatureC!==null},
    notice:'Trạng thái thiết bị đang quan sát, không xác nhận quyền Primary. CPU/mạng có thể bị Android hạn chế quyền truy cập.'};
  }catch{/* not a reason to break the original Panel */}
@@ -138,7 +148,7 @@ export async function mhcMonitor(){
     status:['CHARGING','FULL','DISCHARGING','NOT_CHARGING'].includes(x.status)?x.status:'UNKNOWN'};
  }catch{}
  const model=clean(await run(path.join(PREFIX,'bin/getprop'),['ro.product.model'],900)||'Android',55);
- monitorCache={scope:'LOCAL_OBSERVATION_ONLY',at:new Date().toISOString(),device:model,
+ monitorCache={scope:'LOCAL_OBSERVATION_ONLY',...localMonitorIdentity(),at:new Date().toISOString(),device:model,
   cpu:{usagePct,cores:cpus.length||null},
   memory:{totalMiB:safeCount(Math.round(mem/1048576),0,1e8),freeMiB:safeCount(Math.round(free/1048576),0,1e8)},
   uptimeSec:safeCount(Math.round(os.uptime()),0,1e10),battery,
