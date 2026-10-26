@@ -56,3 +56,9 @@ Only after Vsmart passes remote browser SSO and local password recovery, apply e
 - Real two-Android outage/return tests, no production deployment before observed results.
 
 **Never** represent an M2 `begin` / `PREPARED_NO_WRITER_GRANT` as a successful Primary cutover. `Panel selected a node` is not evidence of `website served by node`.
+
+## M3 UI milestone (26 Oct 2026)
+
+The main Cluster page now allows selecting a **candidate** node and making a durable, revision-checked `begin` request against the existing Worker. It displays the pending target on all Panels and supports `abort`. Only heartbeat-recent registered nodes are offered; the authority independently enforces recent heartbeat and single pending transition. This is not a live primary, does not change routing, does not fence old writers or start the target.
+
+Source: `bin/legacy-panel-src/public/app.js`, commit `bd9b02c95aede607a353e3471d9c43f832418ac8`. Installer for both LAB devices: `scripts/apply-primary-candidate-ui.sh`, pinned Git blob `1a73c25997270925214c6fc67a935966b8507a65`. An Android/browser/Cloudflare runtime test has NOT been performed.
