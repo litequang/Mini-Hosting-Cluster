@@ -1,5 +1,13 @@
 # MHC — trạng thái thực thi duy nhất
 
+## Bổ sung 26/10/2026 — chẩn đoán Access 403, source đã push, Android chưa triển khai
+
+- **OBSERVED BY USER:** Vsmart Panel localhost HTTP 200; Cloudflare redirect HTTP 302; Tunnel service running; matching origin hostname/team/AUD, Access application duration 24h; Cloudflare JWKS HTTPS HTTP 200, 2 RSA/RS256 keys. Browser after login reports `{"error":"Remote Access verification required"}` (HTTP origin 403). **Cause still unverified**; no authentic JWT/header/claims observed. Source tests and physical Android deploy for new diagnostic NOT RUN.
+- **SOURCE PUSHED:** `bin/legacy-panel-src/src/mhc-remote-access.mjs` private rate-limited reason diagnostics `MHC_REMOTE_ACCESS_DENIED`, retaining RS256/issuer/AUD/clock/password/CSRF and public generic 403; `tests/remote-panel.mjs` expanded; LAB rollback script `scripts/apply-remote-access-diagnostics.sh`. Android Panel live NOT YET patched; deploy only to Vsmart as confirmed origin, then user log in through Access and read filtered private log to identify exact reason. Public 9090 remains localhost-only.
+- **USER-OBSERVED HEARTBEAT:** Vsmart runit `mhc-authority-agent` running; manual shared heartbeat succeeded. Shared state PREPARE_ONLY, no Primary/lease/auto.
+- **USER-OBSERVED UI:** Vsmart received frontend-only Cluster patch with `APPLIED_OK`; XZ3 received file by SCP, but `APPLIED_OK` not yet observed in conversation. Browser through SSH 19090 failed by strict localhost Host allowlist; 9090 forwarding works if no conflicting tunnel. No verified public UI success.
+
+
 Cập nhật sau checkpoint có ý nghĩa; không sao chép trạng thái sang báo cáo audit/status mới. HANDOFF/PROJECT-STATUS là lịch sử; [CONTINUE-MHC.md](CONTINUE-MHC.md) giữ hướng dẫn kết nối/phục hồi.
 
 Branch `codex/m1-m2-foundation`. Ngày ghi nhận 26/10/2026. Vsmart Termux aarch64, Node v26.12.1, PHP 8.5.12, SSH `192.168.1.4:8022`. Người dùng cho phép push checkpoint.
