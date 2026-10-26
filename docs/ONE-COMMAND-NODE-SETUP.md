@@ -33,7 +33,7 @@ Worker join uses Durable Object transactions, only a matching unused code less t
 Inside the existing Termux:
 
 ```sh
-curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/d3b5f696977770cea23333d6286f2f34002e88bc/scripts/update-existing-android-node.sh -o ~/mhc-update.sh && bash ~/mhc-update.sh --apply
+curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/33480440f9b5e7652467ff59d31a67332c231dc0/scripts/update-existing-android-node.sh -o ~/mhc-update.sh && bash ~/mhc-update.sh --apply
 ```
 
 This checks known MHC LAB source marker and existing JWT signature validator, then downloads the **13** exact immutable source blobs (nine live runtime assets plus four retained managed Panel source files) (Panel server/integration/Monitor JS/CSS, Node collector, authority client, CLI, boot manager, doctor). It backs up everything, leaves Cloudflare Access config, admin data, database, websites and remote Tunnel alone, restarts only `amh-panel`/existing `mhc-authority-agent`, verifies served JS SHA and attempts managed boot repair. Rollback automatically restores files on HTTP/restart failure. On a different/production node the installer refuses.
@@ -64,3 +64,11 @@ Check Worker name `mhc-cluster-authority-lab` before deploying. This upgrades th
 - Source pinned and nine blob IDs reviewed, and an isolated JavaScript Durable Object fixture validated invite→join→dynamic heartbeat, replay denial, wrong-role denial, with `declaredPrimary:null` and `writeLeaseGranted:false`. The original Node test `tests/cluster-pairing.mjs` was committed, but **not executed** in a Node test runner here.
 - **NOT RUN on Android**: clean Termux install, API permission prompts, cold boot of XZ3, real SSH after reboot, actual Worker deployment and physical new phone pairing. The Android steps must be verified before claiming 24/7 operation.
 - Future Panel-managed provisioning/remote app/site deployment requires authenticated node job execution and approval/rollback. **Not implemented by this milestone**. Pairing+Monitor/Agent are currently usable from the Panel once deployed; arbitrary remote shell commands are intentionally not exposed.
+
+### Monitor expanded all-node UI patch (26 October 2026)
+
+The current unified existing-node installer is pinned at commit `33480440f9b5e7652467ff59d31a67332c231dc0`. It updates 13 live/managed Panel+Agent+Boot files from immutable source commit `30e64673f84f035394e1c2a8069f68198acc5e5f`. The installer checks local Panel HTTP 200 before changes, performs ESM syntax verification via `node --check --input-type=module` from stdin, backs up all 13 files, verifies the served app.js SHA, and rolls back on HTTP verification failure including explicit exit. Run it on each existing LAB Vsmart/XZ3 node. `panel.giaouoc.com` is still bound to Vsmart until genuine Primary routing exists.
+
+The Monitor page renders **every registered node expanded immediately**, with local Panel/healthy nodes first. Includes pin status/temperature, RAM, storage, Wi-Fi RSSI, network rates, uptime, 12 service statuses, Node.js RSS, snapshot metadata, sync-unverified warning, role, heartbeat/metrics age, per-node 12h history charts (fetched asynchronously), 15s auto-refresh, no CPU. Distinguishes missing v2 telemetry from old data and lost heartbeat. Node's telemetry requires updated `mhc-authority-agent` on that node **AND** compatible Cloudflare Worker. Absence of telemetry does not prove Android offline.
+
+**Verification only (this session):** JavaScript syntax parsed, UI content checks PASSED, all 13 installer SHA pins matched pinned GitHub source. Actual two-Android deployment, Worker deployment and browser visual acceptance NOT RUN. Never claim installed until a device prints `APPLIED_OK` and browser is checked.
