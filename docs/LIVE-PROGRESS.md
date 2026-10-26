@@ -133,3 +133,9 @@ Không lưu secrets/dump. SHA của chính bản ghi checkpoint tra bằng `git 
 - **PASS in mock Durable Object fixture** for Panel invitation, one-time 192-bit code, dynamic node membership, Agent heartbeat, unauthorized Agent invite denied, code replay denied, no Primary/writer grant. Crypto in isolated fixture was mocked; not a real signed Cloudflare deployment.
 - **NOT RUN**: real Node automated test suite (`tests/cluster-pairing.mjs`), clean Termux installer, Android reboot/Termux:Boot, screen-off XZ3, end-to-end Worker rollout, physical third-node pairing. User-reported XZ3 stopped services after reboot; cause has not been proven on phone. The integrated boot repair is source code, not yet deployed to XZ3. `docs/ONE-COMMAND-NODE-SETUP.md` has exact operator commands.
 - Remote Panel app/site deploy orchestration, actual Primary cutover and auto failover **remain unimplemented**; no mislabeling.
+
+
+## 26/10/2026 — XZ3 báo CHƯA CÓ MONITOR V2, mã chẩn đoán phát hành
+- Chưa có bằng chứng Worker hiện đã được deploy và XZ3 Agent đã gửi telemetry. Không tự khẳng định lỗi nằm ở Termux:API.
+- Code: `bin/node-doctor.sh` kiểm tra trực tiếp collector và phân biệt status Worker schema; `bin/cluster-authority.mjs` ghi error class có giới hạn tốc độ thay cho hoàn toàn bỏ qua lỗi collector, vẫn giữ heartbeat khi thiếu metrics.
+- Single-source existing-node updater mới `scripts/update-existing-android-node.sh` commit `e36b804a237b34c5042c853fc87656df10b801e9` pin `7ea74bcc6dd519bac97cb2e4eb45d8d3570f51ed`; không sửa Cloudflare hay dữ liệu website. **NOT RUN** XZ3 thật, Worker thật, screen off hoặc browser.
