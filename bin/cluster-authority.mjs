@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
@@ -133,7 +134,7 @@ export async function joinWithCode(encoded){
  }
  const joined=await configureAuthority(url.origin,ticket.clusterId);
  const installed=await installAuthorityService();
- return {...joined,agentInstalled:installed.installed,joined:true,primaryGranted:false,
+ return {...joined,agentInstalled:installed.installed,agentStarted:installed.started,joined:true,primaryGranted:false,
   note:'Node enrolled in Shared Authority only. Panel/hosting data not automatically migrated.'};
 }
 export async function sharedHistory(targetNodeId){
@@ -169,7 +170,13 @@ async function installAuthorityService(){
  }else{
   fs.mkdirSync(service,{mode:0o700});fs.writeFileSync(path.join(service,'run'),run,{mode:0o700,flag:'wx'});
  }
- return {installed:true};
+ let started=false;
+ try{
+  execFileSync(path.join(process.env.PREFIX,'bin/sv-enable'),['mhc-authority-agent'],{timeout:4500,stdio:'ignore'});
+  execFileSync(path.join(process.env.PREFIX,'bin/sv'),['up',service],{timeout:4500,stdio:'ignore'});
+  started=true;
+ }catch{/* if runit not ready, node-doctor --repair can safely enable it */}
+ return {installed:true,started};
 }
 
 async function main(args){
