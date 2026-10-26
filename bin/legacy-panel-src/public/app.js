@@ -288,15 +288,23 @@ async function mhcClusterPage(){
   state.primarySelection=shared?d:null;
   const targets=nodes.filter(n=>n.heartbeatRecent===true);
   const primaryChoices=targets.map(n=>`<option value="${esc(n.nodeId)}">${esc(n.label)}</option>`).join('');
-  const intent=d.pending&&shared?`<div class="info"><b>Đã chọn ứng viên: ${esc(d.pending.label||'Node')}</b><p>Phiên ${esc(d.pending.status||'PREPARED_NO_WRITER_GRANT')} · Epoch ${Number(d.pending.epoch)||0}. Chưa kích hoạt website, chưa khóa máy cũ và chưa chuyển Cloudflare.</p><div class="btnrow">${btn('Hủy lựa chọn','primary-abort','tiny warn')}</div></div>`:'';
+  const intent=d.pending&&shared?`<div class="info"><b>Ứng viên P3 LAB: ${esc(d.pending.label||'Node')}</b>
+<p>Trạng thái: <b>${esc(d.pending.status||'PREPARED_NO_WRITER_GRANT')}</b> · Epoch ${Number(d.pending.epoch)||0}</p>
+<p>Chuyển DNS LAB chỉ được phép sau khi backup/restore và kiểm tra node đích. Không có fencing độc lập; không sử dụng cho website production.</p>
+<div class="btnrow">
+${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Chuyển Cloudflare DNS (LAB)','primary-lab-route','primary'):''}
+${d.pending.status==='ROUTING_REQUESTED'?btn('Kiểm tra và tiếp tục DNS','primary-lab-resume','primary'):''}
+${d.pending.status==='DNS_SWITCHED_AWAITING_HTTP_CONFIRM'?btn('Xác nhận sau chuyển tuyến (LAB)','primary-lab-complete','primary'):''}
+${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Hủy ứng viên','primary-abort','tiny warn'):''}
+</div></div>`:'';
   const enroll=shared?`<div class="card"><h2>Thêm điện thoại mới vào Cluster</h2><p>Điện thoại mới cần chạy bộ cài MHC một lần. Tạo mã dùng một lần, tự hết hạn sau 10 phút; node mới tham gia Standby và tự gửi Monitor.</p>${btn('Tạo mã ghép 10 phút','cluster-invite','primary')}</div>`:'';
-  const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác này lưu lựa chọn dùng chung cho mọi Panel, KHÔNG thực hiện chuyển Primary thật. Chỉ chọn node có heartbeat gần đây.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Để hoàn tất chuyển Primary cần dừng đường ghi cũ, khởi động/kiểm tra đích và chuyển route đã xác minh. Phần này chưa được tự động hóa.</p></div>`:'';
+  const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác đầu tiên chỉ chuẩn bị ứng viên. Chuyển tuyến chỉ hoạt động trên LAB có allowlist và xác nhận độc lập; không cấp writer lease.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Route LAB có nhật ký phục hồi. Worker phải có quyền DNS cho đúng tên miền thử nghiệm; chưa có write fencing thực.</p></div>`:'';
   page('Cluster — tổng quan',`
   <div class='sectionhead'><div><h2>Cụm máy chủ</h2><p>Trạng thái từ Cloudflare, tự cập nhật mỗi 20 giây khi mở trang</p></div><div class='btnrow'>${btn('Làm mới','cluster-overview')}${btn('Kỹ thuật LAB','cluster-advanced')}</div></div>
   <div class='grid two'>
     <div class='card stat'><div class='tag'>NODE ĐĂNG KÝ</div><b>${Number.isInteger(d.nodeCount)?d.nodeCount:nodes.length}</b><small>${esc(d.mode||'Chưa cấu hình')}</small></div>
     <div class='card stat'><div class='tag'>HEARTBEAT GẦN ĐÂY</div><b>${active===null?'—':active+' / '+nodes.length}</b><small>Độ mới theo Cloudflare (180 giây)</small></div>
-    <div class='card stat'><div class='tag'>PRIMARY THẬT</div><b style='font-size:19px;letter-spacing:0'>${esc(d.declaredPrimary?.label||'Chưa xác minh')}</b><small>Chưa có quyền writer / route được chứng minh</small></div>
+    <div class='card stat'><div class='tag'>PRIMARY GHI NHẬN (LAB)</div><b style='font-size:19px;letter-spacing:0'>${esc(d.declaredPrimary?.label||'Chưa xác minh')}</b><small>Không có lease/fencing độc lập</small></div>
     <div class='card stat'><div class='tag'>CHUYỂN PRIMARY TỰ ĐỘNG</div><b style='font-size:19px;letter-spacing:0'>Chưa hỗ trợ</b><small>M3/M4 chưa triển khai</small></div>
   </div>
   <div class='sectionhead'><h2>Thiết bị</h2></div><div class='grid two'>${cards||'<div class="card">Chưa có dữ liệu node.</div>'}</div>
@@ -403,6 +411,34 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
  if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
 
+ if(type==='primary-lab-route'||type==='primary-lab-resume'||type==='primary-lab-complete'){
+  const p=await req('/api/mhc/primary-selection');
+  if(p.mode!=='SHARED_AUTHORITY_PREPARE_ONLY'||!p.pending?.operationId)throw Error('Chưa có phiên chuyển P3 LAB hợp lệ');
+  const action=type==='primary-lab-route'?'route':type==='primary-lab-resume'?'route-resume':'complete';
+  const requiredStatus={route:'PREPARED_NO_WRITER_GRANT','route-resume':'ROUTING_REQUESTED',complete:'DNS_SWITCHED_AWAITING_HTTP_CONFIRM'};
+  if(p.pending.status!==requiredStatus[action])throw Error('Trạng thái đã thay đổi. Làm mới Cluster.');
+  const questions=action==='route'?[
+   ['backupRestored','Đã sao lưu từ node cũ và KHÔI PHỤC dữ liệu trên node đích?'],
+   ['oldWritersStopped','Đã thực sự dừng DB/site writers trên node cũ?'],
+   ['targetHttpChecked','Đã kiểm tra HTTP + database của node mới qua đường nội bộ?'],
+   ['targetPanelAccessChecked','Đã kiểm tra Panel node mới có thể truy cập qua Access?'],
+   ['acceptDataLossRisk','Chấp nhận mất dữ liệu chưa backup và rủi ro split-brain do thiếu fencing?'],
+   ['labOnly','Xác nhận đây chỉ là hostname thử nghiệm, KHÔNG phải website production?']
+  ]:action==='complete'?[
+   ['websitePublicChecked','Đã thử website PUBLIC và xác nhận đúng node đích?'],
+   ['panelPublicChecked','Đã thử Panel PUBLIC qua Cloudflare Access, đúng node đích?'],
+   ['noNewWritesOnOldNode','Đã xác nhận node cũ chưa nhận ghi mới sau khi chuyển?'],
+   ['acceptNonFencedLabRisk','Chấp nhận nhãn LAB không fencing và không có writer lease?']
+  ]:[];
+  if(action==='route-resume'&&!confirm('Kiểm tra lại các bản ghi Cloudflare và tiếp tục phiên LAB? Lỗi giữa chừng phải đối chiếu DNS trước khi thử lại.'))return;
+  const confirmations={};
+  for(const [k,label] of questions){if(!confirm(label))return;confirmations[k]=true;}
+  if(action==='route'&&!confirm('Xác nhận đổi CNAME của tất cả hostname LAB đã allowlist sang node đích? Đây là thay đổi Internet thật.'))return;
+  if(action==='complete'&&!confirm('Chỉ GHI NHẬN Primary LAB (DNS đã đổi). KHÔNG có write fencing độc lập. Tiếp tục?'))return;
+  await req('/api/mhc/primary-selection',{method:'POST',body:{action,id:p.pending.operationId,requestId:crypto.randomUUID(),expectedRevision:p.revision,...confirmations}});
+  toast(action==='complete'?'Đã ghi nhận Primary LAB; không cấp writer lease':action==='route-resume'?'Đã kiểm tra/tái thực hiện route':'Đã gửi yêu cầu DNS LAB');
+  await nav('cluster');return;
+ }
  if(type==='primary-begin'){
   const id=$('#primaryTarget')?.value;
   if(!id||!confirm('Chuẩn bị chuyển Primary thủ công tới node đã chọn? CHƯA đổi tuyến hay dừng dịch vụ.'))return;
@@ -417,6 +453,7 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  }
  if(type==='primary-abort'){
   const p=await req('/api/mhc/primary-selection');if(!p.pending)return;
+  if(p.pending.status!=='PREPARED_NO_WRITER_GRANT')throw Error('Đã yêu cầu chuyển DNS; không thể hủy mù. Kiểm tra route hiện tại trước.');
   if(!confirm('Hủy phiên? Nếu đã sửa Cloudflare hoặc dịch vụ, phải kiểm tra/hoàn tác bằng tay.'))return;
   await req('/api/mhc/primary-selection',{method:'POST',body:{action:'abort',id:p.pending.operationId,...(p.mode==='SHARED_AUTHORITY_PREPARE_ONLY'?{requestId:crypto.randomUUID(),expectedRevision:p.revision}:{})}});toast('Đã hủy bản ghi phiên');await nav('cluster');return;
  }
