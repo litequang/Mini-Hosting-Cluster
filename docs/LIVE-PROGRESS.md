@@ -1,5 +1,13 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 26/10/2026 — monitor installer failure fixed, CPU hidden, legacy node card improved
+
+- **USER OBSERVED:** invoking the original monitor installer on Termux returned `STOP: Unexpected auth module in Panel`. Root cause located in installer check of `crypto.verify` in the wrong file. Exit happened before the installer wrote Panel source. Corrected check now verifies `server.mjs` imports JWT guard and installed `mhc-remote-access.mjs` includes RSA signature verification. No weakening of auth.
+- All Panel UI CPU displays removed (Dashboard, Monitor, Node.js processes). Node telemetry no longer measures CPU. Added privacy-safe Wi-Fi RSSI (no SSID/IP/BSSID), 12 service states, process RSS list, last snapshot name/mtime (not integrity proof), DB/Web/Tunnel/Panel indicators, sync-unverified chip, 12h Wi-Fi history and gaps. Legacy monitor screenshot was used as feature baseline, not assumed to represent current live node status.
+- Updated sanitized Cloudflare Worker telemetry schema and tests. Isolated in-memory Worker fixture **PASS**: 2-node heartbeat, status, Panel-only history, legacy heartbeat, no CPU, no private fields, no writer grant. GitHub pinned installer blobs **PASS**. Corrected script commit `2656d8b9cb4ddc330a850064567ff257cf4ab030`. **NOT RUN:** new installer on Android, real Wi-Fi API/ps, real Worker deploy, old/current browser screens. Existing `panel.giaouoc.com` SSO unaffected by source plan.
+- Old `~/mhc online-enroll CODE` pairing applies to legacy monitor. Current Shared Authority MHC uses manually registered `MHC_MEMBERS_JSON` keys. Ten-minute pairing via Panel is a proposed next feature, **not deployed**; `docs/MONITOR-V2-PAIRING-DESIGN.md`.
+
+
 ## 26/10/2026 — Monitor v2 all-nodes developed, GitHub pushed, runtime deployment NOT RUN
 
 - Expanded original Panel 9090's Monitor for all nodes (Vsmart/XZ3/N), rich device/service/storage/network/battery/CPU/RAM, freshness warnings, 12h history, sample gaps. Current `monitor.thophuong.com` web content was not accessible, so not claimed an exact parity audit.
