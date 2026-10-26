@@ -89,3 +89,10 @@
 - `bin/legacy-panel-src/public/style.css`: responsive 2-column desktop/1-column narrow, readable service chips, metric tiles, process/memory history; integrated into original Panel 9090 rather than standalone monitor.
 - `bin/legacy-panel-src/src/mhc-integration.mjs`: removes legacy CPU probing fallback.
 - `scripts/update-existing-android-node.sh`: immutable source+13 SHA pins, Node ESM stdin check, pre-install local Panel HTTP check, guaranteed rollback on unsuccessful health verification including explicit exit; release commit `33480440f9b5e7652467ff59d31a67332c231dc0`.
+
+
+## P3 LAB operator-assisted Cloudflare cutover — source 26/10
+- `reference/cluster-authority/p3-route.mjs`: isolated Worker/DO DNS API adapter, allowed exact zone+record ids, known tunnel targets, site-before-panel, current target comparison and idempotent retry.
+- `reference/cluster-authority/worker.mjs`: `route`/`route-resume`/`complete` with Durable Object status journal, revision CAS/idempotence and operator attestations; `writerLeaseGranted:false`, no independent fencing.
+- `bin/cluster-authority.mjs`, `bin/legacy-panel-src/public/app.js`: shared P3 LAB client and original Panel UI actions. `bin/legacy-panel-src/src/server.mjs` original route/CSRF/Access reused unchanged.
+- `tests/p3-route.mjs` + `bin/self-test.sh`: mocked Cloudflare DNS adapter tests (real Node runner NOT RUN), syntax/source test checks only. `docs/P3-LAB-MANUAL-CUTOVER.md`: private config gates and device test runbook. P3 production not accepted.
