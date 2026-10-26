@@ -12,3 +12,9 @@
 10. **Không tạo tràn lan phiên bản TEST nhỏ**. Lộ trình tối giản: Vsmart hosting ổn -> distributed panel -> manual switchover -> automatic failover LAB -> migration -> v1.
 11. **Hostname riêng mỗi node là tùy chọn** để debug/recovery, không bắt buộc triển khai MVP.
 12. **Không giả vờ hoàn thành**: test giả lập != end-to-end, backend lưu node role != fencing, đổi DNS != dừng writer.
+
+## Bổ sung 26/10/2026 — Primary phục vụ Panel, Cloudflare Access email-only
+- `panel.giaouoc.com` là **một URL chung**, thông thường trỏ tới **node đang làm Primary có xác minh**, không một Panel controller cố định trên Vsmart. Các node đều chạy Panel 9090 riêng để khôi phục.
+- Khi Primary offline, địa chỉ Panel chung **vẫn phải mở qua standby/recovery node** nhờ route/authority độc lập; quyền writer không tự cấp chỉ vì Panel đã chuyển.
+- Vào Panel từ Internet qua Cloudflare Access email được phép, không nhập tiếp mật khẩu Hosting; xác minh JWT tại origin và CSRF/cookie tiếp tục. Qua SSH localhost giữ mật khẩu làm recovery. Cloudflare policy phải giới hạn đúng email admin.
+- Các yêu cầu trên là **thiết kế đã xác nhận**, không hiểu rằng M3/M4 route/election đã triển khai. Chi tiết và nghiệm thu ở `PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`.
