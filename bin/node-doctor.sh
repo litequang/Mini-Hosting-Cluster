@@ -68,6 +68,28 @@ else say 'Wake Lock command' 'MISSING';warn=1;fi
 say 'Android permission check' 'Manual: Termux+Termux:API unrestricted battery; Termux:Boot opened once; Sony STAMINA OFF'
 if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then say 'Shared cluster enrollment' 'CONFIGURED (no keys displayed)'
 else say 'Shared cluster enrollment' 'NOT JOINED (use mhc-full join <CODE>)';fi
+if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then
+ client="$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs"
+ if [[ -f "$client" ]];then
+  status="$(timeout 12 node "$client" status 2>/dev/null || true)"
+  if [[ -n "$status" ]];then
+   summary="$(printf '%s' "$status" | node -e '
+let data="";process.stdin.on("data",v=>data+=v);process.stdin.on("end",()=>{
+ try{const c=JSON.parse(data),nodes=Array.isArray(c.nodes)?c.nodes:[];
+ const supports=nodes.some(n=>Object.hasOwn(n,"telemetry"));
+ const recent=nodes.filter(n=>n.heartbeatRecent===true).length;
+ console.log((supports?"MONITOR_SCHEMA_V2":"WORKER_NEEDS_MONITOR_DEPLOY")+
+  " / "+recent+"/"+nodes.length+" heartbeat / " +
+  nodes.filter(n=>n.telemetryRecent===true).length+" metric senders");
+ }catch{process.exit(2)}
+})' 2>/dev/null || true)"
+   say 'Cloudflare shared Monitor' "${summary:-INVALID_RESPONSE}"
+  else
+   say 'Cloudflare shared Monitor' 'UNREACHABLE / token or Internet or Worker'
+   warn=1
+  fi
+ fi
+fi
 if [[ "$warn" != 0 ]];then
  echo 'MHC_NODE_DOCTOR_NEEDS_ACTION: finish manual Android permissions/reboot check, then rerun'
  exit 1
