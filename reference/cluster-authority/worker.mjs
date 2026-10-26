@@ -7,7 +7,7 @@ const metricStatus=x=>['running','stopped','unknown'].includes(x)?x:'unknown';
 const metricServices=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx'];
 function telemetrySafe(v){
  if(!v||v.v!==1||typeof v!=='object'||Array.isArray(v))fail('TELEMETRY_INVALID');
- const safeStr=(v,n)=>typeof v==='string'?v.replace(/[\\x00-\\x1f\\x7f]/g,'').slice(0,n):'';
+ const safeStr=(v,n)=>typeof v==='string'?Array.from(v).filter(c=>c.charCodeAt(0)>=32&&c.charCodeAt(0)!==127).join('').slice(0,n):'';
  const num=(x,max)=>metricNumber(x,0,max);
  return {v:1,device:safeStr(v.device,55),android:safeStr(v.android,12),
   cpu:{usagePct:metricNumber(v.cpu?.usagePct,0,100),cores:metricNumber(v.cpu?.cores,1,256)},
