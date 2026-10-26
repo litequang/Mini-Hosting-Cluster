@@ -118,7 +118,13 @@ async function mhcMonitorPage(){
     }catch{state.monitorHistory={nodeId:chosen.nodeId,fetchedAt:Date.now(),points:[]};}
    }
    const points=state.monitorHistory.points;
-   chart='<div class="grid two">'+monitorTrend(points,'cpuPct','CPU (%)')+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+'</div>';
+   const gaps=[];
+   for(let i=1;i<points.length;i++){
+    const before=Date.parse(points[i-1].at||''),after=Date.parse(points[i].at||'');
+    if(Number.isFinite(before)&&Number.isFinite(after)&&after-before>12*60000)
+     gaps.push('Không có mẫu từ '+new Date(before).toLocaleTimeString('vi-VN')+' đến '+new Date(after).toLocaleTimeString('vi-VN'));
+   }
+   chart='<div class="grid two">'+monitorTrend(points,'cpuPct','CPU (%)')+monitorTrend(points,'batteryPct','Pin (%)')+monitorTrend(points,'ramUsedMiB','RAM sử dụng (MiB)')+monitorTrend(points,'tempC','Nhiệt độ pin (°C)')+monitorTrend(points,'diskFreeMiB','Dung lượng trống (MiB)')+monitorTrend(points,'rxKiBs','Mạng nhận (KiB/s)')+monitorTrend(points,'txKiBs','Mạng gửi (KiB/s)')+'</div><div class="card"><b>Khoảng thời gian thiếu báo cáo</b><p class="help">'+(gaps.length?gaps.slice(-6).map(v=>esc(v)).join(' · '):'Chưa thấy khoảng trống lớn giữa các mẫu đã nhận.')+'</p><small class="muted">Thiếu báo cáo không chứng minh điện thoại tắt nguồn; có thể là Doze, Wi-Fi hoặc Cloudflare gián đoạn.</small></div>';
   }
   page('Monitor toàn cụm',`
    <div class="sectionhead"><div><h2>Node đang kết nối</h2><p>Thông số cập nhật khi có heartbeat; không bao gồm dữ liệu riêng tư trên điện thoại.</p></div>${btn('Làm mới','monitor-refresh')}</div>
