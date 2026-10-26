@@ -22,7 +22,23 @@ function send(res,status,data){const out=Buffer.from(JSON.stringify(data));res.w
 function jsonBody(buf){if(!buf.length)return {};try{return JSON.parse(buf.toString('utf8'));}catch{throw new HttpError(400,'Invalid JSON');}}
 async function readBody(req,max=30*1024*1024){const parts=[];let size=0;for await(const ch of req){size+=ch.length;if(size>max)throw new HttpError(413,'Upload too large');parts.push(ch);}return Buffer.concat(parts);}
 function cookie(req,name){const raw=req.headers.cookie||'';return raw.split(';').map(s=>s.trim()).find(p=>p.startsWith(name+'='))?.slice(name.length+1)||'';}
-function auth(req){const id=cookie(req,'amh_session');const session=sessions.get(id);if(!session)return null;if(session.expires<Date.now()){sessions.delete(id);return null;}session.expires=Date.now()+6*60*60*1000;return session;}
+function accessBinding(req){return crypto.createHash('sha256').update(String(req.headers['cf-access-jwt-assertion']||'')).digest('hex');}
+function auth(req){
+ const id=cookie(req,'amh_session'),session=sessions.get(id);
+ if(!session)return null;
+ if(session.expires<Date.now()){sessions.delete(id);return null;}
+ // An Access-verified session is usable only with the SAME verified JWT.
+ // A local password session can never be re-used through Cloudflare.
+ if(session.mode==='cloudflare-access'){
+  if(req.mhcRemoteAccess!==true||session.binding!==accessBinding(req))return null;
+ }else if(req.mhcRemoteAccess===true)return null;
+ session.expires=Date.now()+6*60*60*1000;return session;
+}
+function startSession(req,res,mode){
+ const id=token(),session={csrf:token(),expires:Date.now()+6*60*60*1000,mode};
+ if(mode==='cloudflare-access')session.binding=accessBinding(req);
+ sessions.set(id,session);res.setHeader('set-cookie',sessionCookie(id,req));return session;
+}
 function allowedHttpsHost(req){return req.mhcRemoteAccess===true;}
 function sessionCookie(id,req){return `amh_session=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=21600${allowedHttpsHost(req)?'; Secure':''}`;}
 function guardOrigin(req){const origin=req.headers.origin;if(origin){let u;try{u=new URL(origin);}catch{throw new HttpError(403,'Bad Origin');}const host=String(req.headers.host||'').toLowerCase();const localHttp=(u.protocol==='http:'&&(host===`127.0.0.1:${PORT}`||host===`localhost:${PORT}`));const accessHttps=(u.protocol==='https:'&&req.mhcRemoteAccess===true);if(u.host.toLowerCase()!==host||!(localHttp||accessHttps))throw new HttpError(403,'Origin denied');}}
@@ -33,18 +49,26 @@ setInterval(prune,15*60*1000).unref();
 async function api(req,res,url){
  const route=url.pathname,method=req.method;
  if(route==='/api/login'&&method==='POST'){
+  if(req.mhcRemoteAccess)throw new HttpError(403,'Cloudflare Access already authenticates this Panel');
   guardOrigin(req);const ip=req.socket.remoteAddress||'local',old=attempts.get(ip)||{count:0,until:0};
   if(old.count>=8&&old.until>Date.now())throw new HttpError(429,'Too many attempts, try again later');
   const {username,password}=jsonBody(await readBody(req,8192));
   if(username!=='admin'||typeof password!=='string'||!checkPassword(password)){
    const n=old.until>Date.now()?old.count+1:1;attempts.set(ip,{count:n,until:Date.now()+15*60*1000});throw new HttpError(401,'Wrong username or password');
   }
-  attempts.delete(ip);const id=token();const session={csrf:token(),expires:Date.now()+6*60*60*1000};sessions.set(id,session);res.setHeader('set-cookie',sessionCookie(id,req));return send(res,200,{user:'admin',csrf:session.csrf});
+  attempts.delete(ip);
+  const session=startSession(req,res,'password');
+  return send(res,200,{user:'admin',csrf:session.csrf,authMode:'password'});
  }
- const s=auth(req);
- if(route==='/api/session'&&method==='GET')return send(res,200,{loggedIn:!!s,user:s?'admin':null,csrf:s?.csrf||null});
+ let s=auth(req);
+ if(route==='/api/session'&&method==='GET'){
+  // Remote admin login is the independently verified Cloudflare Access policy.
+  // No Panel password is requested; CSRF/session are still required for mutations.
+  if(!s&&req.mhcRemoteAccess===true)s=startSession(req,res,'cloudflare-access');
+  return send(res,200,{loggedIn:!!s,user:s?'admin':null,csrf:s?.csrf||null,authMode:s?.mode||null});
+ }
  if(!s)throw new HttpError(401,'Sign in required');
- if(route==='/api/logout'&&method==='POST'){guardOrigin(req);mutual(req,s);sessions.delete(cookie(req,'amh_session'));res.setHeader('set-cookie','amh_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+(allowedHttpsHost(req)?'; Secure':''));return send(res,200,{ok:true});}
+ if(route==='/api/logout'&&method==='POST'){guardOrigin(req);mutual(req,s);sessions.delete(cookie(req,'amh_session'));res.setHeader('set-cookie','amh_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+(allowedHttpsHost(req)?'; Secure':''));return send(res,200,{ok:true,accessLogout:s.mode==='cloudflare-access'});}
  if(method!=='GET'){guardOrigin(req);mutual(req,s);}
  if(route==='/api/mhc/remote-access'&&method==='GET')return send(res,200,publicStatus());
  if(route==='/api/mhc/node-guard'&&method==='GET')return send(res,200,await mhcNodeGuard());
