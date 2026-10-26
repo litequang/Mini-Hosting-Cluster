@@ -5,6 +5,7 @@
 - `bin/cluster-authority.mjs`: client private config, heartbeat/watch/runit agent, shared Panel request.
 - `reference/cluster-authority/prepare-secrets.mjs`: gom enrollment private cho Wrangler, không xuất token.
 - `bin/prepare-panel-tunnel-token.sh`: nhập Tunnel token ẩn trên TTY Termux LAB.
+- `bin/panel-tunnel-service.sh`: connector runit riêng cho Panel giaouoc LAB, token-file và rotating logs, không thay named-tunnel.
 - `tests/authority-http-panels.mjs`: hai Panel HTTP process + HTTPS client, DO storage fixture, chạy POSIX/Termux.
 - `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
 - `docs/LIVE-PROGRESS.md`: nguồn trạng thái thực thi duy nhất, checkpoint và bằng chứng.

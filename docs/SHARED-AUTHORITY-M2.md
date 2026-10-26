@@ -110,6 +110,8 @@ Một Tunnel chỉ trên Vsmart chưa đáp ứng Panel chung dự phòng; nghi�
 
 Helper nhập token: `bash bin/prepare-panel-tunnel-token.sh` trong source trên Termux LAB (hoặc đường helper đã triển khai do Codex cung cấp). Chạy qua SSH `-t`; chỉ dán chuỗi sau `--token` từ lệnh Cloudflare. Helper ẩn ký tự và ghi `~/.config/mhc-full-installer/cloudflare-lab/tunnel-token` 0600, từ chối ghi đè. File không nằm trong site backup và không đưa lên Git. Nếu đã có token, không xóa mù để thử lại; kiểm đúng Tunnel trước.
 
+Sau token và origin Access config, Codex chạy `bash bin/panel-tunnel-service.sh install --confirm=INSTALL_LAB_PANEL_TUNNEL`. Script chỉ tạo `mhc-panel-tunnel`, không sửa `named-tunnel`; từ chối service tồn tại. `bash bin/panel-tunnel-service.sh status` kiểm runit. Logs xoay vòng 1 MiB × 3 tại `~/.local/state/mhc-panel-tunnel`; không gửi raw logs/token lên Git. Tạm dừng connector này bằng `sv down "$PREFIX/var/service/mhc-panel-tunnel"`, khởi lại bằng `sv up` đúng service; Panel localhost và website vẫn độc lập.
+
 - Giai đoạn một node: Tunnel riêng tới `http://127.0.0.1:9090`, hostname `panel.giaouoc.com`; Access policy cho email được phép; cấu hình origin JWT bằng `remote-panel` sau khi có team/AUD thực. Chưa tạo DNS hoặc nới origin allowlist ở lượt này.
 - Giai đoạn nhiều node: tuyến quản trị phải độc lập web và có đích dự phòng. Không coi một CNAME trỏ Vsmart là quản trị còn sống khi Vsmart mất mạng. Chưa triển khai phần router này.
 - Không hạ named-tunnel trong guard vì có thể đang chở Panel/agent. Giữ bản cấu hình guard cũ để đối chiếu; chưa ARM guard trên Vsmart.
