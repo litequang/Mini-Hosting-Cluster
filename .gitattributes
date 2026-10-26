@@ -1,0 +1,8 @@
+* text=auto
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.py text eol=lf
+*.php text eol=lf
+*.toml text eol=lf
+bin/mhc-full-wrapper text eol=lf
