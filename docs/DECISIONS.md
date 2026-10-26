@@ -26,3 +26,10 @@
 - Shared Authority DO lưu thành viên động và mã ghép dùng một lần (192-bit secret, 10 phút, chỉ lưu hash); không yêu cầu sửa `MHC_MEMBERS_JSON` thủ công cho node mới; giữ các thành viên tĩnh cũ.
 - Termux:Boot + runsvdir + wake lock + SSH + Panel + Agent được quản lý trong cùng installer/doctor. Quyền tối ưu pin/STAMINA vẫn cần cấp trên giao diện Android.
 - Ghép node chỉ cấp Standby, không cấp writer, replication, Primary hoặc chạy website. Điều khiển cập nhật/triển khai app từ Panel về sau chưa được implement và cần cơ chế job an toàn riêng.
+
+
+## 26/10/2026 — Nhiều Cloudflare zone trong Mini Hosting, không cấu hình IP thủ công
+- Đã chốt **bổ sung roadmap P2.5** (sau multi-Panel/Shared Authority P2, phối hợp trước P3 manual Primary): khi `Mini Hosting > Thêm website`, người dùng chọn domain Cloudflare sẵn có, nhập subdomain, chọn site type và đích, nhấn “Tạo & xuất bản”; MHC mới tự cấu hình DNS/Tunnel/Nginx/HTTPS. **Chưa triển khai mã API Cloudflare cho nút Thêm website**.
+- Token chỉ cấp quyền theo zone/account cụ thể, giữ trong control plane tin cậy, KHÔNG phân phát DNS Edit token xuống mọi node. Không động đến tên miền đang tồn tại ngoài danh sách/luồng MHC. Subdomain trùng thì báo xung đột, không ghi đè.
+- Không cấu hình IP cố định; website đi qua named Tunnel. Wildcard subdomain chỉ bật riêng từng domain theo opt-in, mặc định API tạo hostname cụ thể. Đổi Primary phải tái sử dụng Cloudflare routing adapter và kiểm tra trạng thái dịch vụ + cấp quyền writer độc lập.
+- **Phân vai Primary/Panel**: mọi node có Panel 9090 độc lập; `panel.giaouoc.com` bình thường trỏ tới Primary đã xác minh, nhưng có tuyến recovery vào Standby khi Primary offline. Shared authority nằm ngoài Primary. Việc chuyển Panel không phải là tự cấp Primary.
