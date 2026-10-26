@@ -47,17 +47,18 @@ dest=(
  "$panel/src/server.mjs"
  "$panel/public/app.js"
 )
+staged_names=('0.mjs' '1.mjs' '2.mjs' '3.mjs' '4.js')
 for i in "${!paths[@]}";do
- f="$work/$i"
+ f="$work/${staged_names[$i]}"
  curl -fsSL --retry 2 --connect-timeout 8 --max-time 45 "$origin/${paths[$i]}" -o "$f" || fail "GitHub download failed: ${paths[$i]}"
  [[ "$(git hash-object "$f")" == "${hashes[$i]}" ]] || fail "Git blob mismatch: ${paths[$i]}"
  node --check "$f" || fail "Source syntax error: ${paths[$i]}"
  [[ ! -L "${dest[$i]}" ]] || fail "Refusing symlink destination: ${paths[$i]}"
 done
-grep -Fq 'MHC_MONITOR_ALL_NODES_V2' "$work/4" || fail 'Missing monitor UI'
-grep -Fq 'crypto.verify' "$work/3" || fail 'Unexpected auth module in Panel'
+grep -Fq 'MHC_MONITOR_ALL_NODES_V2' "$work/4.js" || fail 'Missing monitor UI'
+grep -Fq 'crypto.verify' "$work/3.mjs" || fail 'Unexpected auth module in Panel'
 # Collector self-test before touching runtime; does not reveal private node data.
-node --input-type=module -e 'import(process.argv[1]).then(async m=>{const v=await m.collectNodeMetrics();if(v.v!==1||!v.battery||!v.services)process.exit(2)}).catch(()=>process.exit(3))' "$work/0" || fail 'Monitor collector self-check failed'
+node --input-type=module -e 'import(process.argv[1]).then(async m=>{const v=await m.collectNodeMetrics();if(v.v!==1||!v.battery||!v.services)process.exit(2)}).catch(()=>process.exit(3))' "$work/0.mjs" || fail 'Monitor collector self-check failed'
 state="$HOME/.local/state/mhc-monitor-v2-backups"
 mkdir -p "$state";chmod 700 "$state"
 backup="$state/$(date +%Y%m%d-%H%M%S)-$$"
@@ -80,7 +81,7 @@ rollback(){
 for i in "${!dest[@]}";do
  dst="${dest[$i]}"
  stage="$(dirname "$dst")/.mhc-monitor-$(basename "$dst").$$"
- cp -- "$work/$i" "$stage" || { rollback;fail 'Stage copy failed'; }
+ cp -- "$work/${staged_names[$i]}" "$stage" || { rollback;fail 'Stage copy failed'; }
  chmod 600 "$stage" || { rollback;fail 'Stage chmod failed'; }
  mv -f -- "$stage" "$dst" || { rollback;fail 'Atomic replace failed'; }
 done
