@@ -49,3 +49,9 @@
 - `tests/access-sso-panel.mjs`: kiểm thử HTTP process và signed-JWT/JWKS mock, chỉ mới kiểm cú pháp, **chưa chạy**.
 - `scripts/apply-panel-access-sso.sh`: rollout có backup/rollback và HTTP localhost check trên Vsmart LAB, chưa chạy trên Android.
 - `docs/PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`: kiến trúc một hostname Panel đi theo Primary; M3/M4 writer/route chuyển thực **chưa triển khai**.
+
+## M3 26/10 — UI chọn node ứng viên, chưa cutover
+- `bin/legacy-panel-src/public/app.js` `mhcClusterPage()` trình bày dropdown và trạng thái shared Pending trên trang mặc định. `dynamicAction('primary-begin')` lấy shared status mới trước khi ghi CAS; `primary-abort` hủy pending.
+- `scripts/apply-primary-candidate-ui.sh` sao lưu / xác minh Git blob SHA, triển khai riêng `public/app.js` trên Vsmart/XZ3 LAB. Không restart, không sửa backend DB/Cloudflare.
+- `tests/manual-candidate-ui.mjs` xác nhận cấu trúc UI/authority fail closed (chưa thực chạy).
+- `reference/cluster-authority/worker.mjs` vẫn chỉ `begin/abort` PREPARE_ONLY, không writer grant / declaredPrimary. M3 executor, route và guard thật còn thiếu.
