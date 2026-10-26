@@ -140,7 +140,7 @@ async function mhcMonitorPage(){
     <div class="card stat"><div class="tag">RAM</div><b>${disp(memUsed,' MiB')}</b><small>Đang sử dụng / ${disp(mem,' MiB')} tổng · Trống ${disp(free,' MiB')}</small></div>
     <div class="card stat"><div class="tag">LƯU TRỮ</div><b>${disp(diskUsed,' MiB')}</b><small>Đang sử dụng / ${disp(disk,' MiB')} tổng · Trống ${disp(available,' MiB')}</small></div>
     <div class="card stat"><div class="tag">PIN</div><b>${disp(battery,'%')}</b><small>${esc(m?.battery?.status||'Không đọc được')} · Sức khỏe: ${esc(m?.battery?.health||'—')}</small></div>
-    <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Không phải nhiệt độ CPU</small></div>
+    <div class="card stat"><div class="tag">NHIỆT ĐỘ PIN</div><b>${temp===null?'—':temp.toFixed(1)+'°C'}</b><small>Cảm biến nhiệt độ pin Android</small></div>
     <div class="card stat"><div class="tag">MẠNG NHẬN</div><b>${disp(num(m?.network?.rxKiBs),' KiB/s')}</b><small>Tốc độ ước tính · /proc/net/dev có thể bị chặn</small></div>
     <div class="card stat"><div class="tag">MẠNG GỬI</div><b>${disp(num(m?.network?.txKiBs),' KiB/s')}</b><small>${disp(num(m?.network?.interfaces),' giao diện mạng đọc được')}</small></div>
     <div class="card stat"><div class="tag">WI-FI</div><b>${m?.wifi?.state==='connected'?'Đã kết nối':'Chưa xác định'}</b><small>${wifiSignal===null?'RSSI không đọc được':wifiSignal+' dBm'} · Không thu SSID</small></div>
