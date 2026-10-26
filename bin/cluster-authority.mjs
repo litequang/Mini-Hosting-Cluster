@@ -78,7 +78,7 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','history'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','history','invite','join'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
  try{response=await fetcher(url,{method:['status','history'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
@@ -92,6 +92,50 @@ export async function authorityRequest(c,action,body={},fetcher=fetch){
  return v;
 }
 export async function sharedStatus(role='panel'){return authorityRequest(config(role),'status');}
+export async function sharedInvite(){
+ const c=config('panel'),current=await authorityRequest(c,'status');
+ const issued=await authorityRequest(c,'invite',{requestId:crypto.randomUUID(),expectedRevision:current.revision});
+ const secret=issued.receipt?.joinSecret;
+ if(!/^[0-9a-f]{48}$/.test(secret||''))throw Error('AUTHORITY_INVITE_REPLY_INVALID');
+ // A single self-contained code: no user entry of Worker URL/cluster UUID is required.
+ const ticket={v:1,url:c.url,clusterId:c.clusterId,joinSecret:secret};
+ return {joinCode:'MHC1.'+Buffer.from(JSON.stringify(ticket)).toString('base64url'),
+  expiresAt:issued.receipt.expiresAt,codeShownOnce:true,role:'STANDBY_NO_WRITER_GRANT'};
+}
+export async function joinWithCode(encoded){
+ if(typeof encoded!=='string'||!/^MHC1\.[A-Za-z0-9_-]{60,900}$/.test(encoded))throw Error('JOIN_CODE_FORMAT_INVALID');
+ let ticket;
+ try{ticket=JSON.parse(Buffer.from(encoded.slice(5),'base64url').toString('utf8'));}catch{throw Error('JOIN_CODE_FORMAT_INVALID');}
+ const url=new URL(ticket?.url||'');
+ if(ticket.v!==1||url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/'||
+ !UUID.test(ticket.clusterId||'')||!/^[0-9a-f]{48}$/.test(ticket.joinSecret||''))throw Error('JOIN_CODE_INVALID');
+ const {dir}=(()=>{labDirectory();return {dir:path.dirname(configPath())};})();
+ if(authorityConfigured())throw Error('NODE_ALREADY_JOINED');
+ const identityFile=path.join(dir,'node-identity.json');
+ let self;
+ try{self=JSON.parse(privateRead(identityFile));}catch(e){
+  if(e.code!=='ENOENT')throw e;
+  const model=process.env.MHC_NODE_LABEL||'Android Node';
+  const label=model.replace(/[^A-Za-z0-9 _.-]/g,' ').trim().slice(0,60)||'Android Node';
+  self={schema:1,nodeId:crypto.randomUUID(),label,createdAt:new Date().toISOString(),kind:'shared-member'};
+  writeExclusive(identityFile,JSON.stringify(self,null,2)+'\n');
+ }
+ // Keys are created locally, never printed to Terminal/Panel logs. Preserve them on retry.
+ const prepared=enrollment();
+ const c={url:url.origin,clusterId:ticket.clusterId,nodeId:self.nodeId,token:prepared.value.agentKey};
+ let already=false;
+ try{const checked=await authorityRequest(c,'status');already=checked.nodes.some(n=>n.nodeId===self.nodeId);}catch(e){
+  if(!String(e.message).includes('UNAUTHORIZED'))throw e;
+ }
+ if(!already){
+  await authorityRequest({...c,token:''},'join',{nodeId:self.nodeId,label:self.label,
+   agentKey:prepared.value.agentKey,panelKey:prepared.value.panelKey,joinSecret:ticket.joinSecret});
+ }
+ const joined=await configureAuthority(url.origin,ticket.clusterId);
+ const installed=await installAuthorityService();
+ return {...joined,agentInstalled:installed.installed,joined:true,primaryGranted:false,
+  note:'Node enrolled in Shared Authority only. Panel/hosting data not automatically migrated.'};
+}
 export async function sharedHistory(targetNodeId){
  if(!UUID.test(targetNodeId||''))throw Error('MONITOR_NODE_ID_INVALID');
  return authorityRequest(config('panel'),'history',{targetNodeId});
@@ -112,7 +156,24 @@ async function heartbeat(){
  }catch{/* monitoring failure must never block membership heartbeat */}
  return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now(),...(telemetry?{telemetry}:{})});
 }
+
+async function installAuthorityService(){
+ const c=config('agent');
+ if(process.env.PREFIX!=='/data/data/com.termux/files/usr')throw Error('LAB_TERMUX_REQUIRED');
+ const marker=fs.readFileSync(path.join(home(),'.config/mhc-full-installer/installed'),'utf8').trim();
+ if(marker!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')throw Error('UPGRADE_TEST_SOURCE_FIRST');
+ const service=path.join(process.env.PREFIX,'var/service/mhc-authority-agent');
+ const run='#!/data/data/com.termux/files/usr/bin/sh\nexec /data/data/com.termux/files/usr/bin/node "$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs" watch\n';
+ if(fs.existsSync(service)){
+  if(fs.lstatSync(service).isSymbolicLink()||fs.readFileSync(path.join(service,'run'),'utf8')!==run)throw Error('EXISTING_SERVICE_REQUIRES_REVIEW');
+ }else{
+  fs.mkdirSync(service,{mode:0o700});fs.writeFileSync(path.join(service,'run'),run,{mode:0o700,flag:'wx'});
+ }
+ return {installed:true};
+}
+
 async function main(args){
+ if(args.length===2&&args[0]==='join')return joinWithCode(args[1]);
  if(args.length===1&&args[0]==='prepare')return prepareEnrollment();
  if(args.length===4&&args[0]==='configure'&&args[3]==='--confirm=CONFIGURE_LAB_PREPARE_ONLY')return configureAuthority(args[1],args[2]);
  if(args[0]==='service-install'){
