@@ -33,10 +33,10 @@ Worker join uses Durable Object transactions, only a matching unused code less t
 Inside the existing Termux:
 
 ```sh
-curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/34569eabc5a0c6c0a347fe7fd687d6f9a732515c/scripts/update-existing-android-node.sh -o ~/mhc-update.sh && bash ~/mhc-update.sh --apply
+curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/d3b5f696977770cea23333d6286f2f34002e88bc/scripts/update-existing-android-node.sh -o ~/mhc-update.sh && bash ~/mhc-update.sh --apply
 ```
 
-This checks known MHC LAB source marker and existing JWT signature validator, then downloads the **nine** exact immutable source blobs (Panel server/integration/Monitor JS/CSS, Node collector, authority client, CLI, boot manager, doctor). It backs up everything, leaves Cloudflare Access config, admin data, database, websites and remote Tunnel alone, restarts only `amh-panel`/existing `mhc-authority-agent`, verifies served JS SHA and attempts managed boot repair. Rollback automatically restores files on HTTP/restart failure. On a different/production node the installer refuses.
+This checks known MHC LAB source marker and existing JWT signature validator, then downloads the **13** exact immutable source blobs (nine live runtime assets plus four retained managed Panel source files) (Panel server/integration/Monitor JS/CSS, Node collector, authority client, CLI, boot manager, doctor). It backs up everything, leaves Cloudflare Access config, admin data, database, websites and remote Tunnel alone, restarts only `amh-panel`/existing `mhc-authority-agent`, verifies served JS SHA and attempts managed boot repair. Rollback automatically restores files on HTTP/restart failure. On a different/production node the installer refuses.
 
 After update run:
 
