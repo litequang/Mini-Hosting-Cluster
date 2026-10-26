@@ -45,3 +45,11 @@ User log 12:17–12:18 UTC cho thấy browser request đến origin có JWT như
 - Nếu `WORKER_NEEDS_MONITOR_DEPLOY`: triển khai `reference/cluster-authority/worker.mjs` của nhánh đúng vào Worker **hiện có** `mhc-cluster-authority-lab`; giữ nguyên DO/secrets. Không cài Termux:API lại để sửa lỗi Worker.
 - Nếu local collector OK, Worker V2, nhưng node vẫn thiếu telemetry: kiểm tra service `sv status "$PREFIX/var/service/mhc-authority-agent"`, boot và `node "$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs" status` (không cần in secret). Agent đã được cập nhật ghi log dạng `MHC_MONITOR_V2_COLLECT_FAILED <error-class>` tối đa 1 lần/5 phút.
 - Có pin phần trăm `unknown` nhưng `MONITOR_V2_OK` nghĩa là API pin lỗi riêng, **không** phải lý do thiếu toàn bộ telemetry v2. Chỉ xử lý Termux:API sau khi kiểm tra collector/Worker.
+
+
+## P3 LAB route failures
+- `P3_NOT_ENABLED`: default. Only an administrator authorizes LAB with private Worker config and exact DNS/Tunnel allowlist; never disable fail-close for production.
+- `P3_ROUTE_CONFLICT_MANUAL_REVIEW`: existing CNAME is neither old nor candidate target; stop, check DNS/other operators; never overwrite arbitrarily.
+- `P3_CLOUDFLARE_NETWORK_FAILED`, `P3_DNS_VERIFY_FAILED`, `P3_CLOUDFLARE_API_FAILED`: leave `ROUTING_REQUESTED`; inspect existing DNS, then use P3 UI resume after 30s. No blind abort/rollback once route may have changed.
+- `P3_TARGET_NOT_READY`: candidate Agent is missing recent v2 metrics or Panel/Nginx not RUNNING. Confirm local host and app/DB before trying again. Unfenced writers mean unsafe production failover.
+- `P3_FINAL_CONFIRMATIONS_REQUIRED`: operator must test external website and protected Panel and verify old writer stopped before recording LAB state; recorded state is not a writer lease.
