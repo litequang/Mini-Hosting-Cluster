@@ -30,13 +30,23 @@ try{
  const jwk=pair.publicKey.export({format:'jwk'});jwk.kid='test-key';jwk.alg='RS256';
  let fetches=0;const fetcher=async(url)=>{fetches++;ok(url==='https://mhctest.cloudflareaccess.com/cdn-cgi/access/certs','only verified issuer JWKS');return {ok:true,text:async()=>JSON.stringify({keys:[jwk]})};};
  const now=Math.floor(Date.now()/1000);
- const make=(claims={})=>{
-  const head=Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT',kid:'test-key'})).toString('base64url');
+ const make=(claims={},headerOverrides={})=>{
+  const head=Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT',kid:'test-key',...headerOverrides})).toString('base64url');
   const pay=Buffer.from(JSON.stringify({iss:`https://${c.teamDomain}`,aud:[c.audience],iat:now-3,exp:now+300,...claims})).toString('base64url');
   const sig=crypto.sign('RSA-SHA256',Buffer.from(head+'.'+pay),pair.privateKey).toString('base64url');return [head,pay,sig].join('.');
  };
  const valid=make();ok(await verifyAccess(valid,c,fetcher),'valid JWT accepted');ok(fetches===1,'JWKS cached');
  ok(await verifyAccess(make(),c,fetcher),'subsequent valid JWT accepted');ok(fetches===1,'JWKS not refetched');
+ ok(await verifyAccess(make({},{typ:undefined}),c,fetcher),'RFC 7519 optional typ absent: signed RS256 JWT accepted');
+ ok(await verifyAccess(make({},{typ:'jwt'}),c,fetcher),'JWT typ media type is case insensitive');
+ const headerRejected=[];
+ ok(!await verifyAccess(make({},{typ:'NOT-JWT'}),c,fetcher,r=>headerRejected.push(r)),'other explicit typ rejected');
+ ok(headerRejected.pop()==='JWT_TYP_UNSUPPORTED','explicit unrelated typ gives private reason');
+ ok(!await verifyAccess(make({},{alg:'HS256'}),c,fetcher,r=>headerRejected.push(r)),'unapproved header algorithm rejected');
+ ok(headerRejected.pop()==='JWT_ALG_UNSUPPORTED','bad algorithm gives private reason');
+ ok(!await verifyAccess(make({},{kid:''}),c,fetcher,r=>headerRejected.push(r)),'empty key ID rejected');
+ ok(headerRejected.pop()==='JWT_KID_INVALID','empty kid gives private reason');
+
  const diagnoses=[];
  ok(!await verifyAccess('garbage',c,fetcher,r=>diagnoses.push(r)),'unsigned JWT rejected');
  ok(diagnoses[0]==='JWT_FORMAT','diagnostic distinguishes invalid JWT shape without reporting token');
