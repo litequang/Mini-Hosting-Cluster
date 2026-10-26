@@ -66,6 +66,30 @@ fi
 if command -v termux-wake-lock >/dev/null;then say 'Wake Lock command' 'AVAILABLE (Android may still restrict app)'
 else say 'Wake Lock command' 'MISSING';warn=1;fi
 say 'Android permission check' 'Manual: Termux+Termux:API unrestricted battery; Termux:Boot opened once; Sony STAMINA OFF'
+collector="$HOME/.local/share/mhc-full-installer/bin/node-monitor.mjs"
+if [[ -f "$collector" && ! -L "$collector" ]];then
+ metrics="$(timeout 12 node --input-type=module -e '
+import {pathToFileURL} from "node:url";
+try{
+ const m=await import(pathToFileURL(process.argv[1]));
+ const raw=await m.collectNodeMetrics();
+ const v=m.compactTelemetry(raw);
+ if(!v||v.v!==1||!v.memory||!v.battery||!v.services)throw Error("BAD_SCHEMA");
+ const pct=v.battery.percentage===null?"unknown":v.battery.percentage+"%";
+ const ram=v.memory.freeMiB===null?"unknown":v.memory.freeMiB+" MiB free";
+ console.log("MONITOR_V2_OK / battery "+pct+" / RAM "+ram+" / "+Object.keys(v.services).length+" services");
+}catch(e){
+ const type=String(e?.code||e?.name||"COLLECTOR_ERROR").replace(/[^A-Z0-9_]/gi,"").slice(0,45);
+ console.log("MONITOR_V2_COLLECT_FAILED / "+type);
+ process.exitCode=3;
+}
+' "$collector" 2>/dev/null)" || true
+ say 'Local Monitor v2' "${metrics:-COLLECTOR_TIMEOUT_OR_CRASH}"
+ if [[ "$metrics" != MONITOR_V2_OK* ]];then warn=1;fi
+else
+ say 'Local Monitor v2' 'COLLECTOR_NOT_INSTALLED'
+ warn=1
+fi
 if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then say 'Shared cluster enrollment' 'CONFIGURED (no keys displayed)'
 else say 'Shared cluster enrollment' 'NOT JOINED (use mhc-full join <CODE>)';fi
 if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then
