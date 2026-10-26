@@ -18,11 +18,20 @@
 - User xử lý tạo Access/Tunnel/Worker/domain nếu Codex không có quyền, Codex cung cấp `wrangler` source, hướng dẫn chính xác và test sau user deploy.
 - Nghiệm thu: từ Panel ở 2 node thấy cùng dữ liệu, cập nhật không tạo hai Primary, mất một node vẫn dùng Panel node còn lại.
 
+## P2.5 — Tạo website và subdomain Cloudflare tự động (bổ sung 26/10/2026)
+- **Cài một lần** kết nối Cloudflare được ủy quyền, giới hạn đúng account/zone, dùng API token quyền tối thiểu (Zone Read, DNS Edit, Tunnel config Edit chỉ khi cần). Đặt token trong một dịch vụ điều khiển bí mật/Cloudflare Worker Secret có xác thực riêng, **không sao chép sang mọi node Termux, không lộ qua Panel/log/Git**. Quyền chia theo từng domain được phép, không tự nhận mọi zone trong tài khoản.
+- **Mini Hosting > Thêm website**: tự lấy danh sách zone mà token được phép đọc; chọn domain trong dropdown, nhập subdomain, loại Static/React/Node.js/WordPress (WordPress chỉ bật khi workflow đã nghiệm thu), và node phục vụ. Cho phép chọn node được chỉ định trong LAB; production dùng Primary được xác minh. Hiển thị hostname trước khi tạo.
+- Một lần bấm **Tạo & xuất bản**: kiểm tra hostname đã tồn tại/xung đột và giữ nguyên các DNS/Tunnel/Access records ngoài phạm vi MHC; tạo cấu hình site/Nginx + dịch vụ nội bộ; tạo/cập nhật DNS CNAME tới Cloudflare Tunnel và ingress hostname -> local Nginx đúng Host; kiểm HTTP(S), trạng thái, lỗi, lịch sử và rollback từng bước. Nếu token/permission/zone/tunnel sai: báo lý do rõ, giữ website ở dạng local/draft, **không báo đã xuất bản**.
+- Không cần IP tĩnh hoặc port forwarding trên điện thoại; ưu tiên named Tunnel đang có. Wildcard `*.domain` chỉ là opt-in theo từng zone sau khi kiểm tra DNS/Access/chứng chỉ, không bật toàn bộ domain mặc định; không tự ghi đè các subdomain đang dùng.
+- Cloudflare route adapter phải có interface dùng chung cho **website publishing** và P3/P4 **Primary cutover**; mô hình admin-panel chung tách khỏi routing website. Với nhiều domain, cập nhật từng hostname an toàn, idempotent và có xác minh/khôi phục khi thất bại giữa chừng. Không tự hứa tất cả website chuyển Primary nếu website chưa có dữ liệu trên node đích.
+- Nghiệm thu LAB: tạo `demo` ở **hai zone được cấp quyền** (nếu có), thử hostname trùng, token thiếu quyền, Tunnel offline, reboot, lỗi nginx -t, API timeout, rollback; xác nhận không ảnh hưởng hostname đã chạy và không sửa website production M51/X7b.
+- **Trạng thái hiện tại:** CHƯA TRIỂN KHAI Cloudflare API trong nút “Thêm website”; Panel gốc mới tạo website + cấu hình Nginx cục bộ, còn domain phải thêm route thủ công. Lộ trình ưu tiên sau P2 và phối hợp ngay với P3 để dùng chung route adapter, không đợi P6.
+
 ## P3 — Manual Primary usable end-to-end
 - Backup/restore có thể do user làm; thao tác chọn từ bất kỳ Panel, health target, RPO warning, quiesce old writer và cảnh báo nếu không xác minh được.
-- Route switch via Cloudflare adapter đúng record/host, durable intent, idempotent resume, auth/audit, postcheck và rollback chỉ khi không phát sinh ghi mới không thể đảo an toàn.
+- Route switch via Cloudflare adapter P2.5 (nhiều domain/hostname, chỉ zone được ủy quyền), durable intent, idempotent resume, auth/audit, postcheck và rollback chỉ khi không phát sinh ghi mới không thể đảo an toàn. Panel chung normally theo Primary; khi Primary mất thì standby Panel ở chế độ recovery vẫn phải truy cập được và không tự cấp writer.
 - Rejoin old node as standby/quarantine; nó không tự bật lại route/DB writer.
-- Nghiệm thu: switchover và rollback giữa hai LAB độc lập, cả khi controller/Panel của Primary chết.
+- Nghiệm thu: switchover và rollback giữa hai LAB độc lập, cả khi Panel của Primary chết; một hostname Panel vẫn truy cập qua node dự phòng được bảo vệ Cloudflare Access trong chế độ recovery.
 
 ## P4 — Auto Primary healthy + newest verified snapshot
 - Heartbeat agent, active web probe, timestamp+hash verified backups, storage/capacity+online reliability scoring.
