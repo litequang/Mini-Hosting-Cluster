@@ -83,3 +83,9 @@
 - `bin/legacy-panel-src/src/mhc-integration.mjs` + `server.mjs` + `public/app.js`: Panel invite endpoint with existing session/CSRF; Monitor all-node cards auto expanded; `public/style.css` responsive redesign.
 - `tests/cluster-pairing.mjs` and `tests/monitor-all-nodes.mjs`: fixture coverage, `bin/self-test.sh` includes both tests and new shell syntax. Node runner NOT RUN in ChatGPT runtime.
 - `docs/ONE-COMMAND-NODE-SETUP.md`: one command and pairing/reboot runbook. Worker deployment + Android permissions still operator actions.
+
+## 26/10 MHC Monitor expanded V3 delivery
+- `bin/legacy-panel-src/public/app.js`: `mhcMonitorPage()` renders full node cards for all nodes without any per-node click; local/live node ordering, 15s polling, async 3-concurrent bounded history, missing telemetry v2 versus stale heartbeat.
+- `bin/legacy-panel-src/public/style.css`: responsive 2-column desktop/1-column narrow, readable service chips, metric tiles, process/memory history; integrated into original Panel 9090 rather than standalone monitor.
+- `bin/legacy-panel-src/src/mhc-integration.mjs`: removes legacy CPU probing fallback.
+- `scripts/update-existing-android-node.sh`: immutable source+13 SHA pins, Node ESM stdin check, pre-install local Panel HTTP check, guaranteed rollback on unsuccessful health verification including explicit exit; release commit `33480440f9b5e7652467ff59d31a67332c231dc0`.
