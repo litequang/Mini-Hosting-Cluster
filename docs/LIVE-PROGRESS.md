@@ -1,5 +1,13 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 26/10/2026 — M3 chọn node ứng viên ngay trong Panel (source + UI rollout)
+
+- User requested immediate manual Primary selection from public Panel. Implemented **durable shared selection PREPARE only** in default `Cluster` overview: choose recent-heartbeat Vsmart/XZ3, `begin` with fresh status/CAS revision and request UUID, display selected candidate/epoch/operation state, allow abort from either Panel. Existing Cloudflare DO already persists the pending operation and rejects stale/concurrent/racing requests.
+- `bin/legacy-panel-src/public/app.js` updated in commit `bd9b02c95aede607a353e3471d9c43f832418ac8`; JavaScript syntax parsed successfully via runtime Function constructor, NOT full browser test.
+- `scripts/apply-primary-candidate-ui.sh`: pinned source + SHA check, per-node `app.js` backup, no backend/Tunnel/DB changes, after-copy HTTP asset verification + rollback. Deploy script and user runtime installation NOT RUN. Test source `tests/manual-candidate-ui.mjs` added, NOT EXECUTED.
+- **Blocking remainder for real M3:** Cloudflare admin route switch to XZ3, target service activation, old-writer fencing, authenticated HTTP+DB readiness, old-primary rejoin handling and two-Android end-to-end. `declaredPrimary:null`, `writeLeaseGranted:false` continue; DO is `SHARED_AUTHORITY_PREPARE_ONLY`. Selection is NOT promotion, no active website moved. Source work must continue without conflating these states.
+
+
 ## 26/10/2026 — SSO + Primary-following Panel user request (source only)
 
 - User confirmed public `panel.giaouoc.com` **working** after JWT header fix; this does **not** mean a Primary is assigned, `declaredPrimary:null` remains.
