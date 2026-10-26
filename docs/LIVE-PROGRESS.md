@@ -1,5 +1,13 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 26/10/2026 — Monitor v2 all-nodes developed, GitHub pushed, runtime deployment NOT RUN
+
+- Expanded original Panel 9090's Monitor for all nodes (Vsmart/XZ3/N), rich device/service/storage/network/battery/CPU/RAM, freshness warnings, 12h history, sample gaps. Current `monitor.thophuong.com` web content was not accessible, so not claimed an exact parity audit.
+- New read-only `bin/node-monitor.mjs` collected in agent heartbeat; modified Cloudflare Worker/DO `reference/cluster-authority/worker.mjs` to retain bounded sanitized per-node telemetry and 144 history points (5min spacing). Added authenticated history API in client+Panel bridge/server. No change to Primary rights, writer grant, Tunnel routing or node identity.
+- **ISOLATED FIXTURE PASS:** Loaded actual Worker source into in-memory Request/Response/storage mocks: 2-node telemetry and history successful, malformed telemetry rejected, agent denied history, legacy heartbeat works, nothing promoted, privacy field stripped. Mock local Android collector produced correct RAM/storage/battery/services schema. Static app/bridge/server syntax checked. **NOT RUN:** Node test suite, actual Android install, true Cloudflare Worker deploy, 2 phone Monitor/browser regression, screen-off persistence.
+- Version-pinned installer `scripts/apply-monitor-all-nodes.sh` was checked against five GitHub blobs at commit `b77f557778c291ec486b9b59ff3693b137367d45`. Only existing clean LAB Vsmart and XZ3, backups, Panel/Agent-only restart and HTTP rollback. Cloudflare Worker must be updated separately under the existing name and DO binding; no secret rotation or deletion. Full instructions `docs/MONITOR-V2-ALL-NODES.md`.
+
+
 ## 26/10/2026 — M3 chọn node ứng viên ngay trong Panel (source + UI rollout)
 
 - User requested immediate manual Primary selection from public Panel. Implemented **durable shared selection PREPARE only** in default `Cluster` overview: choose recent-heartbeat Vsmart/XZ3, `begin` with fresh status/CAS revision and request UUID, display selected candidate/epoch/operation state, allow abort from either Panel. Existing Cloudflare DO already persists the pending operation and rejects stale/concurrent/racing requests.
