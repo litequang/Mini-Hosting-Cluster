@@ -6,24 +6,14 @@ import path from 'node:path';
 import {execFile} from 'node:child_process';
 const HOME=process.env.HOME||os.homedir();
 const PREFIX=process.env.PREFIX||'/data/data/com.termux/files/usr';
-const SERV=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx'];
+const SERV=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx','named-tunnel','php-fpm','mhc-full-daily-backup'];
 const range=(v,min,max)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max?v:null;
 const clean=(s,max=55)=>String(s||'').replace(/[\x00-\x1f\x7f]/g,'').slice(0,max);
-let lastCpu=null,lastNetwork=null,cache=null,cacheAt=0;
-function proc(file,args=[],timeout=900){
+let lastNetwork=null,cache=null,cacheAt=0;
+function proc(file,args=[],timeout=900,limit=4096){
  return new Promise(resolve=>{
-  execFile(file,args,{timeout,maxBuffer:4096,encoding:'utf8'},(err,out)=>resolve(err?null:String(out||'').trim().slice(0,4096)));
+  execFile(file,args,{timeout,maxBuffer:Math.min(262144,limit),encoding:'utf8'},(err,out)=>resolve(err?null:String(out||'').trim().slice(0,limit)));
  });
-}
-function cpu(){
- let values=[];try{values=os.cpus()||[];}catch{}
- const total=values.reduce((a,c)=>a+Object.values(c.times||{}).reduce((x,y)=>x+y,0),0);
- const idle=values.reduce((a,c)=>a+(c.times?.idle||0),0);
- let pct=null;
- if(lastCpu&&total>lastCpu.total&&idle>=lastCpu.idle&&idle-lastCpu.idle<=total-lastCpu.total)
-  pct=range(Math.round(100*(1-(idle-lastCpu.idle)/(total-lastCpu.total))),0,100);
- if(total>0)lastCpu={total,idle};
- return {usagePct:pct,cores:values.length||null};
 }
 function disk(){
  try{
@@ -67,6 +57,48 @@ async function battery(){
   };
  }catch{return {percentage:null,temperatureC:null,status:'UNAVAILABLE',health:null};}
 }
+
+// Wi-Fi connection status/RSSI, never SSID/BSSID/IP.
+async function wifi(){
+ const raw=await proc(path.join(PREFIX,'bin/termux-wifi-connectioninfo'),[],2000);
+ if(!raw)return {state:'unknown',rssiDbm:null};
+ try{
+  const v=JSON.parse(raw),rssi=range(v.rssi,-127,0);
+  return {state:rssi===null?'unknown':'connected',rssiDbm:rssi};
+ }catch{return {state:'unknown',rssiDbm:null};}
+}
+async function nodeProcesses(){
+ const raw=await proc(path.join(PREFIX,'bin/ps'),['-ef'],2600,131072);
+ if(!raw)return [];
+ const result=[];
+ for(const line of raw.split(/\r?\n/).slice(1)){
+  const fields=line.trim().split(/\s+/);
+  if(fields.length<8)continue;
+  const pid=Number(fields[1]),args=fields.slice(7),cmd=args.join(' ');
+  if(!Number.isSafeInteger(pid)||pid<1||!args.some(a=>/(?:^|\/)node(?:js)?$/.test(a)))continue;
+  const name=cmd.includes('android-hosting-panel')?'Mini Hosting Panel':
+   cmd.includes('cluster-authority.mjs')?'Cluster Agent':
+   cmd.includes('monitor/server.mjs')?'LAN Monitor':
+   cmd.includes('dist/server.cjs')?'Web Node.js':'Node.js khác';
+  let rssMiB=null;
+  try{
+   const v=fs.readFileSync('/proc/'+pid+'/status','utf8').match(/^VmRSS:\s+(\d+)\s+kB/m);
+   if(v)rssMiB=range(Math.round(Number(v[1])/1024),0,1e7);
+  }catch{}
+  result.push({name,rssMiB});if(result.length>=6)break;
+ }
+ return result;
+}
+function snapshot(){
+ const root=path.join(HOME,'hosting-backups/mhc-full');
+ try{
+  const names=fs.readdirSync(root).filter(x=>/^snapshot-\d{8}$/.test(x)).sort().reverse();
+  if(!names.length)return {name:null,recordedAt:null,verified:false};
+  const name=names[0],date=fs.statSync(path.join(root,name)).mtimeMs;
+  return {name,recordedAt:Number.isFinite(date)?new Date(date).toISOString():null,verified:false};
+ }catch{return {name:null,recordedAt:null,verified:false};}
+}
+
 async function services(){
  const list=await Promise.all(SERV.map(async id=>{
   const r=await proc(path.join(PREFIX,'bin/sv'),['status',path.join(PREFIX,'var/service',id)],1400);
@@ -76,14 +108,14 @@ async function services(){
 }
 export async function collectNodeMetrics(){
  if(cache&&Date.now()-cacheAt<10000)return cache;
- const [power,status,model,android]=await Promise.all([
+ const [power,status,model,android,wireless,processes]=await Promise.all([
   battery(),services(),proc(path.join(PREFIX,'bin/getprop'),['ro.product.model'],900),
-  proc(path.join(PREFIX,'bin/getprop'),['ro.build.version.release'],900)
+  proc(path.join(PREFIX,'bin/getprop'),['ro.build.version.release'],900),wifi(),nodeProcesses()
  ]);
  const ramTotal=os.totalmem()/1048576,ramFree=os.freemem()/1048576;
  const m={
   v:1,at:new Date().toISOString(),device:clean(model||'Android'),android:clean(android||'',12),
-  cpu:cpu(),
+  wifi:wireless,processes,snapshot:snapshot(),
   memory:{totalMiB:range(Math.round(ramTotal),0,1e8),freeMiB:range(Math.round(ramFree),0,1e8)},
   storage:disk(),network:network(),
   battery:power,uptimeSec:range(Math.round(os.uptime()),0,1e10),
@@ -98,10 +130,16 @@ export function compactTelemetry(m){
  const svc=Object.fromEntries(SERV.map(k=>[k,state(m.services?.[k])]));
  return {v:1,at:typeof m.at==='string'&&/^\d{4}-\d\d-\d\dT/.test(m.at)?m.at:null,
   device:clean(m.device),android:clean(m.android,12),
-  cpu:{usagePct:pct(m.cpu?.usagePct),cores:range(m.cpu?.cores,1,256)},
   memory:{totalMiB:mib(m.memory?.totalMiB),freeMiB:mib(m.memory?.freeMiB)},
   storage:{totalMiB:mib(m.storage?.totalMiB),freeMiB:mib(m.storage?.freeMiB)},
   network:{rxKiBs:mib(m.network?.rxKiBs),txKiBs:mib(m.network?.txKiBs),interfaces:range(m.network?.interfaces,0,128)},
+  wifi:{state:m.wifi?.state==='connected'?'connected':'unknown',rssiDbm:range(m.wifi?.rssiDbm,-127,0)},
+  processes:(Array.isArray(m.processes)?m.processes:[]).slice(0,6).map(p=>({
+   name:['Mini Hosting Panel','Cluster Agent','LAN Monitor','Web Node.js','Node.js khác'].includes(p?.name)?p.name:'Node.js khác',
+   rssMiB:mib(p?.rssMiB)})),
+  snapshot:{name:/^snapshot-\d{8}$/.test(m.snapshot?.name||'')?m.snapshot.name:null,
+   recordedAt:typeof m.snapshot?.recordedAt==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(m.snapshot.recordedAt)?m.snapshot.recordedAt:null,
+   verified:false},
   battery:{percentage:pct(m.battery?.percentage),temperatureC:temp(m.battery?.temperatureC),
    status:['CHARGING','DISCHARGING','FULL','NOT_CHARGING','UNAVAILABLE','UNKNOWN'].includes(m.battery?.status)?m.battery.status:'UNKNOWN',
    health:['GOOD','OVERHEAT','DEAD','OVER_VOLTAGE','UNSPECIFIED_FAILURE','COLD','UNKNOWN'].includes(m.battery?.health)?m.battery.health:null},
