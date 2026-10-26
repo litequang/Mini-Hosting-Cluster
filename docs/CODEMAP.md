@@ -41,3 +41,11 @@
 - `docs/HANDOFF-ACCEPTANCE.md`: checklist PASS/FAIL/NOT RUN cho executor tiếp theo.
 
 Đếm test từ tệp thực tế trong checkpoint; không hiểu số runner là số assertion hay bằng chứng Android.
+
+## M2 SSO 26/10/2026 — đã cập nhật nguồn, chưa nghiệm thu Android
+- `bin/legacy-panel-src/src/server.mjs`: `GET /api/session` tạo session từ JWT Access đã được xác minh, cookie Secure/HttpOnly/SameSite, session bound JWT hash. `POST /api/login` chỉ localhost, CSRF giữ nguyên.
+- `bin/legacy-panel-src/public/app.js`: tự đăng nhập remote từ Access, logout qua `/cdn-cgi/access/logout`, local login form vẫn tồn tại.
+- `bin/legacy-panel-src/src/mhc-remote-access.mjs`: bắt buộc chữ ký RS256/JWKS, issuer, AUD, hạn; notice phù hợp Access-only remote.
+- `tests/access-sso-panel.mjs`: kiểm thử HTTP process và signed-JWT/JWKS mock, chỉ mới kiểm cú pháp, **chưa chạy**.
+- `scripts/apply-panel-access-sso.sh`: rollout có backup/rollback và HTTP localhost check trên Vsmart LAB, chưa chạy trên Android.
+- `docs/PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`: kiến trúc một hostname Panel đi theo Primary; M3/M4 writer/route chuyển thực **chưa triển khai**.
