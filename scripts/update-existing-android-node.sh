@@ -11,6 +11,7 @@ base="$HOME/.local/share/mhc-full-installer/bin"
 panel="$HOME/android-hosting-panel"
 [[ -f "$panel/data/admin.json" && -f "$panel/src/server.mjs" ]] || fail 'Original Panel missing'
 grep -Fq "crypto.verify('RSA-SHA256'" "$panel/src/mhc-remote-access.mjs" || fail 'JWT verification module differs'
+[[ "$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:9090/ 2>/dev/null||true)" == 200 ]] || fail 'Panel must be healthy before update'
 mkdir -p "$HOME/.cache"
 tmp="$(mktemp -d "$HOME/.cache/mhc-release.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
@@ -39,7 +40,7 @@ while IFS='|' read -r path to sha;do
  [[ ! -L "$dst" && ! -L "$(dirname "$dst")" ]] || fail "Symlink destination: $to"
  curl -fLsS --retry 2 --connect-timeout 8 --max-time 45 "$origin/$path" -o "$tmp/$i" || fail "Download failed: $path"
  [[ "$(git hash-object "$tmp/$i")" == "$sha" ]] || fail "Wrong source SHA: $path"
- case "$path" in *.mjs|*/app.js)node --check "$tmp/$i" || fail "Bad JavaScript: $path";;*.sh|*/mhc-full-wrapper)bash -n "$tmp/$i" || fail "Bad shell: $path";;esac
+ case "$path" in *.mjs)node --check --input-type=module < "$tmp/$i" || fail "Bad ESM syntax: $path";;*/app.js)node --check < "$tmp/$i" || fail "Bad JavaScript: $path";;*.sh|*/mhc-full-wrapper)bash -n "$tmp/$i" || fail "Bad shell: $path";;esac
  i=$((i+1))
 done < "$manifest"
 grep -Fq 'MHC_MONITOR_EXPANDED_ALL_NODES_V3' "$tmp/7" || fail 'Monitor release mismatch'
@@ -64,7 +65,8 @@ restore(){
  sv restart "$PREFIX/var/service/amh-panel" >/dev/null 2>&1 || true
  echo "RESTORE_BACKUP=$backup" >&2
 }
-trap restore ERR
+rollback_needed=yes
+trap 'exit_code=$?; trap - EXIT; if [[ "$rollback_needed" == yes ]];then restore || true;fi; rm -rf -- "$tmp";exit "$exit_code"' EXIT
 i=0
 while IFS= read -r dst;do
  stage="$(dirname "$dst")/.mhc-release-$$-$i"
@@ -93,8 +95,8 @@ for j in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15;do
  if [[ "$served" == '2e8dd95c625dc4081224d97e07dc44b54e85934c' ]];then healthy=yes;break;fi
 done
 [[ "$healthy" == yes ]] || fail 'Panel HTTP asset check failed'
+rollback_needed=no
 bash "$base/node-doctor.sh" --repair || echo 'WARN: Android permissions/manual battery setting need attention'
-trap - ERR
 echo 'APPLIED_OK: full Panel Monitor + agent + boot updated safely'
 echo "BACKUP=$backup"
 echo 'No database, web assets, tunnel credentials or Primary were modified.'
