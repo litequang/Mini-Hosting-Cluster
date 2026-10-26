@@ -8,6 +8,7 @@ node "$ROOT/tests/guard-management.mjs"
 node "$ROOT/tests/cluster-authority.mjs"
 node "$ROOT/tests/authority-panel.mjs" "$ROOT"
 node "$ROOT/tests/authority-http-panels.mjs" "$ROOT"
+node "$ROOT/tests/p3-route.mjs"
 node "$ROOT/tests/cluster-pairing.mjs"
 node "$ROOT/tests/monitor-all-nodes.mjs"
 for f in "$ROOT/install.sh" "$ROOT/bin/"*.sh "$ROOT/scripts/"*.sh "$ROOT/tests/"*.sh;do bash -n "$f";done
