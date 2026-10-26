@@ -1,3 +1,9 @@
+## 26/10/2026 — Roadmap thêm Cloudflare multi-domain auto-subdomain
+- Đã ghi **P2.5** trong `docs/ROADMAP-TO-V1.md`: list domains theo zone permissions, chọn domain + subdomain từ Mini Hosting, DNS/Tunnel ingress/Nginx tự cấu hình bằng API, HTTPS verify, rollback, không cần IP tĩnh; token ở control plane, wildcard optional; route adapter dùng chung P3/P4.
+- **SOURCE STATE VERIFIED**: `Mini Hosting > Thêm website` hiện `/api/sites` chỉ tạo thư mục/Nginx và dịch vụ Node.js. `/api/domains` báo `manual:true`. Không có Cloudflare DNS/Tunnel mutation trong đường tạo website; cần implement P2.5. Không tuyên bố đã tự tạo subdomain.
+- **Primary M3**: nút chọn ứng viên + begin/abort lưu Shared Authority Durable Object ở trạng thái `SHARED_AUTHORITY_PREPARE_ONLY`; `declaredPrimary:null`, `writeLeaseGranted:false`. Chưa chuyển route website/Panel, chưa chứng minh stop/fence writer và chưa tự bầu M4. Panel mỗi node 9090; `panel.giaouoc.com` hiện gắn Vsmart Tunnel chứ chưa theo active Primary. Source audit only, không chạy Cloudflare hoặc Android trong lượt này.
+- Nguyên tắc: Primary thông thường phục vụ cả website và Panel chung; khi Primary ngắt, URL Panel phải vào Standby recovery-only. Authority không phụ thuộc Primary; chuyển Panel không đồng nghĩa cấp quyền Primary.
+
 ## 26/10/2026 — unified Monitor V3 expanded release
 
 - **SOURCE PUSHED**: every Shared Authority node visible as expanded card in original Panel 9090 Monitor, no click to expand; pin/temperature/RAM/storage/Wi-Fi/network/uptime/service states, Node.js process RSS, snapshots, unverified sync, freshness, 12-hour per-node trends. Local/current nodes first; 15s polling and lazy history loads. CPU fully hidden in UI and CPU fallback collection removed.
