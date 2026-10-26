@@ -7,7 +7,7 @@ SOURCE="$BASE/bin/legacy-panel-src"
 DEST="$HOME/android-hosting-panel"
 MARK="$HOME/.config/mhc-full-installer/installed"
 BACKUPS="$BASE/legacy-panel-rollbacks"
-FILES=(src/server.mjs src/system.mjs public/index.html public/app.js)
+FILES=(src/server.mjs src/system.mjs public/index.html public/app.js public/style.css)
 NEW=(src/mhc-integration.mjs src/mhc-remote-access.mjs)
 fail(){ echo "STOP: $*" >&2;exit 1; }
 preflight(){
