@@ -47,6 +47,14 @@ boot="$HOME/.termux/boot/10-start-hosting"
 [[ -f "$boot" && ! -L "$boot" ]] || fail 'Boot script missing'
 grep -Fq 'start-services.sh' "$boot" || fail 'Boot script missing runit supervisor'
 grep -Fq 'termux-wake-lock' "$boot" || fail 'Boot script missing wake lock'
+# Transition from the upstream bootstrap stub to the managed recovery script.
+if [[ -f "$HOME/.local/share/mhc-full-installer/bin/node-boot.sh" &&
+      -f "$HOME/.local/share/mhc-full-installer/bin/node-doctor.sh" ]];then
+ bash "$HOME/.local/share/mhc-full-installer/bin/node-doctor.sh" --repair ||
+ echo 'WARN: Android permissions/API may need manual attention; boot repair attempted'
+else
+ fail 'Installed MHC release missing integrated boot and doctor; refuse partial setup'
+fi
 if command -v termux-wake-lock >/dev/null;then
  termux-wake-lock >/dev/null 2>&1 || echo 'WARN: Wake lock not granted by Android'
 fi
@@ -72,5 +80,5 @@ if [[ "$api" != ok ]];then
 fi
 echo 'ACTION_REQUIRED: Open Termux:Boot Android app ONCE, disable battery optimizations for Termux and API; disable STAMINA if present.'
 echo 'ACTION_REQUIRED: Test screen-off for 15 minutes and reboot once to verify auto-start.'
-echo 'Next: obtain one-time pairing code in protected Panel, then: ~/mhc-full join <CODE>'
+echo 'Next: open protected Panel > Cluster > Tạo mã ghép 10 phút, then run the copied ~/mhc-full join code.'
 echo 'No primary role, data restore, public Tunnel or website writer activated.'
