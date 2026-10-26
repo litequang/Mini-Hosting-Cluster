@@ -11,6 +11,7 @@ marker="$HOME/.config/mhc-full-installer/installed"
 [[ ! -e "$HOME/apps/thophuongpro/.env" && ! -e "$HOME/.config/mini-hosting-cluster/ha.json" && ! -e "$HOME/.config/mini-hosting-cluster/node.json" ]] || { echo 'STOP: production footprint; refuses patch';exit 3; }
 [[ -f "$live" && ! -L "$live" && -d "$root/public" && ! -L "$root/public" ]] || { echo 'STOP: original Panel asset missing or unsafe';exit 3; }
 [[ "$(curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:9090/)" == '200' ]] || { echo 'STOP: local Panel not healthy before patch';exit 4; }
+mkdir -p "$HOME/.cache";chmod 700 "$HOME/.cache"
 tmp="$(mktemp "$HOME/.cache/mhc-primary-ui.XXXXXX")"
 trap 'rm -f -- "$tmp"' EXIT
 url='https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/bd9b02c95aede607a353e3471d9c43f832418ac8/bin/legacy-panel-src/public/app.js'
