@@ -1,3 +1,4 @@
+import {p3Config,p3SwitchDns} from './p3-route.mjs';
 // M2: shared membership and durable preparation journal. NO writer lease or route cutover.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43,128}$/;
@@ -63,7 +64,7 @@ async function json(req){
 }
 export default {async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|history|invite|join)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
@@ -71,7 +72,7 @@ export default {async fetch(request,env){
   // Dynamic member credentials can only be verified inside this cluster's Durable Object.
   const role=action==='join'?'joining':staticRole||(UUID.test(id||'')&&TOKEN.test(token)?'dynamic':null);
   if(!role)return reply({error:'UNAUTHORIZED'},401);
-  if(action==='heartbeat'&&role==='panel'||['begin','abort','history','invite'].includes(action)&&role==='agent')return reply({error:'ROLE_DENIED'},403);
+  if(action==='heartbeat'&&role==='panel'||['begin','abort','route','route-resume','complete','history','invite'].includes(action)&&role==='agent')return reply({error:'ROLE_DENIED'},403);
   if(request.method!==(['status','history'].includes(action)?'GET':'POST'))return reply({error:'METHOD_NOT_ALLOWED'},405);
   const nonce=request.headers.get('x-mhc-nonce');if(!UUID.test(nonce||''))fail('NONCE_REQUIRED');
   const targetNodeId=action==='history'?request.headers.get('x-mhc-target'):null;
@@ -90,9 +91,10 @@ export class ClusterAuthority {
    const {action,body,nodeId,role,nonce,clusterId,dynamicToken}=await req.json();
    if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
    if(action!=='join'&&!UUID.test(nodeId))fail('INVALID_INTERNAL_REQUEST');
-   if(!['status','heartbeat','begin','abort','history','invite','join'].includes(action))fail('INVALID_ACTION');
+   if(!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join'].includes(action))fail('INVALID_ACTION');
    const staticList=members(this.env);
    const now=Date.now();
+   if(['route','route-resume','complete'].includes(action))p3Config(this.env);
    const result=await this.ctx.storage.transaction(async tx=>{
     const s=await tx.get('state')||{schema:1,revision:0,epoch:0,pending:null,heartbeats:{}};
     if(s.schema!==1||!Number.isSafeInteger(s.revision)||s.revision<0||!Number.isSafeInteger(s.epoch)||s.epoch<0||!s.heartbeats)fail('STATE_INVALID',503);
@@ -107,7 +109,7 @@ export class ClusterAuthority {
     }else if(role!=='joining'&&!staticList.some(n=>n.nodeId===nodeId))fail('UNAUTHORIZED',401);
     if(!effectiveRole)fail('UNAUTHORIZED',401);
     if(action==='join'&&role!=='joining')fail('ROLE_DENIED',403);
-    if(action==='heartbeat'&&effectiveRole!=='agent'||['begin','abort','history','invite'].includes(action)&&effectiveRole!=='panel'||action==='status'&&effectiveRole==='joining')fail('ROLE_DENIED',403);
+    if(action==='heartbeat'&&effectiveRole!=='agent'||['begin','abort','route','route-resume','complete','history','invite'].includes(action)&&effectiveRole!=='panel'||action==='status'&&effectiveRole==='joining')fail('ROLE_DENIED',403);
     let receipt=null;
     if(action==='invite'){
      if(!UUID.test(body.requestId||'')||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision!==s.revision)fail('REVISION_CONFLICT',409);
@@ -158,10 +160,37 @@ export class ClusterAuthority {
        if(s.pending)fail('TRANSITION_PENDING',409);
        if(!list.some(n=>n.nodeId===body.targetNodeId))fail('UNKNOWN_TARGET');
        const hb=s.heartbeats[body.targetNodeId];if(!hb||now-hb.receivedAt<0||now-hb.receivedAt>180000)fail('TARGET_HEARTBEAT_STALE',409);
+       const fromNodeId=s.declaredPrimary?.nodeId||this.env.MHC_P3_INITIAL_PRIMARY_NODE_ID||null;
+       if(fromNodeId===body.targetNodeId)fail('TARGET_IS_CURRENT_PRIMARY',409);
        s.epoch++;
-       s.pending={operationId:body.requestId,targetNodeId:body.targetNodeId,epoch:s.epoch,status:'PREPARED_NO_WRITER_GRANT',createdAt:new Date(now).toISOString()};
+       s.pending={operationId:body.requestId,targetNodeId:body.targetNodeId,fromNodeId,epoch:s.epoch,status:'PREPARED_NO_WRITER_GRANT',createdAt:new Date(now).toISOString()};
+      }else if(action==='route'){
+       if(!UUID.test(body.operationId||'')||s.pending?.operationId!==body.operationId||s.pending.status!=='PREPARED_NO_WRITER_GRANT')fail('P3_PENDING_NOT_PREPARED',409);
+       if(!['backupRestored','oldWritersStopped','targetHttpChecked','targetPanelAccessChecked','acceptDataLossRisk','labOnly'].every(k=>body[k]===true))fail('P3_OPERATOR_CONFIRMATIONS_REQUIRED',400);
+       const t=s.heartbeats[s.pending.targetNodeId],metric=t?.telemetry;
+       if(!t||now-t.receivedAt>180000||now-(t.metricsAt||0)>180000||metric?.services?.['amh-panel']!=='running'||metric?.services?.nginx!=='running')fail('P3_TARGET_NOT_READY',409);
+       if(!UUID.test(s.pending.fromNodeId||''))fail('P3_INCUMBENT_NOT_CONFIGURED',409);
+       s.pending={...s.pending,status:'ROUTING_REQUESTED',lastRouteTryAt:now,operatorAttestedAt:new Date(now).toISOString(),operatorPanelNodeId:nodeId,
+         note:'LAB attestation only, not independent writer fencing'};
+      }else if(action==='route-resume'){
+       if(!UUID.test(body.operationId||'')||s.pending?.operationId!==body.operationId||s.pending.status!=='ROUTING_REQUESTED')fail('P3_NO_ROUTE_TO_RESUME',409);
+       if(now-(s.pending.lastRouteTryAt||0)<30000)fail('P3_ROUTE_RETRY_TOO_SOON',409);
+       s.pending={...s.pending,lastRouteTryAt:now};
+      }else if(action==='complete'){
+       if(!UUID.test(body.operationId||'')||s.pending?.operationId!==body.operationId||s.pending.status!=='DNS_SWITCHED_AWAITING_HTTP_CONFIRM')fail('P3_DNS_NOT_VERIFIED',409);
+       if(!['websitePublicChecked','panelPublicChecked','noNewWritesOnOldNode','acceptNonFencedLabRisk'].every(k=>body[k]===true))fail('P3_FINAL_CONFIRMATIONS_REQUIRED',400);
+       const t=s.heartbeats[s.pending.targetNodeId];
+       if(!t||now-t.receivedAt<0||now-t.receivedAt>180000)fail('P3_TARGET_HEARTBEAT_STALE',409);
+       const previously=s.pending.fromNodeId,target=s.pending.targetNodeId;
+       s.declaredPrimary={nodeId:target,label:list.find(n=>n.nodeId===target)?.label||'Node',
+        recordedAt:new Date(now).toISOString(),authority:'OPERATOR_ATTESTED_LAB_DNS_ONLY',
+        routingVerified:true,appAndPanelOperatorChecked:true,fencingVerified:false,writerLeaseGranted:false};
+       s.retiredPrimaries=[...(s.retiredPrimaries||[]).filter(n=>n.nodeId!==target&&n.nodeId!==previously),
+        {nodeId:previously,role:'STANDBY_REJOIN_REQUIRES_OPERATOR_REVIEW',at:new Date(now).toISOString()}].slice(-100);
+       s.pending=null;
       }else{
        if(!UUID.test(body.operationId||'')||s.pending?.operationId!==body.operationId)fail('PENDING_MISMATCH',409);
+       if(s.pending.status!=='PREPARED_NO_WRITER_GRANT')fail('P3_ROUTE_MAY_HAVE_CHANGED_NO_BLIND_ABORT',409);
        s.pending=null;
       }
       s.revision++;
@@ -181,10 +210,27 @@ export class ClusterAuthority {
     return {mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
-     declaredPrimary:null,pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
+     declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
      callerSequence:s.heartbeats[nodeId]?.sequence||0,receipt,canComplete:false,writeLeaseGranted:false,
-     automaticFailover:false,livePrimaryVerified:false,notice:'Shared preparation only. Candidate activation, writer fencing and web/admin routing are not implemented by this authority.'};
+     automaticFailover:false,livePrimaryVerified:false,notice:'M3 LAB supports operator-attested DNS routing; application validation and writer fencing are NOT independently proven, no writer lease is granted.'};
    });
+   if(action==='route'||action==='route-resume'){
+    // Journal was committed before any external API side effects. A failed/partial PATCH
+    // leaves ROUTING_REQUESTED: retry with route-resume after inspecting live DNS.
+    const applied=await p3SwitchDns(this.env,result.pending);
+    const completed=await this.ctx.storage.transaction(async tx=>{
+     const st=await tx.get('state');
+     if(!st?.pending||st.pending.operationId!==result.pending.operationId||
+       st.pending.status!=='ROUTING_REQUESTED')fail('P3_JOURNAL_CONFLICT',409);
+     st.pending={...st.pending,status:'DNS_SWITCHED_AWAITING_HTTP_CONFIRM',dnsRecords:applied.records,dnsVerifiedAt:new Date().toISOString()};
+     st.revision++;
+     await tx.put('state',st);
+     await tx.put('audit:'+String(st.revision).padStart(16,'0'),
+       {action:'P3_DNS_VERIFIED',at:new Date().toISOString(),nodeId,operationId:st.pending.operationId,revision:st.revision});
+     return {revision:st.revision,pending:st.pending};
+    });
+    return reply({...result,...completed,receipt:{action:'route',dnsOnlyVerified:true,applicationVerified:false,writerFenced:false},nonce});
+   }
    return reply({...result,nonce});
   }catch(e){return reply({error:e.status?e.message:'AUTHORITY_STORAGE_UNAVAILABLE'},e.status||503);}
  }
