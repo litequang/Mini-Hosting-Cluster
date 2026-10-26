@@ -28,10 +28,14 @@ bin/legacy-panel-src/src/mhc-integration.mjs|PANEL/src/mhc-integration.mjs|3a989
 bin/legacy-panel-src/src/server.mjs|PANEL/src/server.mjs|9cb48323d7ed1767e3d35219e047c70190c05c18
 bin/legacy-panel-src/public/app.js|PANEL/public/app.js|2e8dd95c625dc4081224d97e07dc44b54e85934c
 bin/legacy-panel-src/public/style.css|PANEL/public/style.css|dfff9b1af2446dc36d4cdbf4ba67f7ca7c8d8dbe
+bin/legacy-panel-src/src/mhc-integration.mjs|SOURCE/src/mhc-integration.mjs|3a9897c59ab2bf248027c7efb38b0ad0fd522c8b
+bin/legacy-panel-src/src/server.mjs|SOURCE/src/server.mjs|9cb48323d7ed1767e3d35219e047c70190c05c18
+bin/legacy-panel-src/public/app.js|SOURCE/public/app.js|2e8dd95c625dc4081224d97e07dc44b54e85934c
+bin/legacy-panel-src/public/style.css|SOURCE/public/style.css|dfff9b1af2446dc36d4cdbf4ba67f7ca7c8d8dbe
 MANIFEST
 i=0
 while IFS='|' read -r path to sha;do
- case "$to" in BIN/*)dst="$base/$(basename "$to")";;HOME/*)dst="$HOME/$(basename "$to")";;PANEL/*)dst="$panel/$(echo "$to"|cut -d/ -f2-)";;*)fail 'Invalid manifest destination';;esac
+ case "$to" in BIN/*)dst="$base/$(basename "$to")";;HOME/*)dst="$HOME/$(basename "$to")";;PANEL/*)dst="$panel/$(echo "$to"|cut -d/ -f2-)";;SOURCE/*)dst="$base/legacy-panel-src/$(echo "$to"|cut -d/ -f2-)";;*)fail 'Invalid manifest destination';;esac
  [[ ! -L "$dst" && ! -L "$(dirname "$dst")" ]] || fail "Symlink destination: $to"
  curl -fLsS --retry 2 --connect-timeout 8 --max-time 45 "$origin/$path" -o "$tmp/$i" || fail "Download failed: $path"
  [[ "$(git hash-object "$tmp/$i")" == "$sha" ]] || fail "Wrong source SHA: $path"
@@ -45,7 +49,7 @@ root="$HOME/.local/state/mhc-upgrade-backups";mkdir -p "$root";chmod 700 "$root"
 backup="$root/$(date +%Y%m%d-%H%M%S)-$$";mkdir -m 700 "$backup"
 i=0
 while IFS='|' read -r path to sha;do
- case "$to" in BIN/*)dst="$base/$(basename "$to")";;HOME/*)dst="$HOME/$(basename "$to")";;PANEL/*)dst="$panel/$(echo "$to"|cut -d/ -f2-)";;esac
+ case "$to" in BIN/*)dst="$base/$(basename "$to")";;HOME/*)dst="$HOME/$(basename "$to")";;PANEL/*)dst="$panel/$(echo "$to"|cut -d/ -f2-)";;SOURCE/*)dst="$base/legacy-panel-src/$(echo "$to"|cut -d/ -f2-)";;esac
  echo "$dst" >> "$backup/paths"
  if [[ -f "$dst" ]];then cp -p "$dst" "$backup/$i";else touch "$backup/$i.absent";fi
  i=$((i+1))
