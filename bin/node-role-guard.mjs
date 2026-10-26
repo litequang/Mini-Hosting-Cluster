@@ -16,7 +16,12 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]
 const HOST=/^(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const USER=/^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
-const SERVICE=/^(?:mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|named-tunnel|mini-web)$/;
+const SERVICE=/^(?:mhc-lab-[a-z0-9-]{1,40}|nginx|php-fpm|mariadb|mini-web)$/;
+// A shared tunnel can carry Panel/agent traffic. Never demote management ingress.
+export function guardedServices(services){
+ if(!Array.isArray(services)||services.length<1||services.length>6||new Set(services).size!==services.length||services.some(s=>s!=='named-tunnel'&&!SERVICE.test(s)))fail('Invalid guarded service list');
+ return services.filter(s=>s!=='named-tunnel');
+}
 const fail=m=>{throw Error(m);};
 function read(p,optional=false){
  try{const st=fs.lstatSync(p);if(st.isSymbolicLink()||!st.isFile()||(st.mode&0o077)||st.size>65536)fail('Unsafe private role metadata');return JSON.parse(fs.readFileSync(p,'utf8'));}
@@ -44,19 +49,26 @@ function inquire(b){const nonce=crypto.randomBytes(16).toString('hex');const req
  if(reply?.nodeId!==b.nodeId||reply?.nonce!==nonce||reply?.controllerNodeId!==b.controllerNodeId||reply?.clusterId!==b.clusterId||reply?.protocol!=='mhc-full-enroll-v1'||reply.ok!==true)fail('Controller identity/nonce mismatch');
  return {reply,nonce};
 }
-function stopServices(services){for(const name of services){if(!SERVICE.test(name))fail('Invalid guarded service name');
- const r=spawnSync('sv',['down',name],{encoding:'utf8',timeout:6000,maxBuffer:2048});if(r.error||r.status!==0)fail('Could not stop a guarded LAB service; inspect manually');
- }}
+export function stopServices(services,runner=spawnSync){const failed=[];
+ for(const name of guardedServices(services)){
+  try{const r=runner('sv',['down',name],{encoding:'utf8',timeout:6000,maxBuffer:2048});if(r.error||r.status!==0)failed.push(name);}catch{failed.push(name);}
+ }
+ if(failed.length)fail('Could not stop guarded LAB services: '+failed.join(', '));
+}
 export function decide(allowed,services){return {role:allowed?'RECORDED_PRIMARY_OBSERVED':'STANDBY_OR_UNREACHABLE',
  serviceAction:allowed?'NO_AUTO_START':'STOP_DECLARED_SERVICES',servicesStopped:allowed?[]:services,writerFencingProven:false};}
-function check(){safety();const b=base(),cfg=read(CFG);if(cfg?.schema!==1||cfg.armed!==true||!Array.isArray(cfg.services)||cfg.services.length<1||cfg.services.length>6||cfg.services.some(s=>!SERVICE.test(s)))fail('Guard not safely armed');
+function check(){safety();const cfg=read(CFG);if(cfg?.schema!==1||cfg.armed!==true)fail('Guard not safely armed');
+ const services=guardedServices(cfg.services);
  let allowed=false,reason='CONTROLLER_UNREACHABLE_OR_INVALID';
- try{const {reply,nonce}=inquire(b);allowed=allowWriteReply(reply,{...b,nonce});reason=reply.role==='PRIMARY_RECORDED_ONLY'?'CONTROLLER_PRIMARY_RECORDED':'CONTROLLER_STANDBY_OR_UNVERIFIED';}
+ let nodeId=null;
+ try{const b=base();nodeId=b.nodeId;const {reply,nonce}=inquire(b);allowed=allowWriteReply(reply,{...b,nonce});reason=reply.role==='PRIMARY_RECORDED_ONLY'?'CONTROLLER_PRIMARY_RECORDED':'CONTROLLER_STANDBY_OR_UNVERIFIED';}
  catch{} // communication failure is fail-closed, never permission to start.
+ if(fs.lstatSync(path.join(ROOT,'authority.json'),{throwIfNoEntry:false})){allowed=false;reason='SHARED_AUTHORITY_NO_WRITER_ACTIVATION';}
  // A node previously demoted is NEVER automatically restarted after a role changes.
- const verdict=decide(allowed,cfg.services);if(!allowed)stopServices(cfg.services);
- guardDir();write(OBS,{schema:1,at:new Date().toISOString(),nodeId:b.nodeId,reason,allowed,servicesStopped:verdict.servicesStopped,
-  note:'Best-effort stop of configured services only. Not independent fencing of privileged/direct writers.'});return verdict;
+ const verdict=decide(allowed,services);let stopError;
+ if(!allowed&&services.length)try{stopServices(services);}catch(e){stopError=e;}
+ guardDir();write(OBS,{schema:1,at:new Date().toISOString(),nodeId,reason:stopError?'SERVICE_STOP_FAILED':reason,allowed,servicesStopped:stopError?[]:verdict.servicesStopped,
+  note:'Best-effort stop of configured services only. Not independent fencing of privileged/direct writers.'});if(stopError)throw stopError;return verdict;
 }
 function arm(args){const [list,confirm]=args;if(confirm!=='--confirm=ARM_LAB_SERVICE_GUARD' || !list)fail('Explicit opt-in and comma-separated services required');
  safety();base();if(fs.existsSync(path.join(ROOT,'sites'))&&fs.readdirSync(path.join(ROOT,'sites')).length||fs.existsSync(path.join(ROOT,'static'))&&fs.readdirSync(path.join(ROOT,'static')).length)fail('Registered site exists. Do not arm on an actively serving phone');

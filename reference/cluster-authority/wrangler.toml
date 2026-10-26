@@ -1,0 +1,11 @@
+name = "mhc-cluster-authority-lab"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+workers_dev = true
+# Isolated LAB only. Set MHC_CLUSTER_ID and MHC_MEMBERS_JSON using wrangler secret.
+[[durable_objects.bindings]]
+name = "MHC_AUTHORITY"
+class_name = "ClusterAuthority"
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ClusterAuthority"]

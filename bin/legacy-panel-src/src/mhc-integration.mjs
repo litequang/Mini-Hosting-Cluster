@@ -4,10 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import {execFile} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
 const HOME=process.env.HOME||os.homedir();
 const PREFIX=process.env.PREFIX||'/data/data/com.termux/files/usr';
+process.env.SVDIR ||= path.join(PREFIX,'var/service');
 const BIN=path.join(HOME,'.local/share/mhc-full-installer/bin');
 const BOOT=path.join(HOME,'.config/mhc-full-installer/installed');
+function sharedConfigured(){try{fs.lstatSync(path.join(HOME,'.config/mhc-full-installer/authority.json'));return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
+async function sharedClient(){return import(pathToFileURL(path.join(BIN,'cluster-authority.mjs')).href);}
+async function sharedView(){try{return await (await sharedClient()).sharedStatus();}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
 function run(file,args=[],ms=2200){return new Promise(resolve=>{
   execFile(file,args,{timeout:ms,maxBuffer:32768,encoding:'utf8',env:{...process.env}},(err,stdout,stderr)=>{
     resolve(err?null:String(stdout||stderr||'').trim().slice(0,32768));
@@ -44,6 +49,7 @@ export async function mhcModules(){
  ],services,notice:'Installed binary or runit process does not prove HTTP, DB replication, or HA readiness.'};
 }
 export async function mhcCluster(){
+ if(sharedConfigured())return sharedView();
  const cli=path.join(BIN,'cluster-summary.mjs');
  if(!fs.existsSync(cli))return {mode:'NOT_INSTALLED',nodeCount:0,alerts:[],capabilities:{},notice:'No MHC cluster metadata on this node.'};
  const raw=await run(process.execPath,[cli,'status'],3200);
@@ -287,6 +293,7 @@ export async function mhcWriterAudit(){
 
 // Manual selection only: never touches nginx, MariaDB, Cloudflare, SSH or live route.
 export async function mhcPrimarySelection(){
+ if(sharedConfigured())return sharedView();
  const cli=path.join(BIN,'manual-primary.mjs');
  if(!regular(cli))return {mode:'NOT_INSTALLED',nodes:[],declaredPrimary:null,pending:null};
  const raw=await run(process.execPath,[cli,'status'],2600);
@@ -295,6 +302,7 @@ export async function mhcPrimarySelection(){
  catch{return {mode:'NOT_OBSERVED',nodes:[],declaredPrimary:null,pending:null};}
 }
 export async function mhcPrimaryAction(body){
+ if(sharedConfigured())return (await sharedClient()).sharedAction(body);
  const op=body?.action, id=body?.id;
  if(!['begin','complete','abort'].includes(op)||typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))throw Error('Invalid primary selection request');
  const cli=path.join(BIN,'manual-primary.mjs');
@@ -309,6 +317,7 @@ export async function mhcPrimaryAction(body){
 }
 
 export async function mhcAutomaticElection(){
+ if(sharedConfigured())return {configured:true,enabled:false,mode:'SHARED_AUTHORITY_PREPARE_ONLY',notice:'Auto cutover requires the shared activation/route flow (M3/M4).'};
  const script=path.join(BIN,'auto-primary.mjs');if(!regular(script))return {configured:false,mode:'NOT_INSTALLED'};
  const raw=await run(process.execPath,[script,'status'],3000);
  if(!raw)return {configured:false,mode:'CONTROLLER_NOT_CONFIGURED',notice:'Node is not the election controller or has no inventory.'};

@@ -152,6 +152,7 @@ async function heartbeatAccept(){
 // Role inquiry uses the EXISTING enrolled-node SSH credential and forced-command entry.
 // It never grants authority to a node; it reports the controller's current intent.
 async function roleAccept(){
+ if(fs.lstatSync(path.join(DIR,'authority.json'),{throwIfNoEntry:false}))abort('Shared authority configured: legacy role replies disabled');
  ensureTest();const cluster=controller();
  let input='';for await(const chunk of process.stdin){input+=chunk;if(input.length>2048)abort('Oversized role inquiry');}
  let req;try{req=JSON.parse(input);}catch{abort('Malformed role inquiry');}

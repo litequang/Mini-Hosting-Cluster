@@ -84,6 +84,9 @@ function autoPrimaryHTML(p){
  <p class="help">Chỉ dựa heartbeat/snapshot đã ghi nhận; máy cũ quay lại phải vào Standby và đồng bộ lại. Không chứng minh fencing thực tế. Cấu hình tự động riêng bằng CLI trên controller độc lập.</p></div>`;
 }
 function primarySelectionHTML(p){
+ state.primarySelection=p;
+ if(p.mode==='AUTHORITY_UNAVAILABLE')return `<div class="card"><h2>Authority không truy cập được</h2><p>${esc(p.notice)}</p><p>Không thể tạo phiên chuyển Primary. Kiểm tra kết nối/cấu hình rồi tải lại.</p></div>`;
+ if(p.mode==='SHARED_AUTHORITY_PREPARE_ONLY')return `<div class="card"><h2>Chuẩn bị chuyển Primary — trạng thái dùng chung</h2><p>Revision ${Number(p.revision)} · Epoch ${Number(p.epoch)}</p><p>Các Panel dùng chung phiên chuẩn bị. Bản này chưa kích hoạt node, chuyển tuyến hoặc cấp quyền ghi.</p><div class="toolbar"><select id="primaryTarget">${(p.nodes||[]).map(n=>`<option value="${esc(n.nodeId)}" ${n.heartbeatRecent?'':'disabled'}>${esc(n.label)}${n.heartbeatRecent?'':' (heartbeat cũ)'}</option>`).join('')}</select>${p.pending?'':btn('Tạo phiên chuẩn bị','primary-begin','primary')}</div>${p.pending?`<p>Đích: ${esc(p.pending.label)} · ${esc(p.pending.status)}</p>${btn('Hủy phiên chuẩn bị','primary-abort','tiny warn')}`:''}</div>`;
  const options=(p.nodes||[]).map(n=>`<option value="${esc(n.nodeId)}" ${!n.heartbeatRecent?'disabled':''}>${esc(n.label)}${n.heartbeatRecent?'':' (heartbeat cũ)'}</option>`).join('');
  const current=p.declaredPrimary?`${esc(p.declaredPrimary.label)} — do quản trị viên ghi nhận, CHƯA xác minh tuyến đang phục vụ`:'Chưa khai báo Primary';
  const pending=p.pending?`<div class="info"><b>Đang chuẩn bị chuyển tới ${esc(p.pending.label)}</b><p>Backup/restore và đổi tuyến phải làm bên ngoài Panel, sau đó xác nhận checklist.</p><div class="btnrow">${btn('Xác nhận đã hoàn tất chuyển thủ công','primary-complete','primary')}${btn('Hủy phiên','primary-abort','tiny warn')}</div></div>`:'';
@@ -171,12 +174,13 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='primary-begin'){
   const id=$('#primaryTarget')?.value;
   if(!id||!confirm('Chuẩn bị chuyển Primary thủ công tới node đã chọn? CHƯA đổi tuyến hay dừng dịch vụ.'))return;
-  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'begin',id}});toast('Đã tạo phiên chuẩn bị, chưa đổi Primary');await nav('cluster');return;
+  const shared=state.primarySelection?.mode==='SHARED_AUTHORITY_PREPARE_ONLY';
+  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'begin',id,...(shared?{requestId:crypto.randomUUID(),expectedRevision:state.primarySelection.revision}:{})}});toast('Đã tạo phiên chuẩn bị, chưa đổi Primary');await nav('cluster');return;
  }
  if(type==='primary-abort'){
   const p=await req('/api/mhc/primary-selection');if(!p.pending)return;
   if(!confirm('Hủy phiên? Nếu đã sửa Cloudflare hoặc dịch vụ, phải kiểm tra/hoàn tác bằng tay.'))return;
-  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'abort',id:p.pending.operationId}});toast('Đã hủy bản ghi phiên');await nav('cluster');return;
+  await req('/api/mhc/primary-selection',{method:'POST',body:{action:'abort',id:p.pending.operationId,...(p.mode==='SHARED_AUTHORITY_PREPARE_ONLY'?{requestId:crypto.randomUUID(),expectedRevision:p.revision}:{})}});toast('Đã hủy bản ghi phiên');await nav('cluster');return;
  }
  if(type==='primary-complete'){
   const p=await req('/api/mhc/primary-selection');if(!p.pending)return;

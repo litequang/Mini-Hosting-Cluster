@@ -25,6 +25,7 @@ function dirGuard(directory){
  else fs.mkdirSync(directory,{recursive:true,mode:0o700});
 }
 function inventory(home=HOME){
+ if(fs.lstatSync(path.join(home,'.config/mhc-full-installer/authority.json'),{throwIfNoEntry:false}))fail('Shared authority configured: local Primary selection disabled; use Panel 9090');
  const p=path.join(home,'.config/mhc-full-installer');
  const self=safeFile(path.join(p,'node-identity.json'));
  const cfg=safeFile(path.join(p,'cluster.json'));

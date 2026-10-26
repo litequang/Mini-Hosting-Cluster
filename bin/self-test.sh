@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+bash "$ROOT/tests/service-environment.sh"
+node "$ROOT/tests/guard-management.mjs"
+node "$ROOT/tests/cluster-authority.mjs"
 for f in "$ROOT/install.sh" "$ROOT/bin/"*.sh "$ROOT/tests/"*.sh;do bash -n "$f";done
 for f in "$ROOT/bin/"*.mjs;do node --check "$f" >/dev/null;done
 for f in "$ROOT/vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/"*.mjs;do node --check "$f" >/dev/null;done

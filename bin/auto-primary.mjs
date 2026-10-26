@@ -94,6 +94,7 @@ function completeRoute(p){
  return {action:'ROUTE_SWITCHED_BEST_EFFORT',from:p.from,to:p.to,routeVerified:true,oldNodeFenced:false,potentialDataLoss:true};
 }
 async function tick(){return await lock(async()=>{
+ if(fs.lstatSync(path.join(ROOT,'authority.json'),{throwIfNoEntry:false}))deny('Shared authority configured: legacy auto-primary disabled');
  prodGuard();const ctrl=controller();const cfg=settings();if(!cfg.enabled)return {action:'DISABLED'};
  const st=read(STATE,true),members=read(MEMBERS,true);
  const existing=read(PENDING,true);
@@ -123,7 +124,7 @@ async function tick(){return await lock(async()=>{
  await updateCloudflareRoute(cfg,chosen.nodeId,current);
  return completeRoute(pending);
  });}
-export async function main(args){const [cmd,...params]=args;switch(cmd){
+export async function main(args){if(fs.existsSync(path.join(ROOT,'authority.json')))deny('Shared authority configured: legacy auto-primary disabled');const [cmd,...params]=args;switch(cmd){
  case 'plan':return {scope:'AUTO_PRIMARY_LAB',mode:'RECOMMEND_ONLY_DEFAULT',enabled:false,
   algorithm:'Recent SSH authenticated heartbeat + newest recorded snapshot YYYYMMDD, then free disk and RAM. Not live freshness.',
   requires:['Controller independent of serving Primary','SSH heartbeat to independent controller','Remote node services obey rejoin/demotion policy','Optional Cloudflare API token with DNS Write limited zone','Per-node healthy Tunnel','Backup restored separately, possible data loss accepted'],

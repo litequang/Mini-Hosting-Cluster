@@ -2,6 +2,7 @@
 # Local-only independent nginx + php-fpm for MHC-managed WordPress; no production config edits.
 set -Eeuo pipefail; umask 077
 BASE="$HOME/.local/share/mhc-full-installer"; ROOT="$BASE/hosting"; PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+export SVDIR="${SVDIR:-$PREFIX/var/service}"
 VALID_SLUG='^[a-z][a-z0-9-]{1,30}$'
 fail(){ echo "ERROR: $*" >&2; exit 1; }
 init(){
