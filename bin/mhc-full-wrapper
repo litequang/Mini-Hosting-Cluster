@@ -5,6 +5,8 @@ export SVDIR="${SVDIR:-${PREFIX:-/data/data/com.termux/files/usr}/var/service}"
 ROOT="$HOME/.local/share/mhc-full-installer/bin"
 case "${1:-}" in
   cluster-authority) shift; exec node "$ROOT/cluster-authority.mjs" "$@";;
+  join) shift; exec node "$ROOT/cluster-authority.mjs" join "$@";;
+  node-doctor) shift; exec "$ROOT/node-doctor.sh" "$@";;
   remote-panel) shift; exec node "$ROOT/remote-panel.mjs" "$@";;
   node-guard) shift; exec node "$ROOT/node-role-guard.mjs" "$@";;
   auto-primary) shift; exec node "$ROOT/auto-primary.mjs" "$@";;
