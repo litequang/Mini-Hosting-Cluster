@@ -95,9 +95,40 @@ function primarySelectionHTML(p){
  <div class="toolbar"><select id="primaryTarget">${options||'<option>Chưa có node trong controller</option>'}</select>${btn('Chuẩn bị chọn Primary','primary-begin','primary')}</div>
  ${pending}<p class="help">Trạng thái: ${esc(p.mode)}. Chỉ là thông tin lựa chọn vận hành, KHÔNG cấp quyền HA/lease.</p></div>`;
 }
+// MHC_COMPACT_CLUSTER_UI_V1: compact dashboard for Shared Authority PREPARE_ONLY.
+function mhcTime(v){const n=Date.parse(v||'');if(!Number.isFinite(n))return 'Chưa nhận';return new Date(n).toLocaleString('vi-VN');}
+function mhcAge(v){const n=Date.parse(v||'');if(!Number.isFinite(n))return 'Chưa nhận';const s=Math.max(0,Math.floor((Date.now()-n)/1000));return s<60?s+' giây':s<3600+1?Math.floor(s/60)+' phút':Math.floor(s/3600)+' giờ';}
 async function mhcClusterPage(){
+ state.clusterTechnical=false;if(state.clusterOverviewLoading)return;state.clusterOverviewLoading=true;
+ try{
+  const d=await req('/api/mhc/cluster');if(state.tab!=='cluster'||state.clusterTechnical)return;
+  const shared=d.mode==='SHARED_AUTHORITY_PREPARE_ONLY',failure=d.mode==='AUTHORITY_UNAVAILABLE';
+  const nodes=Array.isArray(d.nodes)?d.nodes:[],active=shared?nodes.filter(n=>n.heartbeatRecent===true).length:null;
+  const cards=nodes.map(n=>{
+   const good=n.heartbeatRecent===true,seen=n.lastSeenAt||n.lastSeen;
+   const label=shared?(good?'Heartbeat gần đây':seen?'Heartbeat quá hạn':'Chưa nhận heartbeat'):(n.state||'Chưa xác minh');
+   return `<div class='card'><div class='flex'><h3 style='margin:0'>${esc(n.label||'Node')}</h3><span class='badge ${shared?(good?'good':'bad'):''}'>${esc(label)}</span></div><p>Nhận tín hiệu cách đây: <b>${esc(mhcAge(seen))}</b></p><small class='muted'>Lần cuối: ${esc(mhcTime(seen))}</small><p class='muted'>Vai trò: ${esc(shared?'STANDBY_NO_WRITER_GRANT':n.role||'Chưa xác minh')}</p><small class='mono muted' style='overflow-wrap:anywhere'>${esc(n.nodeId||'')}</small></div>`;
+  }).join('');
+  const notice=failure?'Cloudflare Shared Authority không truy cập được: chưa thể xác minh tình trạng node.':shared?'Heartbeat chỉ xác nhận liên lạc gần đây với Cloudflare, không chứng minh website hoặc database đã sẵn sàng.':'Chỉ có metadata quan sát cục bộ; chưa có quyền Primary được xác minh.';
+  page('Cluster — tổng quan',`
+  <div class='sectionhead'><div><h2>Cụm máy chủ</h2><p>Trạng thái từ Cloudflare, tự cập nhật mỗi 20 giây khi mở trang</p></div><div class='btnrow'>${btn('Làm mới','cluster-overview')}${btn('Kỹ thuật LAB','cluster-advanced')}</div></div>
+  <div class='grid two'>
+    <div class='card stat'><div class='tag'>NODE ĐĂNG KÝ</div><b>${Number.isInteger(d.nodeCount)?d.nodeCount:nodes.length}</b><small>${esc(d.mode||'Chưa cấu hình')}</small></div>
+    <div class='card stat'><div class='tag'>HEARTBEAT GẦN ĐÂY</div><b>${active===null?'—':active+' / '+nodes.length}</b><small>Độ mới theo Cloudflare (180 giây)</small></div>
+    <div class='card stat'><div class='tag'>PRIMARY THẬT</div><b style='font-size:19px;letter-spacing:0'>${esc(d.declaredPrimary?.label||'Chưa xác minh')}</b><small>Chưa có quyền writer / route được chứng minh</small></div>
+    <div class='card stat'><div class='tag'>CHUYỂN PRIMARY TỰ ĐỘNG</div><b style='font-size:19px;letter-spacing:0'>Chưa hỗ trợ</b><small>M3/M4 chưa triển khai</small></div>
+  </div>
+  <div class='sectionhead'><h2>Thiết bị</h2></div><div class='grid two'>${cards||'<div class="card">Chưa có dữ liệu node.</div>'}</div>
+  <div class='info' style='margin-top:16px'>${esc(notice)}</div>
+  ${shared?`<div class='card' style='margin-top:16px'><b>Shared Authority M2</b><p>Revision ${Number.isSafeInteger(d.revision)?d.revision:'—'} · Epoch ${Number.isSafeInteger(d.epoch)?d.epoch:'—'} · Phiên chuẩn bị ${d.pending?'đang mở':'không có'}</p><p class='help'>PREPARE_ONLY: chưa cấp quyền Primary, không chuyển dịch vụ hay đồng bộ dữ liệu.</p></div>`:''}
+  `);
+ }finally{state.clusterOverviewLoading=false;}
+}
+async function mhcClusterTechnicalPage(){
  const [d,repl,sw,fence,witness,writepaths,writerAudit,primary,autoPrimary,guard,remotePanel]=await Promise.all([req('/api/mhc/cluster'),req('/api/mhc/replication'),req('/api/mhc/switchover'),req('/api/mhc/fencing'),req('/api/mhc/witness'),req('/api/mhc/write-paths'),req('/api/mhc/writer-audit'),req('/api/mhc/primary-selection'),req('/api/mhc/auto-primary'),req('/api/mhc/node-guard'),req('/api/mhc/remote-access')]);
- const rows=(d.nodes||[]).map(n=>`<tr><td>${esc(n.label)}</td><td>${esc(n.state)}</td><td>${esc(n.lastSeen)}</td></tr>`).join('');
+ const rows=(d.nodes||[]).map(n=>{const when=n.lastSeenAt||n.lastSeen;
+ const status=n.heartbeatRecent===true?'Heartbeat gần đây':n.heartbeatRecent===false?(when?'Quá hạn':'Chưa ghi nhận'):(n.state||'Chưa xác minh');
+ return `<tr><td>${esc(n.label)}</td><td>${esc(status)}</td><td>${esc(mhcTime(when))}</td></tr>`;}).join('');
  const alerts=(d.alerts||[]).map(a=>`<p>${esc(a.kind)}: ${esc(a.message)}</p>`).join('');
  page('Cluster (quan sát)',`${primarySelectionHTML(primary)}<div class="card"><b>Quản trị Primary từ Internet</b><p>${remotePanel.configured?`Hostname dự kiến: <b>https://${esc(remotePanel.remoteHostname)}</b>`:'Chưa cấu hình Cloudflare Access cho Panel.'}</p><p class="help">Mỗi node giữ Panel 127.0.0.1:9090, mật khẩu và CSRF; truy cập từ Internet cần Tunnel + Access JWT. Khi đã cấu hình authority chung, các Panel dùng cùng phiên chuẩn bị. Tuyến quản trị chung dự phòng và chuyển tuyến website chưa được cấu hình tự động.</p></div>${autoPrimaryHTML(autoPrimary)}<div class="card"><b>Node Role Guard (LAB)</b><p>${guard.armed?'Đã ARM':'Chưa ARM'} · ${guard.services?.length||0} dịch vụ khai báo · Lần kiểm tra: ${esc(guard.lastCheck?.reason||'Chưa kiểm tra')}</p><small>Chỉ tự hạ dịch vụ LAB khi mất quyền; không tự bật lại và chưa có fencing độc lập cho mọi đường ghi.</small></div><div class="grid"><div class="card stat"><div class="tag">TRẠNG THÁI</div><b>${esc(d.mode)}</b><small>Chỉ quan sát</small></div><div class="card stat"><div class="tag">NODE</div><b>${Number(d.nodeCount)||0}</b><small>Đã ghi nhận, không phải HA-ready</small></div><div class="card stat"><div class="tag">BACKUP</div><b>${esc(d.backupStatus||'—')}</b></div><div class="card stat"><div class="tag">CLONE</div><b>${esc(d.cloneState||'—')}</b></div></div>
  <div class="sectionhead"><h2>v0.4A — Local Replication Observer (chỉ đọc)</h2></div><div class="grid"><div class="card"><h3>GTID MariaDB</h3><p>${repl.gtid?.observed?'Đã đọc cấu hình cục bộ':'Chưa có quan sát'}</p><small>Binlog: ${repl.gtid?.binaryLogEnabled?'ON':'Chưa xác nhận'} · GTID strict: ${repl.gtid?.gtidStrictMode?'ON':'Chưa xác nhận'}</small></div><div class="card"><h3>File SHA-256</h3><p>${esc(repl.mode||'NOT_OBSERVED')} · ${Number(repl.files)||0} file</p><small>Thêm: ${Number(repl.change?.added)||0} · Sửa: ${Number(repl.change?.modified)||0} · Xóa: ${Number(repl.change?.removed)||0}</small></div></div><div class="info">${esc(repl.notice||'Chưa có báo cáo. Chạy ~/mhc-full replication scan trên node LAB.')} KHÔNG PHẢI replication đang hoạt động.</div>
@@ -171,6 +202,9 @@ const actions={
  'file-delete':async()=>{const file=state.selectedFile;if(!file||!confirm('Xóa '+file+'?'))return;await req(`/api/files/${state.selectedSite}/delete`,{method:'POST',body:{path:file,confirm:file}});state.selectedFile='';filesPage();},
 };
 async function dynamicAction(key,element){let [type,...rest]=key.split(':');const value=rest.join(':');
+ if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
+ if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
+
  if(type==='primary-begin'){
   const id=$('#primaryTarget')?.value;
   if(!id||!confirm('Chuẩn bị chuyển Primary thủ công tới node đã chọn? CHƯA đổi tuyến hay dừng dịch vụ.'))return;
@@ -226,6 +260,8 @@ if(type==='file-open'){const filename=element.dataset.name;const dir=element.dat
  if(type==='log'){const {log}=await req(`/api/services/${value}/log`);modal('Logs — '+value,`<pre>${esc(log)}</pre>`);return;}
  if(type==='download'){const resp=await fetch('/api/backups/download?'+qs({name:value}),{credentials:'same-origin'});if(!resp.ok)throw Error('Không tải được backup');const blob=await resp.blob(),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=value;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);return;}
 }
+// Poll only while the compact view is visible; the LAB technical view stays unchanged.
+setInterval(()=>{if(state.user==='admin'&&state.tab==='cluster'&&!state.clusterTechnical&&document.visibilityState==='visible')mhcClusterPage().catch(()=>{});},20000);
 $('#navigation').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)nav(b.dataset.tab);});
 $('#refreshBtn').addEventListener('click',()=>nav(state.tab));
 // Refresh only while the administrator is viewing the dashboard.
