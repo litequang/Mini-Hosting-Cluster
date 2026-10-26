@@ -1,4 +1,4 @@
-const state={user:null,csrf:'',tab:'dashboard',sites:[],selectedSite:'',dir:'',selectedFile:'',stats:null};
+const state={user:null,csrf:'',authMode:null,tab:'dashboard',sites:[],selectedSite:'',dir:'',selectedFile:'',stats:null};
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtBytes=n=>{if(!Number.isFinite(+n))return '—';if(n<1024)return n+' B';let i=0;while(n>=1024&&i<4){n/=1024;i++;}return n.toFixed(1)+' '+['B','KB','MB','GB','TB'][i]};
@@ -10,7 +10,7 @@ async function req(route,{method='GET',body,raw=false}={}){
  if(method!=='GET')opts.headers['x-csrf-token']=state.csrf;
  if(body!==undefined){if(raw){opts.body=body;}else{opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}}
  let res;try{res=await fetch(route,opts);}catch{throw Error('Không kết nối được panel');}
- if(!res.ok){let msg='HTTP '+res.status;try{msg=(await res.json()).error||msg;}catch{}if(res.status===401)showLogin();throw Error(msg);}
+ if(!res.ok){let msg='HTTP '+res.status;try{msg=(await res.json()).error||msg;}catch{}if(res.status===401){if(state.authMode==='cloudflare-access')window.location.reload();else showLogin();}throw Error(msg);}
  return res.json();
 }
 function showLogin(){$('#shell').classList.add('hide');$('#login').classList.remove('hide');}
@@ -267,10 +267,16 @@ $('#refreshBtn').addEventListener('click',()=>nav(state.tab));
 // Refresh only while the administrator is viewing the dashboard.
 setInterval(()=>{if(state.user==='admin'&&state.tab==='dashboard'&&document.visibilityState==='visible')dashboard().catch(()=>{});},60000);
 
-$('#logoutBtn').addEventListener('click',async()=>{await req('/api/logout',{method:'POST'});showLogin();});
+$('#logoutBtn').addEventListener('click',async()=>{
+ const remote=state.authMode==='cloudflare-access';
+ await req('/api/logout',{method:'POST'});
+ state.user=null;state.csrf='';state.authMode=null;
+ if(remote){window.location.assign('/cdn-cgi/access/logout');return;}
+ showLogin();
+});
 $('#modalClose').addEventListener('click',closeModal);
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
-$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;await busy(b,async()=>{const res=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:$('#username').value,password:$('#password').value})});const d=await res.json();if(!res.ok)throw Error(d.error||'Đăng nhập thất bại');state.csrf=d.csrf;$('#password').value='';state.user='admin';showPanel();});});
+$('#loginForm').addEventListener('submit',async e=>{e.preventDefault();const b=e.submitter;await busy(b,async()=>{const res=await fetch('/api/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:$('#username').value,password:$('#password').value})});const d=await res.json();if(!res.ok)throw Error(d.error||'Đăng nhập thất bại');state.csrf=d.csrf;state.authMode=d.authMode||'password';$('#password').value='';state.user='admin';showPanel();});});
 $('#content').addEventListener('change',async e=>{if(e.target.id==='fileSite'){state.selectedSite=e.target.value;state.dir='';filesPage();}if(e.target.id==='filePicker'){const file=e.target.files?.[0];if(!file)return;try{const where=[state.dir,file.name].filter(Boolean).join('/');await req(`/api/files/${state.selectedSite}/write?${qs({path:where})}`,{method:'PUT',body:file,raw:true});toast('Đã upload '+file.name);filesPage();}catch(err){toast(err.message,true);}}});
 $('#content').addEventListener('click',async e=>{const el=e.target.closest('[data-action]');if(!el)return;const key=el.dataset.action;try{await busy(el,()=>actions[key]?actions[key]():dynamicAction(key,el));}catch{}});
 $('#modalBody').addEventListener('submit',async e=>{e.preventDefault();const form=e.target;const b=e.submitter;try{await busy(b,async()=>{
@@ -281,4 +287,4 @@ $('#modalBody').addEventListener('submit',async e=>{e.preventDefault();const for
  else if(form.id==='gitForm'){const {url}=Object.fromEntries(new FormData(form));await req(`/api/sites/${form.dataset.site}/git`,{method:'POST',body:{url}});closeModal();toast('Đã deploy repository');nav('sites');}
  else if(form.id==='restoreForm'){const file=form.querySelector('input[type=file]').files[0],yes=form.querySelector('[name=confirm]').value;if(yes!==form.dataset.name)throw Error('Tên xác nhận chưa đúng');await req(`/api/databases/${form.dataset.name}/restore?${qs({confirm:yes})}`,{method:'POST',body:file,raw:true});closeModal();toast('Database đã khôi phục');nav('databases');}
  });}catch{}});
-(async()=>{try{const s=await req('/api/session');if(s.loggedIn){state.csrf=s.csrf;state.user=s.user;showPanel();}else showLogin();}catch{showLogin();}})();
+(async()=>{try{const s=await req('/api/session');if(s.loggedIn){state.csrf=s.csrf;state.user=s.user;state.authMode=s.authMode||'password';showPanel();}else showLogin();}catch{showLogin();}})();
