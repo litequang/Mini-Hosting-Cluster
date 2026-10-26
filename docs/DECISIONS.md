@@ -18,3 +18,11 @@
 - Khi Primary offline, địa chỉ Panel chung **vẫn phải mở qua standby/recovery node** nhờ route/authority độc lập; quyền writer không tự cấp chỉ vì Panel đã chuyển.
 - Vào Panel từ Internet qua Cloudflare Access email được phép, không nhập tiếp mật khẩu Hosting; xác minh JWT tại origin và CSRF/cookie tiếp tục. Qua SSH localhost giữ mật khẩu làm recovery. Cloudflare policy phải giới hạn đúng email admin.
 - Các yêu cầu trên là **thiết kế đã xác nhận**, không hiểu rằng M3/M4 route/election đã triển khai. Chi tiết và nghiệm thu ở `PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`.
+
+
+## 26/10 — lifecycle node mới và pairing
+- Người dùng cài 3 ứng dụng Android (Termux/Boot/API), sau đó muốn **một lệnh bootstrap full hosting**, **một lệnh ghép từ mã Panel 10 phút**, rồi quản lý node tập trung; không vá rời rạc từng node.
+- Bootstrap chỉ trên điện thoại chưa có dữ liệu; existing node dùng một updater có rollback, không re-run clean installer.
+- Shared Authority DO lưu thành viên động và mã ghép dùng một lần (192-bit secret, 10 phút, chỉ lưu hash); không yêu cầu sửa `MHC_MEMBERS_JSON` thủ công cho node mới; giữ các thành viên tĩnh cũ.
+- Termux:Boot + runsvdir + wake lock + SSH + Panel + Agent được quản lý trong cùng installer/doctor. Quyền tối ưu pin/STAMINA vẫn cần cấp trên giao diện Android.
+- Ghép node chỉ cấp Standby, không cấp writer, replication, Primary hoặc chạy website. Điều khiển cập nhật/triển khai app từ Panel về sau chưa được implement và cần cơ chế job an toàn riêng.
