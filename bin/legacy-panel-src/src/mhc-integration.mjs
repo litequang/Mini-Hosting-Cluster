@@ -71,7 +71,7 @@ export async function mhcCluster(){
 
 // TEST 0.3.11: read-only observations for the ORIGINAL 9090 Panel.
 // Avoid exposing filenames with user secrets, network identities, passwords, DB URLs or raw logs.
-let monitorCache=null; let monitorCacheAt=0; let cpuPrevious=null;
+let monitorCache=null; let monitorCacheAt=0;
 const safeCount=(x,lo,hi)=>typeof x==='number'&&Number.isFinite(x)&&x>=lo&&x<=hi?x:null;
 const SLUG=/^[a-z][a-z0-9-]{1,30}$/;
 function regular(p){try{const st=fs.lstatSync(p);return st.isFile()&&!st.isSymbolicLink();}catch{return false;}}
@@ -127,18 +127,10 @@ export async function mhcMonitor(){
   const metrics=await monitor.collectNodeMetrics();
   return {...metrics,...localMonitorIdentity(),scope:'LOCAL_ANDROID_NODE',
    battery:{...metrics.battery,available:metrics.battery.percentage!==null||metrics.battery.temperatureC!==null},
-   notice:'Trạng thái thiết bị đang quan sát, không xác nhận quyền Primary. CPU/mạng có thể bị Android hạn chế quyền truy cập.'};
+   notice:'Trạng thái thiết bị đang quan sát, không xác nhận quyền Primary. Mạng có thể bị Android hạn chế quyền truy cập.'};
  }catch{/* not a reason to break the original Panel */}
  // Cached so multiple browsers cannot repeatedly launch Termux:API subprocesses.
  if(monitorCache&&Date.now()-monitorCacheAt<9000)return monitorCache;
- const cpus=os.cpus()||[];
- const total=cpus.reduce((a,c)=>a+Object.values(c.times||{}).reduce((x,y)=>x+y,0),0);
- const idle=cpus.reduce((a,c)=>a+(c.times?.idle||0),0);
- let usagePct=null;
- if(cpuPrevious){const d=total-cpuPrevious.total,di=idle-cpuPrevious.idle;
-  if(d>0&&di>=0&&di<=d)usagePct=safeCount(Math.round((1-di/d)*100),0,100);
- }
- cpuPrevious={total,idle};
  const mem=os.totalmem(),free=os.freemem();
  const raw=await run(path.join(PREFIX,'bin/termux-battery-status'),[],2200);
  let battery={available:false,reason:'Termux:API unavailable'};
@@ -149,7 +141,6 @@ export async function mhcMonitor(){
  }catch{}
  const model=clean(await run(path.join(PREFIX,'bin/getprop'),['ro.product.model'],900)||'Android',55);
  monitorCache={scope:'LOCAL_OBSERVATION_ONLY',...localMonitorIdentity(),at:new Date().toISOString(),device:model,
-  cpu:{usagePct,cores:cpus.length||null},
   memory:{totalMiB:safeCount(Math.round(mem/1048576),0,1e8),freeMiB:safeCount(Math.round(free/1048576),0,1e8)},
   uptimeSec:safeCount(Math.round(os.uptime()),0,1e10),battery,
   notice:'Battery temperature is NOT CPU temperature. Measurements are observations, not HA/Primary evidence.'};
