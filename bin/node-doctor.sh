@@ -9,18 +9,32 @@ warn=0
 say(){ printf '%-25s %s\n' "$1" "$2"; }
 command -v termux-battery-status >/dev/null || { say 'Termux:API CLI' 'MISSING (pkg install termux-api)';warn=1; }
 if [[ "$mode" == --repair ]];then
- if command -v termux-wake-lock >/dev/null;then
-  termux-wake-lock >/dev/null 2>&1 || echo 'WARN wake lock rejected by Android'
+ boot="$HOME/.termux/boot/10-start-hosting"
+ managed="$HOME/.local/share/mhc-full-installer/bin/node-boot.sh"
+ if [[ ! -f "$managed" || -L "$managed" ]];then
+  echo 'STOP: MHC managed node-boot.sh missing; update code first'
+  exit 2
  fi
- if [[ -f "$PREFIX/etc/profile.d/start-services.sh" ]];then
-  . "$PREFIX/etc/profile.d/start-services.sh"
- fi
- for name in sshd amh-panel mhc-authority-agent;do
-  if [[ -f "$PREFIX/var/service/$name/run" ]];then
-   sv-enable "$name" || true
-   sv up "$PREFIX/var/service/$name" || true
+ mkdir -p "$HOME/.termux/boot" "$HOME/.local/state/mhc-node-setup"
+ chmod 700 "$HOME/.termux/boot" "$HOME/.local/state/mhc-node-setup"
+ if [[ -L "$boot" ]];then echo 'STOP: boot script is a symlink';exit 2;fi
+ if [[ -f "$boot" ]];then
+  if ! grep -q 'start-services.sh' "$boot";then
+   echo 'STOP: unknown boot script; inspect before rewriting';exit 2
   fi
- done
+  if ! grep -q 'mhc-node-boot-managed' "$boot";then
+   cp -p -- "$boot" "$HOME/.local/state/mhc-node-setup/previous-10-start-hosting-$(date +%Y%m%d-%H%M%S).sh"
+  fi
+ fi
+ cat > "$boot" <<'MHC_BOOT'
+#!/data/data/com.termux/files/usr/bin/sh
+# mhc-node-boot-managed (management services only)
+termux-wake-lock >/dev/null 2>&1 || true
+. /data/data/com.termux/files/usr/etc/profile.d/start-services.sh
+exec /data/data/com.termux/files/usr/bin/bash "$HOME/.local/share/mhc-full-installer/bin/node-boot.sh" --once
+MHC_BOOT
+ chmod 700 "$boot"
+ bash "$managed" --once || echo 'WARN: boot recovery had a startup error'
 fi
 say 'Android device' "$(getprop ro.product.model 2>/dev/null|head -c 64||true)"
 say 'Android version' "$(getprop ro.build.version.release 2>/dev/null|head -c 20||true)"
