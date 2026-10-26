@@ -92,7 +92,7 @@ function mhcMonCard(n,local=false){
  const m=n.telemetry||null;
  const fresh=local?Number.isFinite(Date.parse(m?.at||''))&&Date.now()-Date.parse(m.at)<180000:n.telemetryRecent===true;
  const reachable=local?!!m:n.heartbeatRecent===true;
- const status=reachable?(fresh?'ĐANG KẾT NỐI':'THÔNG SỐ CŨ'):'MẤT TÍN HIỆU';
+ const status=!reachable?'MẤT TÍN HIỆU':!m?'CHƯA CÓ MONITOR V2':fresh?'ĐANG KẾT NỐI':'DỮ LIỆU ĐÃ CŨ';
  const klass=reachable?(fresh?'ok':'stale'):'off';
  const role=n.role==='PRIMARY_VERIFIED'?'PRIMARY':n.role==='STANDBY_NO_WRITER_GRANT'?'STANDBY':'CHƯA XÁC MINH';
  const numeric=(v,min=0,max=1e10)=>typeof v==='number'&&Number.isFinite(v)&&v>=min&&v<=max?v:null;
@@ -118,7 +118,8 @@ function mhcMonCard(n,local=false){
  const procHtml=processes.length?processes.map(p=>`<div class="mhc-process"><span>${esc(p.name||'Node.js')}</span><strong>${esc(mhcMonFormat(numeric(p.rssMiB),0,' MiB'))}</strong></div>`).join(''):'<p class="mhc-note">Chưa có dữ liệu tiến trình Node.js</p>';
  const snap=m?.snapshot?.name||'Chưa ghi nhận';
  const warnings=[];
- if(!fresh)warnings.push('Dữ liệu đã cũ; các số liệu bên dưới là lần đo cuối, không phải trạng thái hiện tại.');
+ if(!m)warnings.push('Agent chưa gửi dữ liệu Monitor v2. Kiểm tra Cluster Agent và phiên bản Worker.');
+ else if(!fresh)warnings.push('Dữ liệu đã cũ; các số liệu bên dưới là lần đo cuối, không phải trạng thái hiện tại.');
  if(bat!==null&&bat<20)warnings.push('Pin thấp dưới 20%');
  if(temp!==null&&temp>=42)warnings.push('Nhiệt độ pin từ 42°C');
  if(ram&&ramFree!==null&&ramFree/ram<.15)warnings.push('RAM còn dưới 15%');
@@ -202,6 +203,7 @@ async function mhcMonitorPage(){
   let list=nodes.map(n=>({...n,local:false}));
   const localMatch=local?.nodeId&&list.find(n=>n.nodeId===local.nodeId);
   if(localMatch){
+   // Local measurement is authoritative for this Panel only, not for other nodes.
    localMatch.telemetry=local;
    localMatch.local=true;
    localMatch.telemetryRecent=Number.isFinite(Date.parse(local.at||''))&&Date.now()-Date.parse(local.at)<180000;
@@ -210,6 +212,9 @@ async function mhcMonitorPage(){
   if(!list.length){
    page('Monitor toàn cụm','<div class="info">Chưa đọc được thông số và danh sách node. Kiểm tra Panel hoặc Cloudflare Authority.</div>');return;
   }
+  list.sort((a,b)=>Number(b.local===true)-Number(a.local===true)||
+   Number(b.heartbeatRecent===true)-Number(a.heartbeatRecent===true)||
+   String(a.label||'').localeCompare(String(b.label||''),'vi'));
   const seen=nodes.filter(n=>n.heartbeatRecent===true).length;
   const fresh=nodes.filter(n=>n.heartbeatRecent===true&&n.telemetryRecent===true).length;
   const outdated=nodes.filter(n=>n.heartbeatRecent!==true).length;
