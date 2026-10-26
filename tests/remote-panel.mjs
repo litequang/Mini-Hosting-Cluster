@@ -37,7 +37,15 @@ try{
  };
  const valid=make();ok(await verifyAccess(valid,c,fetcher),'valid JWT accepted');ok(fetches===1,'JWKS cached');
  ok(await verifyAccess(make(),c,fetcher),'subsequent valid JWT accepted');ok(fetches===1,'JWKS not refetched');
- ok(!await verifyAccess('garbage',c,fetcher),'unsigned JWT rejected');
+ const diagnoses=[];
+ ok(!await verifyAccess('garbage',c,fetcher,r=>diagnoses.push(r)),'unsigned JWT rejected');
+ ok(diagnoses[0]==='JWT_FORMAT','diagnostic distinguishes invalid JWT shape without reporting token');
+ const noHeader=[];
+ ok(!await verifyAccess(undefined,c,fetcher,r=>noHeader.push(r)),'missing JWT rejected');
+ ok(noHeader[0]==='JWT_MISSING','diagnostic distinguishes missing JWT');
+ const wrongAud=[];
+ ok(!await verifyAccess(make({aud:['wrong']}),c,fetcher,r=>wrongAud.push(r)),'wrong audience rejected with internal reason');
+ ok(wrongAud[0]==='JWT_AUDIENCE_MISMATCH','diagnostic reports audience mismatch without claims');
  ok(!await verifyAccess(valid.slice(0,-4)+'AAAA',c,fetcher),'tamper rejected');
  ok(!await verifyAccess(make({aud:['wrong']}),c,fetcher),'aud mismatch rejected');
  ok(!await verifyAccess(make({iss:'https://evil.cloudflareaccess.com'}),c,fetcher),'issuer mismatch rejected');
@@ -50,6 +58,8 @@ try{
  ok(await authorizeRequest(req('admin.thophuong.com'),9090,fetcher)===null,'missing JWT blocks remote host');
  ok(await authorizeRequest(req('evil.thophuong.com',valid),9090,fetcher)===null,'wrong host blocks even valid JWT');
  ok((await authorizeRequest(req('admin.thophuong.com',valid),9090,fetcher))?.remote===true,'signed Access login accepted');
+ ok((await authorizeRequest(req('admin.thophuong.com:443',valid),9090,fetcher))?.remote===true,'standard HTTPS host port accepted with JWT');
+ ok(await authorizeRequest(req('admin.thophuong.com:80',valid),9090,fetcher)===null,'arbitrary host port rejected');
  fs.chmodSync(path.join(data,'remote-access.json'),0o644);
  ok(config()===null,'unsafe permissions disable remote');
  fs.chmodSync(path.join(data,'remote-access.json'),0o600);
