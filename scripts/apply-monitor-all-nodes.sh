@@ -24,7 +24,7 @@ command -v node >/dev/null || fail 'Node runtime required'
 mkdir -p "$HOME/.cache";chmod 700 "$HOME/.cache"
 work="$(mktemp -d "$HOME/.cache/mhc-monitor.XXXXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
-pin='b77f557778c291ec486b9b59ff3693b137367d45'
+pin='87d9c4d32593f5772b14f9fc9d823f721a9f10d4'
 origin="https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/$pin"
 paths=(
  'bin/node-monitor.mjs'
@@ -34,11 +34,11 @@ paths=(
  'bin/legacy-panel-src/public/app.js'
 )
 hashes=(
- 'a77aa0399277af0ef5fc3c7afe7b69b0217d700a'
+ 'e79689cfd868d35c4bc09ea3cea3d7ef57593636'
  '92ad8caa27f35b9767190d3d0c0dc69181196590'
  'fad031b93eaf451b9797fdda5d3b85d4aa95ecd4'
  '46f6396764f7acdb4e3defecda4c085cd88d57d7'
- '2d3b1e9be37d10f68b7e8dcd920887b93cd5477f'
+ '204fbbfe717760994a5282ed4e762d36f6fa2026'
 )
 dest=(
  "$base/node-monitor.mjs"
@@ -56,7 +56,10 @@ for i in "${!paths[@]}";do
  [[ ! -L "${dest[$i]}" ]] || fail "Refusing symlink destination: ${paths[$i]}"
 done
 grep -Fq 'MHC_MONITOR_ALL_NODES_V2' "$work/4.js" || fail 'Missing monitor UI'
-grep -Fq 'crypto.verify' "$work/3.mjs" || fail 'Unexpected auth module in Panel'
+# The original Panel verifies JWT in mhc-remote-access.mjs, NOT server.mjs.
+grep -Fq "from './mhc-remote-access.mjs'" "$work/3.mjs" || fail 'Panel no longer uses the existing Access guard'
+[[ -f "$panel/src/mhc-remote-access.mjs" && ! -L "$panel/src/mhc-remote-access.mjs" ]] || fail 'JWT guard module missing'
+grep -Fq "crypto.verify('RSA-SHA256'" "$panel/src/mhc-remote-access.mjs" || fail 'Existing JWT signature guard missing'
 # Collector self-test before touching runtime; does not reveal private node data.
 node --input-type=module -e 'import(process.argv[1]).then(async m=>{const v=await m.collectNodeMetrics();if(v.v!==1||!v.battery||!v.services)process.exit(2)}).catch(()=>process.exit(3))' "$work/0.mjs" || fail 'Monitor collector self-check failed'
 state="$HOME/.local/state/mhc-monitor-v2-backups"
