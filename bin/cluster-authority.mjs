@@ -79,7 +79,7 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','history','invite','join'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
  try{response=await fetcher(url,{method:['status','history'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
@@ -143,9 +143,19 @@ export async function sharedHistory(targetNodeId){
 }
 export async function sharedAction(body){
  if(['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'].some(p=>fs.existsSync(path.join(home(),p))))throw Error('PRODUCTION_FOOTPRINT_BLOCKS_AUTHORITY_LAB');
- if(!['begin','abort'].includes(body?.action)||!UUID.test(body.requestId||'')||!UUID.test(body.id||'')||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)throw Error('AUTHORITY_ACTION_INVALID');
- return authorityRequest(config('panel'),body.action,{requestId:body.requestId,expectedRevision:body.expectedRevision,
-  ...(body.action==='begin'?{targetNodeId:body.id}:{operationId:body.id})});
+ const action=body?.action;
+ if(!['begin','abort','route','route-resume','complete'].includes(action)||!UUID.test(body.requestId||'')||
+   !UUID.test(body.id||'')||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision<0)
+  throw Error('AUTHORITY_ACTION_INVALID');
+ const flags=action==='route'?['backupRestored','oldWritersStopped','targetHttpChecked',
+   'targetPanelAccessChecked','acceptDataLossRisk','labOnly']:
+   action==='complete'?['websitePublicChecked','panelPublicChecked','noNewWritesOnOldNode',
+   'acceptNonFencedLabRisk']:[];
+ // There is no way to silently bypass operator checkboxes from this client.
+ if(flags.some(k=>body[k]!==true))throw Error('P3_OPERATOR_CONFIRMATIONS_REQUIRED');
+ return authorityRequest(config('panel'),action,{requestId:body.requestId,expectedRevision:body.expectedRevision,
+  ...(action==='begin'?{targetNodeId:body.id}:{operationId:body.id}),
+  ...Object.fromEntries(flags.map(k=>[k,true]))});
 }
 let lastTelemetryWarning=0;
 async function heartbeat(){
