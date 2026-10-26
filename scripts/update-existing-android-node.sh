@@ -14,20 +14,20 @@ grep -Fq "crypto.verify('RSA-SHA256'" "$panel/src/mhc-remote-access.mjs" || fail
 mkdir -p "$HOME/.cache"
 tmp="$(mktemp -d "$HOME/.cache/mhc-release.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-pin='RELEASE_SOURCE_COMMIT'
+pin='cfeffaccb89d112eb91e929806c0b6b147e838c6'
 origin="https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/$pin"
 # Each manifest line: relative source path | installed destination | immutable Git blob SHA1.
 manifest="$tmp/manifest"
 cat > "$manifest" <<'MANIFEST'
-bin/cluster-authority.mjs|BIN/cluster-authority.mjs|HASH1
-bin/node-monitor.mjs|BIN/node-monitor.mjs|HASH2
-bin/node-boot.sh|BIN/node-boot.sh|HASH3
-bin/node-doctor.sh|BIN/node-doctor.sh|HASH4
-bin/mhc-full-wrapper|HOME/mhc-full|HASH5
-bin/legacy-panel-src/src/mhc-integration.mjs|PANEL/src/mhc-integration.mjs|HASH6
-bin/legacy-panel-src/src/server.mjs|PANEL/src/server.mjs|HASH7
-bin/legacy-panel-src/public/app.js|PANEL/public/app.js|HASH8
-bin/legacy-panel-src/public/style.css|PANEL/public/style.css|HASH9
+bin/cluster-authority.mjs|BIN/cluster-authority.mjs|9b5ad1812de8ff545ca99290cc659194b5a94169
+bin/node-monitor.mjs|BIN/node-monitor.mjs|e79689cfd868d35c4bc09ea3cea3d7ef57593636
+bin/node-boot.sh|BIN/node-boot.sh|de0f6a0f5f281f257fe38fc72b7ab2b528010fa4
+bin/node-doctor.sh|BIN/node-doctor.sh|7f0685f351f8852bc23f5e07bd0a30c75865c2f9
+bin/mhc-full-wrapper|HOME/mhc-full|3343a9d3646dbab3c16a370eef0014aeefa435c5
+bin/legacy-panel-src/src/mhc-integration.mjs|PANEL/src/mhc-integration.mjs|3a9897c59ab2bf248027c7efb38b0ad0fd522c8b
+bin/legacy-panel-src/src/server.mjs|PANEL/src/server.mjs|9cb48323d7ed1767e3d35219e047c70190c05c18
+bin/legacy-panel-src/public/app.js|PANEL/public/app.js|2e8dd95c625dc4081224d97e07dc44b54e85934c
+bin/legacy-panel-src/public/style.css|PANEL/public/style.css|dfff9b1af2446dc36d4cdbf4ba67f7ca7c8d8dbe
 MANIFEST
 i=0
 while IFS='|' read -r path to sha;do
@@ -85,8 +85,8 @@ fi
 healthy=no
 for j in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15;do
  sleep 1
- served="$(curl -fsS --max-time 4 http://127.0.0.1:9090/app.js 2>/dev/null|git hash-object --stdin)"
- if [[ "$served" == 'HASH8' ]];then healthy=yes;break;fi
+ served="$(curl -fsS --max-time 4 http://127.0.0.1:9090/app.js 2>/dev/null|git hash-object --stdin || true)"
+ if [[ "$served" == '2e8dd95c625dc4081224d97e07dc44b54e85934c' ]];then healthy=yes;break;fi
 done
 [[ "$healthy" == yes ]] || fail 'Panel HTTP asset check failed'
 bash "$base/node-doctor.sh" --repair || echo 'WARN: Android permissions/manual battery setting need attention'
