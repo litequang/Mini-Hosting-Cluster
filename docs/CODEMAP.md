@@ -18,7 +18,7 @@
 - `bin/legacy-panel.sh`: bridge sửa **original Panel 9090**, plan/apply/rollback; phải bảo vệ `~/android-hosting-panel/data/admin.json`.
 - `bin/legacy-panel-src/src/server.mjs`: HTTP routes/cookie admin/CSRF/Access guard của Panel 9090.
 - `bin/legacy-panel-src/src/mhc-integration.mjs`: các API MHC liên kết vào Panel gốc, chỉ lộ trạng thái allowlisted.
-- `bin/legacy-panel-src/src/mhc-remote-access.mjs`: JWT Cloudflare Access RS256/JWKS và hostname; private-only rate-limited `MHC_REMOTE_ACCESS_DENIED` reason code for 403 (no JWT/cookie/claims in logs). `scripts/apply-remote-access-diagnostics.sh` patches only this origin module with backup and HTTP rollback.
+- `bin/legacy-panel-src/src/mhc-remote-access.mjs`: JWT Cloudflare Access RS256/JWKS và hostname; private-only rate-limited `MHC_REMOTE_ACCESS_DENIED` reason code for 403, including granular JOSE header failures; RFC-optional `typ` is accepted only with RS256/kid/signature/issuer/AUD/time checks (no JWT/cookie/claims in logs). `scripts/apply-remote-access-diagnostics.sh` patches only this origin module with backup and HTTP rollback.
 - `bin/legacy-panel-src/public/index.html`, `public/app.js`: UI nguyên gốc bổ sung Monitor/Cluster/Primary.
 - `bin/manual-primary.mjs`: local controller/manual selection ghi nhận, chưa HA authority.
 - `bin/auto-primary.mjs`: recommendation, scoring sơ bộ, Cloudflare DNS adapter, route journal, rejoin metadata.
