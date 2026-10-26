@@ -15,15 +15,15 @@ grep -Fq "crypto.verify('RSA-SHA256'" "$panel/src/mhc-remote-access.mjs" || fail
 mkdir -p "$HOME/.cache"
 tmp="$(mktemp -d "$HOME/.cache/mhc-release.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-pin='30e64673f84f035394e1c2a8069f68198acc5e5f'
+pin='7ea74bcc6dd519bac97cb2e4eb45d8d3570f51ed'
 origin="https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/$pin"
 # Each manifest line: relative source path | installed destination | immutable Git blob SHA1.
 manifest="$tmp/manifest"
 cat > "$manifest" <<'MANIFEST'
-bin/cluster-authority.mjs|BIN/cluster-authority.mjs|aba5764293b3b816240d53726887ab1b4aa1dfa0
+bin/cluster-authority.mjs|BIN/cluster-authority.mjs|8718e954a02f0cc6a94646db9a8da965c1854cf8
 bin/node-monitor.mjs|BIN/node-monitor.mjs|e79689cfd868d35c4bc09ea3cea3d7ef57593636
 bin/node-boot.sh|BIN/node-boot.sh|de0f6a0f5f281f257fe38fc72b7ab2b528010fa4
-bin/node-doctor.sh|BIN/node-doctor.sh|7f0685f351f8852bc23f5e07bd0a30c75865c2f9
+bin/node-doctor.sh|BIN/node-doctor.sh|9243c997e228368b551d87ab6518ebd0c2c269a9
 bin/mhc-full-wrapper|HOME/mhc-full|3343a9d3646dbab3c16a370eef0014aeefa435c5
 bin/legacy-panel-src/src/mhc-integration.mjs|PANEL/src/mhc-integration.mjs|33814da26919d26a7804d689b3f1123f2d6b92d1
 bin/legacy-panel-src/src/server.mjs|PANEL/src/server.mjs|9cb48323d7ed1767e3d35219e047c70190c05c18
