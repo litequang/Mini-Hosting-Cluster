@@ -2,6 +2,12 @@
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43,128}$/;
 export const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
+// Join protocol: 10-minute, 192-bit random one-time challenge. Persist only hash.
+const JOIN_HEX=/^[0-9a-f]{48}$/;
+const JOIN_LABEL=/^[A-Za-z0-9][A-Za-z0-9 _.-]{0,60}$/;
+const hash=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))).map(x=>x.toString(16).padStart(2,'0')).join('');
+const randomHex=()=>Array.from(crypto.getRandomValues(new Uint8Array(24))).map(x=>x.toString(16).padStart(2,'0')).join('');
+
 const metricNumber=(x,lo,hi)=>typeof x==='number'&&Number.isFinite(x)&&x>=lo&&x<=hi?x:null;
 const metricStatus=x=>['running','stopped','unknown'].includes(x)?x:'unknown';
 const metricServices=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx','named-tunnel','php-fpm','mhc-full-daily-backup'];
@@ -57,38 +63,72 @@ async function json(req){
 }
 export default {async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|history)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|history|invite|join)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
-  const role=node&&equal(token,node.panelKey)?'panel':node&&equal(token,node.agentKey)?'agent':null;
+  const staticRole=node&&equal(token,node.panelKey)?'panel':node&&equal(token,node.agentKey)?'agent':null;
+  // Dynamic member credentials can only be verified inside this cluster's Durable Object.
+  const role=action==='join'?'joining':staticRole||(UUID.test(id||'')&&TOKEN.test(token)?'dynamic':null);
   if(!role)return reply({error:'UNAUTHORIZED'},401);
-  if(action==='heartbeat'&&role!=='agent'||['begin','abort','history'].includes(action)&&role!=='panel')return reply({error:'ROLE_DENIED'},403);
+  if(action==='heartbeat'&&role==='panel'||['begin','abort','history','invite'].includes(action)&&role==='agent')return reply({error:'ROLE_DENIED'},403);
   if(request.method!==(['status','history'].includes(action)?'GET':'POST'))return reply({error:'METHOD_NOT_ALLOWED'},405);
   const nonce=request.headers.get('x-mhc-nonce');if(!UUID.test(nonce||''))fail('NONCE_REQUIRED');
   const targetNodeId=action==='history'?request.headers.get('x-mhc-target'):null;
-  if(action==='history'&&(!UUID.test(targetNodeId||'')||!list.some(n=>n.nodeId===targetNodeId)))fail('MONITOR_TARGET_INVALID',400);
+  if(action==='history'&&!UUID.test(targetNodeId||''))fail('MONITOR_TARGET_INVALID',400);
   const body=action==='history'?{targetNodeId}:action==='status'?{}:await json(request);
   const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(match[1]));
   // Only the authenticated Worker can call this binding; no caller headers are forwarded.
-  return await stub.fetch(new Request('https://authority.internal/'+action,{method:'POST',body:JSON.stringify({action,body,nodeId:id,role,nonce,clusterId:match[1]})}));
+  return await stub.fetch(new Request('https://authority.internal/'+action,{method:'POST',body:JSON.stringify({action,body,nodeId:id,role,nonce,clusterId:match[1],
+   ...(role==='dynamic'?{dynamicToken:token}:{})})}));
  }catch(e){return reply({error:e.status?e.message:'AUTHORITY_UNAVAILABLE'},e.status||503);}
 }};
 export class ClusterAuthority {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(req){
   try{
-   const {action,body,nodeId,role,nonce,clusterId}=await req.json();
-   if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nodeId)||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
-   const list=members(this.env);if(!list.some(n=>n.nodeId===nodeId))fail('UNAUTHORIZED',401);
-   if(!['status','heartbeat','begin','abort','history'].includes(action))fail('INVALID_ACTION');
-   if(action==='heartbeat'&&role!=='agent'||['begin','abort','history'].includes(action)&&role!=='panel')fail('ROLE_DENIED',403);
+   const {action,body,nodeId,role,nonce,clusterId,dynamicToken}=await req.json();
+   if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
+   if(action!=='join'&&!UUID.test(nodeId))fail('INVALID_INTERNAL_REQUEST');
+   if(!['status','heartbeat','begin','abort','history','invite','join'].includes(action))fail('INVALID_ACTION');
+   const staticList=members(this.env);
    const now=Date.now();
    const result=await this.ctx.storage.transaction(async tx=>{
     const s=await tx.get('state')||{schema:1,revision:0,epoch:0,pending:null,heartbeats:{}};
     if(s.schema!==1||!Number.isSafeInteger(s.revision)||s.revision<0||!Number.isSafeInteger(s.epoch)||s.epoch<0||!s.heartbeats)fail('STATE_INVALID',503);
+    const dynamic=Array.isArray(s.dynamicMembers)?s.dynamicMembers:[];
+    const list=[...staticList,...dynamic.map(n=>({nodeId:n.nodeId,label:n.label}))];
+    let effectiveRole=role;
+    if(role==='dynamic'){
+     const member=dynamic.find(n=>n.nodeId===nodeId);
+     if(!member||!TOKEN.test(dynamicToken||''))fail('UNAUTHORIZED',401);
+     const digest=await hash(dynamicToken);
+     effectiveRole=equal(digest,member.panelDigest)?'panel':equal(digest,member.agentDigest)?'agent':null;
+    }else if(role!=='joining'&&!staticList.some(n=>n.nodeId===nodeId))fail('UNAUTHORIZED',401);
+    if(!effectiveRole)fail('UNAUTHORIZED',401);
+    if(action==='join'&&role!=='joining')fail('ROLE_DENIED',403);
+    if(action==='heartbeat'&&effectiveRole!=='agent'||['begin','abort','history','invite'].includes(action)&&effectiveRole!=='panel'||action==='status'&&effectiveRole==='joining')fail('ROLE_DENIED',403);
     let receipt=null;
-    if(action==='heartbeat'){
+    if(action==='invite'){
+     if(!UUID.test(body.requestId||'')||!Number.isSafeInteger(body.expectedRevision)||body.expectedRevision!==s.revision)fail('REVISION_CONFLICT',409);
+     const code=randomHex();
+     s.pendingInvite={hash:await hash(code),expiresAt:now+600000,createdBy:nodeId,createdAt:new Date(now).toISOString()};
+     s.revision++;
+     await tx.put('state',s);
+     await tx.put('audit:'+String(s.revision).padStart(16,'0'),{action:'INVITE_CREATED',nodeId,at:new Date(now).toISOString(),revision:s.revision});
+     receipt={action:'invite',joinSecret:code,expiresAt:new Date(s.pendingInvite.expiresAt).toISOString(),revision:s.revision};
+    }else if(action==='join'){
+     if(!UUID.test(body.nodeId||'')||!JOIN_LABEL.test(body.label||'')||!JOIN_HEX.test(body.joinSecret||'')||
+       !TOKEN.test(body.agentKey||'')||!TOKEN.test(body.panelKey||'')||body.agentKey===body.panelKey)fail('JOIN_INVALID');
+     if(list.length>=200)fail('CLUSTER_FULL',409);
+     if(list.some(n=>n.nodeId===body.nodeId))fail('JOIN_ID_CONFLICT',409);
+     if(!s.pendingInvite||s.pendingInvite.expiresAt<=now||!equal(await hash(body.joinSecret),s.pendingInvite.hash))fail('JOIN_CODE_EXPIRED_OR_INVALID',401);
+     s.dynamicMembers=[...dynamic,{nodeId:body.nodeId,label:body.label,agentDigest:await hash(body.agentKey),panelDigest:await hash(body.panelKey),enrolledAt:new Date(now).toISOString()}];
+     s.pendingInvite=null;s.revision++;
+     await tx.put('state',s);
+     await tx.put('audit:'+String(s.revision).padStart(16,'0'),{action:'NODE_JOINED',nodeId:body.nodeId,at:new Date(now).toISOString(),revision:s.revision});
+     receipt={action:'join',nodeId:body.nodeId,revision:s.revision,joined:true};
+    }else if(action==='heartbeat'){
      if(!Number.isSafeInteger(body.sequence)||body.sequence<1||!Number.isSafeInteger(body.sentAt)||Math.abs(now-body.sentAt)>60000)fail('HEARTBEAT_INVALID');
      const old=s.heartbeats[nodeId];if(old&&body.sequence<=old.sequence)fail('HEARTBEAT_REPLAY',409);
      const telemetry=body.telemetry===undefined?null:telemetrySafe(body.telemetry);
