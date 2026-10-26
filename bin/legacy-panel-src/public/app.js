@@ -220,6 +220,7 @@ async function mhcClusterPage(){
   const targets=nodes.filter(n=>n.heartbeatRecent===true);
   const primaryChoices=targets.map(n=>`<option value="${esc(n.nodeId)}">${esc(n.label)}</option>`).join('');
   const intent=d.pending&&shared?`<div class="info"><b>Đã chọn ứng viên: ${esc(d.pending.label||'Node')}</b><p>Phiên ${esc(d.pending.status||'PREPARED_NO_WRITER_GRANT')} · Epoch ${Number(d.pending.epoch)||0}. Chưa kích hoạt website, chưa khóa máy cũ và chưa chuyển Cloudflare.</p><div class="btnrow">${btn('Hủy lựa chọn','primary-abort','tiny warn')}</div></div>`:'';
+  const enroll=shared?`<div class="card"><h2>Thêm điện thoại mới vào Cluster</h2><p>Điện thoại mới cần chạy bộ cài MHC một lần. Tạo mã dùng một lần, tự hết hạn sau 10 phút; node mới tham gia Standby và tự gửi Monitor.</p>${btn('Tạo mã ghép 10 phút','cluster-invite','primary')}</div>`:'';
   const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác này lưu lựa chọn dùng chung cho mọi Panel, KHÔNG thực hiện chuyển Primary thật. Chỉ chọn node có heartbeat gần đây.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Để hoàn tất chuyển Primary cần dừng đường ghi cũ, khởi động/kiểm tra đích và chuyển route đã xác minh. Phần này chưa được tự động hóa.</p></div>`:'';
   page('Cluster — tổng quan',`
   <div class='sectionhead'><div><h2>Cụm máy chủ</h2><p>Trạng thái từ Cloudflare, tự cập nhật mỗi 20 giây khi mở trang</p></div><div class='btnrow'>${btn('Làm mới','cluster-overview')}${btn('Kỹ thuật LAB','cluster-advanced')}</div></div>
@@ -231,6 +232,7 @@ async function mhcClusterPage(){
   </div>
   <div class='sectionhead'><h2>Thiết bị</h2></div><div class='grid two'>${cards||'<div class="card">Chưa có dữ liệu node.</div>'}</div>
   <div class='info' style='margin-top:16px'>${esc(notice)}</div>
+  ${enroll}
   ${selection}
   ${shared?`<div class='card' style='margin-top:16px'><b>Shared Authority M2</b><p>Revision ${Number.isSafeInteger(d.revision)?d.revision:'—'} · Epoch ${Number.isSafeInteger(d.epoch)?d.epoch:'—'} · Phiên chuẩn bị ${d.pending?'đang mở':'không có'}</p><p class='help'>PREPARE_ONLY: chưa cấp quyền Primary, không chuyển dịch vụ hay đồng bộ dữ liệu.</p></div>`:''}
   `);
@@ -317,6 +319,20 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='monitor-refresh'){state.monitorHistory=null;await mhcMonitorPage();return;}
  if(type==='monitor-node'){
   state.monitorSelected=value||'local';state.monitorHistory=null;await mhcMonitorPage();return;
+ }
+ if(type==='cluster-invite'){
+  if(!confirm('Tạo mã ghép một lần, hết hạn sau 10 phút? Mã cũ chưa dùng sẽ không còn hiệu lực.'))return;
+  const x=await req('/api/mhc/pairing/invite',{method:'POST',body:{}});
+  const code=x.joinCode;
+  if(!/^MHC1\.[A-Za-z0-9_-]{60,900}$/.test(code||''))throw Error('Mã ghép không hợp lệ từ Authority');
+  state.pairingCommand='~/mhc-full join '+JSON.stringify(code);
+  modal('Ghép node mới (10 phút)',`<p class="help">Mã dùng một lần; hết hạn ${esc(x.expiresAt||'sau 10 phút')}. Không đăng mã này công khai.</p><p>Trên Termux của điện thoại đã cài MHC, chạy:</p><pre style="white-space:pre-wrap;word-break:break-all">${esc(state.pairingCommand)}</pre><div class="btnrow">${btn('Sao chép lệnh','cluster-invite-copy','primary')}</div><p class="help">Sau khi ghép, thiết bị sẽ xuất hiện trong Cluster ở trạng thái Standby, không có quyền Primary.</p>`);
+  return;
+ }
+ if(type==='cluster-invite-copy'){
+  if(!state.pairingCommand)throw Error('Không còn lệnh ghép trong phiên hiện tại');
+  await navigator.clipboard.writeText(state.pairingCommand);
+  toast('Đã sao chép lệnh ghép vào clipboard');return;
  }
  if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
  if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
