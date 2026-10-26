@@ -30,12 +30,12 @@ const call=async(node,role,action,body={},target=null)=>{
 };
 let raw=await collectNodeMetrics();
 const local=compactTelemetry(raw);
-assert.equal(local.v,1);
-assert.equal(Object.keys(local.services).length,9);
-for(const k of ['cpu','memory','storage','network','battery','services'])assert(local[k]!==undefined,k);
+assert.equal(local.v,1);assert(!('cpu' in local),'unavailable CPU excluded from all-node telemetry');
+assert.equal(Object.keys(local.services).length,12);
+for(const k of ['memory','storage','network','wifi','battery','services','processes','snapshot'])assert(local[k]!==undefined,k);
 assert(!JSON.stringify(local).includes(process.env.HOME||'/nonexistent-home'));
 assert(!JSON.stringify(local).includes('127.0.0.1'));
-const t={...local,device:'Sony XZ3',privateSsid:'DO-NOT-SHARE',network:{...local.network,ip:'10.0.0.8'},
+const t={...local,device:'Sony XZ3',privateSsid:'DO-NOT-SHARE',wifi:{state:'connected',rssiDbm:-55,ssid:'PRIVATE_WIFI'},processes:[{name:'Mini Hosting Panel',rssMiB:53,cmd:'PRIVATE CMD'}],network:{...local.network,ip:'10.0.0.8'},
  services:{...local.services,secret:'TOPSECRET'}};
 const base=await call(members[0],'agent','status');assert.equal(base.code,200);
 const hb1=await call(members[0],'agent','heartbeat',{sequence:1,sentAt:Date.now(),telemetry:t});
@@ -44,6 +44,9 @@ const status=await call(members[1],'panel','status');assert.equal(status.code,20
 assert.equal(status.value.nodes[0].telemetryRecent,true);
 assert.equal(status.value.nodes[0].telemetry.device,'Sony XZ3');
 assert(!JSON.stringify(status.value).includes('DO-NOT-SHARE'));
+assert(!JSON.stringify(status.value).includes('PRIVATE_WIFI'));
+assert(!JSON.stringify(status.value).includes('PRIVATE CMD'));
+assert(!('cpu' in status.value.nodes[0].telemetry));
 assert(!JSON.stringify(status.value).includes('TOPSECRET'));
 assert(!JSON.stringify(status.value).includes('10.0.0.8'));
 assert.equal(status.value.nodes[1].telemetry,null);
