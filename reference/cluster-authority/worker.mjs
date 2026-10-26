@@ -118,7 +118,7 @@ export class ClusterAuthority {
      await tx.put('audit:'+String(s.revision).padStart(16,'0'),{action:'INVITE_CREATED',nodeId,at:new Date(now).toISOString(),revision:s.revision});
      receipt={action:'invite',joinSecret:code,expiresAt:new Date(s.pendingInvite.expiresAt).toISOString(),revision:s.revision};
     }else if(action==='join'){
-     if(!UUID.test(body.nodeId||'')||!JOIN_LABEL.test(body.label||'')||!JOIN_HEX.test(body.joinSecret||'')||
+     if(!UUID.test(body.nodeId||'')||body.nodeId!==nodeId||!JOIN_LABEL.test(body.label||'')||!JOIN_HEX.test(body.joinSecret||'')||
        !TOKEN.test(body.agentKey||'')||!TOKEN.test(body.panelKey||'')||body.agentKey===body.panelKey)fail('JOIN_INVALID');
      if(list.length>=200)fail('CLUSTER_FULL',409);
      if(list.some(n=>n.nodeId===body.nodeId))fail('JOIN_ID_CONFLICT',409);
