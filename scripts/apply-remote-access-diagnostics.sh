@@ -31,7 +31,12 @@ dest_tmp="$HOME/android-hosting-panel/src/.mhc-remote-access.$$.mjs"
 cp -- "$work/mhc-remote-access.mjs" "$dest_tmp"
 chmod 600 "$dest_tmp"
 mv -f -- "$dest_tmp" "$src"
-sv restart "$svc" || true
+if ! sv restart "$svc"; then
+ cp -p -- "$saved" "$src"
+ sv restart "$svc" || true
+ echo 'ROLLED_BACK: failed to restart original Panel service; restored old auth source'
+ exit 8
+fi
 healthy=0
 for _ in $(seq 1 15); do
  sleep 1
