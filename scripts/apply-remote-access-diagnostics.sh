@@ -10,7 +10,8 @@ if [[ ! -f "$src" || ! -d "$svc" ]]; then echo 'STOP: original Panel 9090 not fo
 if [[ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 4 http://127.0.0.1:9090/)" != 200 ]]; then
  echo 'STOP: Panel localhost is not healthy before change'; exit 4
 fi
-set -o noclobber
+mkdir -p "$HOME/.cache"
+chmod 700 "$HOME/.cache"
 work="$(mktemp -d "$HOME/.cache/mhc-remote-diagnostic.XXXXXX")"
 trap 'rm -rf -- "$work"' EXIT
 url='https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/8a0ca26111b4f097b0859506359bbffb8c3aeb3d/bin/legacy-panel-src/src/mhc-remote-access.mjs'
