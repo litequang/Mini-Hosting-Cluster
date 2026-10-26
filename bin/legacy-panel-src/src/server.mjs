@@ -12,7 +12,7 @@ import {listDatabases,createDatabase,listTables,backupDatabase,restoreDatabase} 
 import {listBackups,backupSiteArchive,backupFile} from './backups.mjs';
 import {backupStatus,startBackup,verifyLatest,downloadableSnapshot} from './tpp-backup-manager.mjs';
 import {nodeProcessStats} from './node-process-monitor.mjs';
-import {mhcModules,mhcCluster,mhcMonitor,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard} from './mhc-integration.mjs';
+import {mhcModules,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard} from './mhc-integration.mjs';
 import {existingSite,statusExisting,listExistingFiles,readExistingFile,writeExistingFile,mkdirExisting,deleteExisting,renameExisting,downloadExistingFile,deployExisting,rollbackExisting,existingLog} from './existing-site.mjs';
 const PUBLIC=path.join(ROOT,'public');
 const sessions=new Map(),attempts=new Map();let mutations=Promise.resolve();
@@ -84,6 +84,7 @@ async function api(req,res,url){
  if(route==='/api/mhc/write-paths'&&method==='GET')return send(res,200,await mhcWritePaths());
  if(route==='/api/mhc/writer-audit'&&method==='GET')return send(res,200,await mhcWriterAudit());
  if(route==='/api/mhc/monitor'&&method==='GET')return send(res,200,await mhcMonitor());
+ if(route==='/api/mhc/monitor/history'&&method==='GET')return send(res,200,await mhcMonitorHistory(url.searchParams.get('nodeId')));
  if(route==='/api/mhc/sites'&&method==='GET')return send(res,200,await mhcSites());
  if(route==='/api/mhc/backups'&&method==='GET')return send(res,200,await mhcBackups());
  if(route==='/api/overview'&&method==='GET'){const v=await systemStats();if(existingSite())v.sites+=1;v.nodeProcesses=await nodeProcessStats();return send(res,200,v);}
