@@ -85,7 +85,7 @@ export async function authorityRequest(c,action,body={},fetcher=fetch){
   body:['status','history'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
  const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
  if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
- while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>131072){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
+ while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>524288){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
  let v;try{v=JSON.parse(raw);}catch{throw Error('AUTHORITY_REPLY_INVALID');}
  if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z_]{1,60}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
  if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||v.writeLeaseGranted!==false||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
