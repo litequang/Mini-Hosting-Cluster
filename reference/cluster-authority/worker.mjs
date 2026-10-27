@@ -1,4 +1,5 @@
-import {p3Config,p3SwitchDns} from './p3-route.mjs';
+import {p3Config,p3SwitchDns,p3SwitchPanelDns} from './p3-route.mjs';
+import {p3RecoveryPlan} from './p3-recovery.mjs';
 // M2: shared membership and durable preparation journal. NO writer lease or route cutover.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43,128}$/;
@@ -62,7 +63,14 @@ async function json(req){
  let b;try{b=JSON.parse(new TextDecoder().decode(bytes));}catch{fail('INVALID_BODY');}
  if(!b||typeof b!=='object'||Array.isArray(b))fail('INVALID_BODY');return b;
 }
-export default {async fetch(request,env){
+export default {
+ async scheduled(event,env,ctx){
+  // Cron survives Android outages and must never grant writer privileges.
+  if(env.MHC_P3_PANEL_RECOVERY_ENABLED!=='LAB_PANEL_ONLY'||!UUID.test(env.MHC_CLUSTER_ID||''))return;
+  const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));
+  ctx.waitUntil(stub.fetch(new Request('https://authority.internal/maintenance',{method:'POST'})));
+ },
+ async fetch(request,env){
  try{
   const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
@@ -87,6 +95,7 @@ export default {async fetch(request,env){
 export class ClusterAuthority {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(req){
+  if(new URL(req.url).pathname==='/maintenance'&&req.method==='POST')return this.recoverPanel();
   try{
    const {action,body,nodeId,role,nonce,clusterId,dynamicToken}=await req.json();
    if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
@@ -158,6 +167,7 @@ export class ClusterAuthority {
       if(s.revision!==body.expectedRevision)fail('REVISION_CONFLICT',409);
       if(action==='begin'){
        if(s.pending)fail('TRANSITION_PENDING',409);
+       if(s.panelRecovery?.status==='DNS_REQUESTED')fail('P3_PANEL_RECOVERY_IN_PROGRESS',409);
        if(!list.some(n=>n.nodeId===body.targetNodeId))fail('UNKNOWN_TARGET');
        const hb=s.heartbeats[body.targetNodeId];if(!hb||now-hb.receivedAt<0||now-hb.receivedAt>180000)fail('TARGET_HEARTBEAT_STALE',409);
        const fromNodeId=s.declaredPrimary?.nodeId||this.env.MHC_P3_INITIAL_PRIMARY_NODE_ID||null;
@@ -188,6 +198,7 @@ export class ClusterAuthority {
        s.retiredPrimaries=[...(s.retiredPrimaries||[]).filter(n=>n.nodeId!==target&&n.nodeId!==previously),
         {nodeId:previously,role:'STANDBY_REJOIN_REQUIRES_OPERATOR_REVIEW',at:new Date(now).toISOString()}].slice(-100);
        s.pending=null;
+       if(s.panelRecovery){s.lastPanelRecovery=s.panelRecovery;s.panelRecovery=null;}
       }else{
        if(!UUID.test(body.operationId||'')||s.pending?.operationId!==body.operationId)fail('PENDING_MISMATCH',409);
        if(s.pending.status!=='PREPARED_NO_WRITER_GRANT')fail('P3_ROUTE_MAY_HAVE_CHANGED_NO_BLIND_ABORT',409);
@@ -210,7 +221,8 @@ export class ClusterAuthority {
     return {mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
-     declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
+     declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],
+     panelRecovery:s.panelRecovery||null,panelRecoveryEnabled:this.env.MHC_P3_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
      callerSequence:s.heartbeats[nodeId]?.sequence||0,receipt,canComplete:false,writeLeaseGranted:false,
      automaticFailover:false,livePrimaryVerified:false,notice:'M3 LAB supports operator-attested DNS routing; application validation and writer fencing are NOT independently proven, no writer lease is granted.'};
    });
@@ -233,5 +245,51 @@ export class ClusterAuthority {
    }
    return reply({...result,nonce});
   }catch(e){return reply({error:e.status?e.message:'AUTHORITY_STORAGE_UNAVAILABLE'},e.status||503);}
+ }
+ // Scheduled recovery runs in Durable Object, independently of the serving phone.
+ // Persist intent BEFORE DNS; retry verifies actual record and never changes site route.
+ async recoverPanel(){
+  try{
+   if(this.env.MHC_P3_PANEL_RECOVERY_ENABLED!=='LAB_PANEL_ONLY')fail('P3_PANEL_RECOVERY_DISABLED',403);
+   const now=Date.now(),staticList=members(this.env);
+   const planned=await this.ctx.storage.transaction(async tx=>{
+    const s=await tx.get('state');
+    if(!s||s.schema!==1||!s.heartbeats)fail('STATE_INVALID',503);
+    const dynamic=Array.isArray(s.dynamicMembers)?s.dynamicMembers:[];
+    const list=[...staticList,...dynamic.map(n=>({nodeId:n.nodeId,label:n.label}))];
+    const plan=p3RecoveryPlan(s,list,this.env,now);
+    if(plan.kind==='skip')return plan;
+    const routes=p3Config(this.env),panels=routes.filter(r=>r.kind==='panel');
+    if(panels.length!==1||!panels[0].nodeTargets[plan.fromNodeId]||!panels[0].nodeTargets[plan.targetNodeId])
+     fail('P3_RECOVERY_PANEL_TUNNELS_MISSING',409);
+    const prior=s.panelRecovery;
+    s.panelRecovery={fromNodeId:plan.fromNodeId,targetNodeId:plan.targetNodeId,
+     status:'DNS_REQUESTED',startedAt:prior?.startedAt||new Date(now).toISOString(),lastRouteTryAt:now,
+     note:'LAB Panel recovery only; no website route, Primary or writer lease changed.'};
+    s.revision++;
+    await tx.put('state',s);
+    await tx.put('audit:'+String(s.revision).padStart(16,'0'),
+     {action:plan.kind==='resume'?'P3_PANEL_RECOVERY_RETRY':'P3_PANEL_RECOVERY_REQUESTED',
+      at:new Date(now).toISOString(),revision:s.revision,
+      fromNodeId:plan.fromNodeId,targetNodeId:plan.targetNodeId});
+    return plan;
+   });
+   if(planned.kind==='skip')return reply({ok:true,action:'P3_PANEL_RECOVERY_SKIPPED',reason:planned.reason});
+   const applied=await p3SwitchPanelDns(this.env,planned);
+   const completed=await this.ctx.storage.transaction(async tx=>{
+    const s=await tx.get('state'),r=s?.panelRecovery;
+    if(!r||r.status!=='DNS_REQUESTED'||r.fromNodeId!==planned.fromNodeId||
+      r.targetNodeId!==planned.targetNodeId||s.pending)fail('P3_RECOVERY_JOURNAL_CONFLICT',409);
+    s.panelRecovery={...r,status:'DNS_SWITCHED_RECOVERY',dnsVerifiedAt:new Date().toISOString(),records:applied.records};
+    s.revision++;
+    await tx.put('state',s);
+    await tx.put('audit:'+String(s.revision).padStart(16,'0'),
+     {action:'P3_PANEL_RECOVERY_DNS_VERIFIED',at:new Date().toISOString(),
+      revision:s.revision,targetNodeId:r.targetNodeId});
+    return {ok:true,action:'P3_PANEL_RECOVERY_DNS_VERIFIED',targetNodeId:r.targetNodeId,
+     siteRouteChanged:false,writerLeaseGranted:false};
+   });
+   return reply(completed);
+  }catch(e){return reply({error:e.status?e.message:'P3_PANEL_RECOVERY_FAILED'},e.status||503);}
  }
 }
