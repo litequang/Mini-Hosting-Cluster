@@ -96,3 +96,11 @@
 - `reference/cluster-authority/worker.mjs`: `route`/`route-resume`/`complete` with Durable Object status journal, revision CAS/idempotence and operator attestations; `writerLeaseGranted:false`, no independent fencing.
 - `bin/cluster-authority.mjs`, `bin/legacy-panel-src/public/app.js`: shared P3 LAB client and original Panel UI actions. `bin/legacy-panel-src/src/server.mjs` original route/CSRF/Access reused unchanged.
 - `tests/p3-route.mjs` + `bin/self-test.sh`: mocked Cloudflare DNS adapter tests (real Node runner NOT RUN), syntax/source test checks only. `docs/P3-LAB-MANUAL-CUTOVER.md`: private config gates and device test runbook. P3 production not accepted.
+
+## 27/10/2026 P3 Panel recovery milestone
+- `reference/cluster-authority/p3-recovery.mjs`: pure standby selection with stale incumbent/healthy Panel+Tunnel gates; never grants writer.
+- `reference/cluster-authority/worker.mjs`: scheduled Cloudflare Worker → DO `recoverPanel()` durable journal, single panel-only DNS recover, retries/audit, exposes panelRecovery read-only state.
+- `reference/cluster-authority/p3-route.mjs`: DNS CNAME adapter with `p3SwitchPanelDns` for Panel only; manual P3 `p3SwitchDns` handles Panel having previously been recovered elsewhere.
+- `reference/cluster-authority/wrangler.toml`: cron every 1m, opt-in secret off by default.
+- `bin/legacy-panel-src/public/app.js`: original Cluster Panel shows Panel recovery route/status distinct from LAB declaredPrimary.
+- `tests/p3-panel-recovery.mjs`: unit/fixture coverage; `docs/P3-PANEL-RECOVERY-2026-10-27.md`: deployment/runbook.
