@@ -11,6 +11,10 @@ base="$HOME/.local/share/mhc-p31-lab"
 [[ ! -e "$HOME/apps/thophuongpro/.env" && ! -e "$HOME/.config/mini-hosting-cluster/ha.json" ]] || exit 2
 nodeid=$(node -p 'JSON.parse(require("fs").readFileSync(process.env.HOME+"/.config/mhc-full-installer/node-identity.json")).nodeId')
 [[ "$nodeid" == 4ed4c025-62ae-4c2a-8d68-65dd76ecf550 || "$nodeid" == 4a9672d1-bb62-4286-946a-a78b73e57b24 ]] || exit 2
+public_grants=$(mariadb --no-defaults -u root -N -B --raw -e 'SHOW GRANTS FOR PUBLIC')
+if [[ -n "$public_grants" && "$public_grants" != 'GRANT USAGE ON *.* TO PUBLIC' && "$public_grants" != 'GRANT USAGE ON *.* TO `PUBLIC`' ]];then
+ echo 'P31_PUBLIC_GRANTS_REVIEW_REQUIRED: run guarded p31-restrict-public-test.mjs --plan/--apply first';exit 2
+fi
 mkdir -m 700 "$base"
 trap 'echo "P31_PREPARE_FAILED_LINE|$LINENO|private logs retained; no existing site changed"' ERR
 tar -tf "$archive" > "$base/archive-paths.txt"

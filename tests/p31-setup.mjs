@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {waitForSupervisor} from '../bin/p31-configure.mjs';
+import {peerFailure} from '../bin/p31-control.mjs';
+let adopted=false,waits=0;
+await waitForSupervisor('/unused-fixture-service',{ready:()=>adopted,pause:async()=>{if(++waits===3)adopted=true;},attempts:5});
+assert.equal(adopted,true);assert.equal(waits,3);
+assert.equal(peerFailure('P31_AGENT_STALE\n').message,'P31_AGENT_STALE');
+assert.equal(peerFailure('ssh: failure with sensitive details').message,'P31_PEER_UNAVAILABLE');
+assert.equal(peerFailure('P31_AGENT_STALE extra payload').message,'P31_PEER_UNAVAILABLE');
+await assert.rejects(waitForSupervisor('/unused-fixture-service',{ready:()=>false,pause:async()=>{},attempts:2}),/P31_RUNIT_SUPERVISOR_NOT_READY/);
+console.log('PASS: P3.1 delayed/missing runit adoption; peer safety error preserved and arbitrary stderr redacted');

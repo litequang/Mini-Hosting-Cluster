@@ -3,6 +3,7 @@
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import {spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 import {LAB_NODES,supportedRuntime} from './source-upgrade.mjs';
 const fail=c=>{throw Error(c);},home=os.homedir(),prefix=process.env.PREFIX||'',cfg=path.join(home,'.config/mhc-full-installer/p31');
+export async function waitForSupervisor(service,{ready=()=>fs.existsSync(path.join(service,'supervise/ok')),pause=()=>new Promise(r=>setTimeout(r,250)),attempts=60}={}){for(let n=0;n<attempts;n++){if(ready())return;await pause();}fail('P31_RUNIT_SUPERVISOR_NOT_READY');}
 function safe(p){let at=home;const rel=path.relative(home,p);if(rel.startsWith('..')||path.isAbsolute(rel))fail('P31_SETUP_PATH_INVALID');for(const part of rel.split(path.sep)){at=path.join(at,part);if(fs.lstatSync(at,{throwIfNoEntry:false})?.isSymbolicLink())fail('P31_SETUP_SYMLINK_DENIED');}return p;}
 function gate(){if(!supportedRuntime(process.platform,prefix))fail('P31_TERMUX_ONLY');for(const p of ['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'])if(fs.existsSync(path.join(home,p)))fail('P31_PRODUCTION_DENIED');const root=path.join(home,'.config/mhc-full-installer');safe(root);if(fs.readFileSync(path.join(root,'installed'),'utf8').trim()!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')fail('P31_MARKER_INVALID');const id=JSON.parse(fs.readFileSync(path.join(root,'node-identity.json'))).nodeId;if(!LAB_NODES.includes(id))fail('P31_NODE_NOT_LAB');return id;}
 const privateWrite=(p,v)=>{safe(p);fs.writeFileSync(p,v,{flag:'wx',mode:0o600});};
@@ -31,7 +32,7 @@ async function configure(){const own=prepare();let raw='';for await(const b of p
  const service=path.join(prefix,'var/service/mhc-lab-p31'),run=`#!/data/data/com.termux/files/usr/bin/sh\nexport HOME=${home}\nexec ${prefix}/bin/node ${home}/.local/share/mhc-full-installer/bin/p31-node.mjs watch\n`;
  if(fs.lstatSync(service,{throwIfNoEntry:false})?.isSymbolicLink())fail('P31_SETUP_SERVICE_UNSAFE');
  if(!fs.existsSync(service)){fs.mkdirSync(service,{mode:0o700});fs.writeFileSync(path.join(service,'down'),'');fs.writeFileSync(path.join(service,'run'),run,{mode:0o700,flag:'wx'});}else if(fs.readFileSync(path.join(service,'run'),'utf8')!==run)fail('P31_EXISTING_SERVICE_DIFFERS');
- command('sv-enable',['mhc-lab-p31']);command('sv',['-w','10','up',service]);return {configured:true,nodeId:own.nodeId,scope:'READ_ONLY_LAB_REHEARSAL',writerGranted:false};
+ await waitForSupervisor(service);command('sv-enable',['mhc-lab-p31']);command('sv',['-w','10','up',service]);return {configured:true,nodeId:own.nodeId,scope:'READ_ONLY_LAB_REHEARSAL',writerGranted:false};
 }
 async function main(){if(process.argv[2]==='prepare')return prepare();if(process.argv[2]==='configure')return configure();fail('Usage: p31-configure prepare|configure (public peer configuration on stdin)');}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main().then(v=>console.log(JSON.stringify(v))).catch(e=>{console.error(/^P31_[A-Z_]+$/.test(e.message)?e.message:'P31_SETUP_FAILED');process.exitCode=1;});

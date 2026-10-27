@@ -4,6 +4,7 @@ import fs from 'node:fs';import path from 'node:path';import os from 'node:os';i
 import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const HEX=/^[a-f0-9]{64}$/;const LAB=['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24'];
+export const MAX_CLOCK_SKEW_MS=2000;
 const fail=c=>{throw Error(c);};export const hash=v=>crypto.createHash('sha256').update(v).digest('hex');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function privateJson(p,fixture=false){const s=fs.lstatSync(p);if(!s.isFile()||s.isSymbolicLink()||s.size>2e6||(!fixture&&(s.mode&0o077)))fail('P31_PRIVATE_FILE_UNSAFE');return JSON.parse(fs.readFileSync(p,'utf8'));}
@@ -11,11 +12,13 @@ function save(p,v){fs.mkdirSync(path.dirname(p),{recursive:true,mode:0o700});con
 export function validateAuthority(s,c,now=Date.now()){
  if(s?.mode!=='SHARED_AUTHORITY_PREPARE_ONLY'||s.clusterId!==c.clusterId||s.writeLeaseGranted!==false||s.automaticFailover!==false||!Number.isSafeInteger(s.epoch)||s.epoch<0||!Number.isSafeInteger(s.revision)||s.revision<0)fail('P31_AUTHORITY_INVALID');
  const own=s.nodes?.find(n=>n.nodeId===c.nodeId),age=now-Date.parse(own?.lastSeenAt);
- if(own?.heartbeatRecent!==true||own.telemetryRecent!==true||!Number.isFinite(age)||age<0||age>90000)fail('P31_AGENT_STALE');return s;
+ // Authority records receive time on its own clock. A fresh heartbeat can be
+ // slightly ahead of Android; use the same bounded skew as proof verification.
+ if(own?.heartbeatRecent!==true||own.telemetryRecent!==true||!Number.isFinite(age)||age < -MAX_CLOCK_SKEW_MS||age>90000)fail('P31_AGENT_STALE');return s;
 }
 export function matchesPending(s,r){return s.pending?.status==='PREPARED_NO_WRITER_GRANT'&&s.pending.operationId===r.operationId&&s.pending.targetNodeId===r.nodeId&&s.pending.epoch===r.epoch&&s.epoch===r.epoch&&s.revision===r.revision;}
 export function verifyProof(envelope,{publicKey,nonce,nodeId,clusterId,epoch,revision,operationId=null,now=Date.now(),used=new Set()}){
- const p=envelope?.proof;if(!p||p.schema!==1||!HEX.test(nonce)||p.nonce!==nonce||p.nodeId!==nodeId||p.clusterId!==clusterId||p.epoch!==epoch||p.revision!==revision||p.operationId!==operationId||p.writerGranted!==false||p.fencingVerified!==false||p.role!=='STANDBY_READ_ONLY'||p.expiresAt-p.checkedAt!==15000||now<p.checkedAt-2000||now>p.expiresAt||used.has(nonce))fail('P31_PROOF_STALE_REPLAY_OR_MISMATCH');
+ const p=envelope?.proof;if(!p||p.schema!==1||!HEX.test(nonce)||p.nonce!==nonce||p.nodeId!==nodeId||p.clusterId!==clusterId||p.epoch!==epoch||p.revision!==revision||p.operationId!==operationId||p.writerGranted!==false||p.fencingVerified!==false||p.role!=='STANDBY_READ_ONLY'||p.expiresAt-p.checkedAt!==15000||now<p.checkedAt-MAX_CLOCK_SKEW_MS||now>p.expiresAt||used.has(nonce))fail('P31_PROOF_STALE_REPLAY_OR_MISMATCH');
  if(p.scope!=='ISOLATED_P31_DATASET_ONLY'||p.nodeWritersFenced!==false)fail('P31_PROOF_SCOPE_INVALID');
  if(typeof envelope.signature!=='string'||envelope.signature.length>200||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature,'base64url')))fail('P31_PROOF_SIGNATURE_INVALID');used.add(nonce);return p;
 }
