@@ -27,6 +27,8 @@ Mọi node có original Panel 9090 và node Agent. Authority chung độc lập 
 
 ## Panel recovery và Primary
 
+P3.1 bổ sung một nhánh nội bộ: original Panel → pinned forced-command SSH → signed readiness → read-only preview trên dataset riêng 18131. Quyết định chuẩn bị vẫn dùng begin/abort CAS/epoch của Shared Authority hiện có; không deploy Worker mới. Supervisor riêng dừng preview khi pending/Agent/authority không còn hợp lệ, boot/restart luôn quarantine. Dedicated SQL web account SELECT-only và HTTP mutation gates là enforcement có phạm vi, không bảo vệ privileged SQL/same-UID shell/files/jobs. Vì thế API promote và DNS/complete cũ bị chặn khi P3.1 được cấu hình; không diễn giải preview thành Primary an toàn. Xem P3-INTERNAL-CANDIDATE.md.
+
 Website và Panel là hai route độc lập. Thông thường Panel chung theo node Primary đã xác minh; khi route Panel incumbent mất heartbeat đủ lâu, source Cron/DO có thể chọn standby có telemetry/Panel/Tunnel khỏe và đổi riêng CNAME Panel nếu được opt-in. Site/DB/quyền ghi không đổi, không tự failback. DNS GET đúng đích không chứng minh origin/Access/HTTP khả dụng; cần hậu kiểm từ Internet.
 
 Luồng Primary hoàn chỉnh hướng đích: `intent → preflight/data warning → fence old writer → activate candidate → route → HTTP/site/DB proof → commit → quarantine rejoin`. Hiện chưa có executor kích hoạt toàn bộ candidate, fencing mọi đường ghi, signed HTTP node proof hoặc conditional rollback được nghiệm thu. Mất heartbeat có thể là partition; không suy ra writer đã tắt. Không bật automatic writer promotion khi chưa giải quyết các gate này.

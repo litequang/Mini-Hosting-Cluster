@@ -12,7 +12,7 @@ import {listDatabases,createDatabase,listTables,backupDatabase,restoreDatabase} 
 import {listBackups,backupSiteArchive,backupFile} from './backups.mjs';
 import {backupStatus,startBackup,verifyLatest,downloadableSnapshot} from './tpp-backup-manager.mjs';
 import {nodeProcessStats} from './node-process-monitor.mjs';
-import {mhcModules,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard} from './mhc-integration.mjs';
+import {mhcModules,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard,mhcP31Readiness} from './mhc-integration.mjs';
 import {existingSite,statusExisting,listExistingFiles,readExistingFile,writeExistingFile,mkdirExisting,deleteExisting,renameExisting,downloadExistingFile,deployExisting,rollbackExisting,existingLog} from './existing-site.mjs';
 const PUBLIC=path.join(ROOT,'public');
 const sessions=new Map(),attempts=new Map();let mutations=Promise.resolve();
@@ -74,6 +74,7 @@ async function api(req,res,url){
  if(route==='/api/mhc/node-guard'&&method==='GET')return send(res,200,await mhcNodeGuard());
  if(route==='/api/mhc/auto-primary'&&method==='GET')return send(res,200,await mhcAutomaticElection());
  if(route==='/api/mhc/primary-selection'&&method==='GET')return send(res,200,await mhcPrimarySelection());
+ if(route==='/api/mhc/p31-readiness'&&method==='GET')return send(res,200,await mhcP31Readiness());
  if(route==='/api/mhc/primary-selection'&&method==='POST'){const b=jsonBody(await readBody(req,4096));return send(res,200,await queueMutate(()=>mhcPrimaryAction(b)));}
  if(route==='/api/mhc/modules'&&method==='GET')return send(res,200,await mhcModules());
  if(route==='/api/mhc/cluster'&&method==='GET')return send(res,200,await mhcCluster());

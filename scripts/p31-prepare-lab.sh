@@ -13,7 +13,11 @@ nodeid=$(node -p 'JSON.parse(require("fs").readFileSync(process.env.HOME+"/.conf
 [[ "$nodeid" == 4ed4c025-62ae-4c2a-8d68-65dd76ecf550 || "$nodeid" == 4a9672d1-bb62-4286-946a-a78b73e57b24 ]] || exit 2
 mkdir -m 700 "$base"
 trap 'echo "P31_PREPARE_FAILED_LINE|$LINENO|private logs retained; no existing site changed"' ERR
-tar -tf "$archive" | grep -Eq '(^/|(^|/)\.\.(/|$)|wp-config\.php|\.env$)' && exit 2
+tar -tf "$archive" > "$base/archive-paths.txt"
+if grep -Eq '(^/|(^|/)\.\.(/|$)|wp-config\.php|\.env$)' "$base/archive-paths.txt";then echo P31_UNSAFE_ARCHIVE_PATH;exit 2;fi
+if grep -Ev '^(core(/|$)|media(/|$)|static(/|$)|wp-cli\.phar$|SHA256SUMS$)' "$base/archive-paths.txt" > "$base/archive-rejected.txt";then echo P31_UNEXPECTED_ARCHIVE_PATH;exit 2;fi
+tar -tvf "$archive" > "$base/archive-types.txt"
+if grep -Ev '^[-d]' "$base/archive-types.txt" > "$base/archive-rejected.txt";then echo P31_ARCHIVE_LINK_OR_SPECIAL_FILE_DENIED;exit 2;fi
 tar -xf "$archive" -C "$base"
 (cd "$base" && sha256sum -c SHA256SUMS >/dev/null)
 mv "$base/core" "$base/site"
@@ -123,6 +127,7 @@ const fs=require('fs'),path=require('path'),crypto=require('crypto'),base=proces
 const hash=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const files=[];function walk(d){for(const n of fs.readdirSync(d)){const p=path.join(d,n),st=fs.lstatSync(p);if(st.isSymbolicLink())throw Error('SYMLINK_DENIED');if(st.isDirectory())walk(p);else files.push({path:path.relative(base,p).replaceAll('\\','/'),sha256:hash(p)});}}
 walk(path.join(base,'site'));walk(path.join(base,'static'));files.push({path:'synthetic-lab.sql.gz',sha256:hash(path.join(base,'synthetic-lab.sql.gz'))});
+for(const p of ['db-client.cnf','php/php-fpm.conf','nginx/nginx.conf'])files.push({path:p,sha256:hash(path.join(base,p))});
 const metadata={schema:1,datasetId:'mhc-p31-synthetic-v1',sourceArchiveSha256:process.env.P31_SOURCE_HASH,preparedAt:new Date().toISOString(),sourceSqlTransferred:false,originalCredentialsCopied:false,files};
 fs.writeFileSync(path.join(base,'dataset.json'),JSON.stringify(metadata),{mode:0o600});console.log('P31_DATASET_PREPARED|'+files.length+'|SQL_SELECT_PASS|SQL_UPDATE_DENIED');
 NODE

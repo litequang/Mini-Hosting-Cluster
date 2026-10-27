@@ -29,6 +29,8 @@
 
 ## Hosting và legacy LAB
 
+- P3.1: `bin/p31-node.mjs` là isolated read-only candidate supervisor/proof endpoint qua forced-command SSH; `p31-control.mjs` là peer allowlist + pinned-key verifier dùng từ original Panel, `p31-configure.mjs` tạo dedicated keys và service Standby. `scripts/p31-prepare-lab.sh` dựng dataset riêng, không restore credentials của node khác. `tests/p31-candidate.mjs` kiểm fault/idempotence/proof và POSIX child processes. Contract/cứu hộ/P3.2 ở [P3-INTERNAL-CANDIDATE.md](P3-INTERNAL-CANDIDATE.md); không có writer lease hoặc public cutover trong P3.1.
+
 - `bin/wordpress.sh`, `site-serve.sh`, `sites.sh`, `daily-backup.sh`, `backup-verify.sh`, `restore.sh`: site/HTTP/PHP/DB/backup/restore; cần kiểm dữ liệu thật tại LAB riêng.
 - `bin/manual-primary.mjs`, `auto-primary.mjs`, `node-role-guard.mjs`: local legacy selection/recommendation/demotion; không thay shared authority. Guard không chứng minh fencing mọi writer và không tự bật candidate.
 - `bin/node-enroll.*`, `member-telemetry.mjs`, `cluster-summary.mjs`, `node-clone.mjs`, `node-readiness.mjs`, `node-standby.mjs`: inventory/clone/readiness LAB.

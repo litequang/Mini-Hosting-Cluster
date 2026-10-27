@@ -1,5 +1,11 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 27/10/2026 — P3.1 nội bộ, giữ fail-closed writer
+
+- Nhiệm vụ mới cho phép chuẩn bị dữ liệu LAB riêng, activation/proof và begin/abort trên hai Android, không cho đổi DNS/deploy Worker/Access hoặc cutover Internet. Giới hạn nhiệm vụ kiểm kê trước không ngăn công việc P3.1 mới.
+- Không chuyển password hashes/users/options/wp-config của WordPress gốc giữa node. Dùng core/media/static LAB và dataset synthetic mới có mật khẩu/salts riêng, ghi rõ không là full data replica.
+- Termux cùng UID/root chưa có fencing độc lập; chưa cấp Primary/writer. Chỉ preview read-only, giữ Panel/Agent/SSH/Tunnel Standby, quarantine sau restart/lỗi authority. P3.2 phải giải quyết quyền/Cloudflare và giới hạn writer trước cutover thật.
+
 1. **26/10/2026: Panel 9090 trên tất cả node** (thay controller chuyên dụng là Panel duy nhất). Mọi Panel quản trị chung cùng một cluster.
 2. **Shared authority**: không cho mỗi node tự coi mình là Primary; dùng nguồn trạng thái bền vững/tuần tự (đề xuất Cloudflare DO), không đặt dependency sống trên Primary hiện tại.
 3. **Manual Primary** từ Internet hoặc Panel bất kỳ là chức năng chính; người dùng chủ động backup/restore, chọn node và xem web sau chuyển.

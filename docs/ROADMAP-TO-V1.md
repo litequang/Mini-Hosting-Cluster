@@ -30,6 +30,7 @@
 - **Trạng thái hiện tại:** CHƯA TRIỂN KHAI Cloudflare API trong nút “Thêm website”; Panel gốc mới tạo website + cấu hình Nginx cục bộ, còn domain phải thêm route thủ công. Lộ trình ưu tiên sau P2 và phối hợp ngay với P3 để dùng chung route adapter, không đợi P6.
 
 ## P3 — Manual Primary usable end-to-end
+- P3.1 triển khai nền dataset riêng, signed readiness và preview activation nội bộ fail-closed; không tự suy ra manual Primary/writer hoặc Internet routing đã đạt. Các bằng chứng hiện hành chỉ ở LIVE-PROGRESS; protocol và checklist P3.2 ở P3-INTERNAL-CANDIDATE.md. Privileged SQL/same-UID/files/jobs còn phải có giải pháp trước safe writer/cutover.
 - Backup/restore có thể do user làm; thao tác chọn từ bất kỳ Panel, health target, RPO warning, quiesce old writer và cảnh báo nếu không xác minh được.
 - Route switch via Cloudflare adapter P2.5 (nhiều domain/hostname, chỉ zone được ủy quyền), durable intent, idempotent resume, auth/audit, postcheck và rollback chỉ khi không phát sinh ghi mới không thể đảo an toàn. Panel chung normally theo Primary; khi Primary mất thì standby Panel ở chế độ recovery vẫn phải truy cập được và không tự cấp writer.
 - Rejoin old node as standby/quarantine; nó không tự bật lại route/DB writer.

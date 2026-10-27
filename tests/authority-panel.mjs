@@ -19,6 +19,13 @@ try{
  assert.deepEqual(await bridge.mhcPrimaryAction({action:'begin'}),{action:'begin',revision:5});
  await assert.rejects(bridge.mhcPrimaryAction({action:'complete'}),/AUTHORITY_ACTION_INVALID/);
  assert.equal((await bridge.mhcAutomaticElection()).enabled,false);
+ fs.mkdirSync(path.join(cfg,'p31'),{mode:0o700});fs.writeFileSync(path.join(cfg,'p31/config.json'),'{}',{mode:0o600});
+ fs.writeFileSync(path.join(bin,'p31-control.mjs'),`export async function p31Readiness(){return {enabled:true,canPromote:false,nodes:[]};}export async function p31Request(id,action){if(action==='promote')throw Error('P31_UNPROVEN_WRITER_FENCING');return {nodeId:id,action,writerGranted:false};}`);
+ assert.equal((await bridge.mhcPrimarySelection()).p31.canPromote,false);
+ assert.equal((await bridge.mhcP31Readiness()).canPromote,false);
+ assert.deepEqual(await bridge.mhcPrimaryAction({action:'p31-prepare',id:'fixture'}),{nodeId:'fixture',action:'prepare',writerGranted:false});
+ for(const action of ['route','route-resume','complete'])await assert.rejects(bridge.mhcPrimaryAction({action}),/P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED/);
+ await assert.rejects(bridge.mhcPrimaryAction({action:'p31-promote',id:'fixture'}),/UNPROVEN_WRITER_FENCING/);
  for(const [file,args] of [['manual-primary.mjs',['status']],['auto-primary.mjs',['tick']],['node-enroll.mjs',['role-accept']]]){
   const r=spawnSync(process.execPath,[path.join(root,'bin',file),...args],{env:{...process.env,HOME:home},encoding:'utf8',timeout:5000});
   assert.notEqual(r.status,0);assert.match(r.stderr,/Shared authority configured/);

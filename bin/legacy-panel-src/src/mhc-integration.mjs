@@ -12,7 +12,10 @@ const BIN=path.join(HOME,'.local/share/mhc-full-installer/bin');
 const BOOT=path.join(HOME,'.config/mhc-full-installer/installed');
 function sharedConfigured(){try{fs.lstatSync(path.join(HOME,'.config/mhc-full-installer/authority.json'));return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
 async function sharedClient(){return import(pathToFileURL(path.join(BIN,'cluster-authority.mjs')).href);}
-async function sharedView(){try{return await (await sharedClient()).sharedStatus();}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
+function p31Configured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/p31/config.json'));}
+async function p31Client(){return import(pathToFileURL(path.join(BIN,'p31-control.mjs')).href);}
+async function sharedView(){try{return {...await (await sharedClient()).sharedStatus(),...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
+export async function mhcP31Readiness(){if(!p31Configured())return {enabled:false,canPromote:false};return (await p31Client()).p31Readiness();}
 function run(file,args=[],ms=2200){return new Promise(resolve=>{
   execFile(file,args,{timeout:ms,maxBuffer:32768,encoding:'utf8',env:{...process.env}},(err,stdout,stderr)=>{
     resolve(err?null:String(stdout||stderr||'').trim().slice(0,32768));
@@ -312,7 +315,7 @@ export async function mhcWriterAudit(){
  }catch{return fallback;}
 }
 
-// Manual selection only: never touches nginx, MariaDB, Cloudflare, SSH or live route.
+// Shared preparation plus explicit isolated read-only preview. No writer or public route grant.
 export async function mhcPrimarySelection(){
  if(sharedConfigured())return sharedView();
  const cli=path.join(BIN,'manual-primary.mjs');
@@ -323,7 +326,14 @@ export async function mhcPrimarySelection(){
  catch{return {mode:'NOT_OBSERVED',nodes:[],declaredPrimary:null,pending:null};}
 }
 export async function mhcPrimaryAction(body){
- if(sharedConfigured())return (await sharedClient()).sharedAction(body);
+ if(sharedConfigured()){
+  if(p31Configured()&&['route','route-resume','complete'].includes(body?.action))throw Error('P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED');
+  if(['p31-prepare','p31-standby','p31-promote'].includes(body?.action)){
+   if(!p31Configured())throw Error('P31_NOT_CONFIGURED');
+   return (await p31Client()).p31Request(body.id,body.action.slice(4),body);
+  }
+  return (await sharedClient()).sharedAction(body);
+ }
  const op=body?.action, id=body?.id;
  if(!['begin','complete','abort'].includes(op)||typeof id!=='string'||!/^[0-9a-f-]{36}$/i.test(id))throw Error('Invalid primary selection request');
  const cli=path.join(BIN,'manual-primary.mjs');

@@ -22,6 +22,36 @@ MariaDB privileged/root, shell/Node/PHP tùy ý, file upload trực tiếp dư�
 
 Tham chiếu cơ chế: [MariaDB read-only replicas](https://mariadb.com/docs/server/ha-and-performance/standard-replication/read-only-replicas) mô tả ngoại lệ privileged writers; [WordPress wp-config](https://developer.wordpress.org/apis/wp-config-php/) mô tả các cờ cron/file/outbound HTTP. Các cờ WordPress không là OS sandbox hoặc fencing.
 
-## Lifecycle và Cloudflare
+## Protocol candidate và original Panel
+
+`bin/p31-node.mjs` kiểm dataset manifest (gồm wp-config, DB-client và Nginx/PHP config), SELECT-only grants, SQL/HTTP/static/media, Agent/Panel/SSH rồi ký Ed25519 proof. Mỗi proof gắn node/cluster/version/commit/operation/revision/epoch, challenge nonce ngẫu nhiên 256-bit, thời hạn 15 giây. Verifier dùng public key đã ghim và authority đọc lại; sai signature/nonce/epoch/revision/operation, stale hoặc replay bị từ chối. Endpoint là SSH forced-command `mhc-p31`, không thêm public HTTP control endpoint.
+
+`bin/p31-control.mjs` chỉ kết nối peer trong private allowlist, SSH key riêng, known_hosts đã xác minh, không dùng host/user/key từ browser. Panel cũ vẫn xử lý Access/password/session/Origin/CSRF; GET `/api/mhc/p31-readiness` cần đăng nhập, POST `/api/mhc/primary-selection` thêm `p31-prepare`, `p31-standby`; `p31-promote` luôn từ chối. P3.1 cấu hình thì route/route-resume/complete cũ bị chặn tại bridge; không thể bỏ qua bằng checkboxes.
+
+Thao tác từ Panel bất kỳ: chọn ứng viên bằng begin/CAS của authority hiện có → kiểm readiness → bật preview chỉ đọc → xác minh HTTP riêng tại node → dừng preview về Standby → abort pending. Begin/abort là mutation LAB được phép trong P3.1, không phải deploy Worker, đổi DNS hay cấp Primary. Thử ngược bằng một pending mới, không sử dụng epoch cũ.
+
+Supervisor `mhc-lab-p31` chỉ quản lý hai child PHP/Nginx của dataset, không đụng Panel/Agent/SSH/Tunnel hoặc WordPress 18080 gốc. Journal intent/receipt và lock private cho retry; idempotency conflict bị chặn, crash lock giữ để kiểm, không xóa mù. Watch kiểm authority/pending và Agent mỗi vòng; lỗi/outage/sai epoch thì dừng child process groups và quarantine. Restart luôn bắt đầu Standby, cần yêu cầu chuẩn bị mới; không phục hồi activation cũ từ disk. PID/start-time journal cho phép reap orphan sau SIGKILL mà không giết PID đã tái sử dụng. Đây là supervision hợp tác, không sandbox/fencing cho cùng UID hoặc root; cửa sổ crash trước ghi journal vẫn không phải guarantee độc lập.
+
+## Cấu hình peer và cứu hộ
+
+Sau source upgrade package đã kiểm, chạy `node ~/.local/share/mhc-full-installer/bin/p31-configure.mjs prepare` trên mỗi node. Công cụ sinh riêng proof key và SSH key 0600 tại `~/.config/mhc-full-installer/p31`; output chỉ public keys/node/cluster. Không copy private key. Gom public peer fields `{nodeId,clusterId,publicKey,sshPublicKey,user,host,port}` cùng known_hosts lấy từ host keys Windows đã ghim; không tự tin ssh-keyscan. JSON `{peers,knownHosts}` qua stdin tới `p31-configure.mjs configure` trên từng node.
+
+Configure giữ identity/password/enrollment hiện có, backup authorized_keys private, chỉ thêm dedicated key với `restrict,command=...p31-node.mjs accept`; không cho shell/PTY/port forwarding bằng key đó. Khóa SSH cứu hộ Windows giữ nguyên. Re-run cùng config giữ keys; config khác bị từ chối. Service mới start ở Standby; không khởi động website.
+
+Nếu lỗi: dùng SSH Windows bình thường, dừng riêng `sv -w 10 down "$PREFIX/var/service/mhc-lab-p31"`; kiểm port 18131/19131 đã đóng và Panel/Agent/SSH còn khỏe. Không restore DB hoặc authorized_keys toàn bộ chỉ để rollback source, vì có thể ghi đè khóa mới người dùng thêm sau checkpoint. Giữ backup/dataset/config private; source rollback theo NODE-SOURCE-UPGRADE, đồng thời dừng service mới trước khi quay lại bản không có P3.1.
+
+## P3.2 — checklist thao tác Cloudflare chưa thực hiện
+
+| Hạng mục cần chuẩn bị | Ai thao tác / điều kiện |
+|---|---|
+| Named Tunnel riêng XZ3 | User đăng nhập tài khoản quản lý giaouoc.com, tạo connector riêng; token nhập trực tiếp private, không chat/Git. Chưa tạo trong P3.1. |
+| Origin Panel XZ3 | Cùng hostname/issuer/AUD và policy email admin của Panel Vsmart; kiểm JWT thực sau login, giữ CSRF và localhost recovery password. |
+| Ingress từng Tunnel | Cùng hostname Panel → loopback 9090 trên đúng node; website → runtime đã kiểm. Không gộp hai connector thành router Primary ngẫu nhiên. |
+| Worker/DO hiện có | Kiểm read-only deployment/binding/membership/cron trước khi deploy mới, giữ cluster UUID/keys. Chưa được deploy trong P3.1. |
+| Route allowlist | Ghi cụ thể zone/record/hostname/Tunnel UUID cho site và Panel; token DNS Edit chỉ zone LAB ở control plane, không phân phát xuống nodes. Chưa bật opt-in DNS/recovery. |
+| Panel recovery | Chỉ đổi route Panel khi incumbent offline; không tự cấp writer. Cần thử Access từ mạng ngoài qua standby, timeout/retry/no-failback. |
+| Journal/rollback | Adapter site trước Panel, intent bền vững, GET/PATCH/GET; chỉ rollback khi chưa có ghi mới hoặc có kế hoạch dữ liệu rõ. DNS đúng chưa đủ nghiệm thu HTTP. |
+
+Source P3 route/recovery đã có nhưng P3.1 không sử dụng token DNS, không đọc credentials tài khoản hoặc nạp secrets. Chưa có bằng chứng account read-only mới; HTTP 302 public chỉ chứng minh cổng Access reachable.
 
 Reboot thực chỉ khi có cứu hộ/người vận hành; không suy ra PASS từ việc chạy Boot script. Giữ Panel/Agent/SSH và Tunnel trên Standby. P3.2 sẽ kiểm account/Worker/DO hiện có, Tunnel riêng XZ3, Access issuer/AUD/policy và route allowlist; P3.1 không đổi DNS, Worker, Access, secrets hoặc route công khai.

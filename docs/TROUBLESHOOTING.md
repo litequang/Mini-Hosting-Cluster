@@ -1,5 +1,12 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## P3.1 candidate nội bộ
+
+- `P31_UNPROVEN_WRITER_FENCING` / `P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED`: fail-closed có chủ đích, không sửa flags hoặc dùng checkboxes DNS-only cũ để bypass. Preview hoạt động không đồng nghĩa Primary đã chuyển.
+- `P31_DATASET_CHANGED` / `P31_SQL_READ_ONLY_NOT_VERIFIED`: so manifest và SHOW GRANTS của DB LAB riêng; không mở quyền ghi để sửa lỗi preview. Site Vsmart gốc không thuộc service `mhc-lab-p31`.
+- `P31_PROOF_*` / `P31_AUTHORITY_REVISION_EPOCH_CHANGED`: lấy challenge/proof mới, refresh pending/epoch từ authority; không tái dùng proof đã hết hạn. `P31_PEER_UNAVAILABLE`: kiểm dedicated forced-command key và pinned known_hosts bằng đường SSH cứu hộ bình thường; không tắt StrictHostKeyChecking.
+- `P31_OPERATION_LOCKED_INSPECT_IF_CRASHED`: kiểm process/journal trước, không xóa lock mù. Restart supervisor đưa về quarantine; phải chuẩn bị mới. Cứu hộ/runbook ở P3-INTERNAL-CANDIDATE.md.
+
 ## Unified source upgrade 27/10
 
 Entry hiện hành là update.sh trong package do scripts/build-node-upgrade.mjs tạo từ commit; xem NODE-SOURCE-UPGRADE.md. Không gọi raw updater 13 file cũ để chuẩn hóa version. --plan/--verify kiểm manifest, --apply có automatic rollback files + Panel/Agent processes; source release thật ghi ở ~/.local/state/mhc-source-upgrade/current.json, marker TEST legacy giữ nguyên. NODE_NOT_APPROVED_LAB/PRODUCTION_OR_INCOMPLETE_NODE/UNKNOWN_*_BOOT phải được điều tra, không sửa marker/identity để bypass. Rollback failure giữ backup/journal, cần cứu hộ SSH, không xóa lock mù.

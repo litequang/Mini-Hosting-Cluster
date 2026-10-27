@@ -68,9 +68,12 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  // Local password still works; no Access identity available on localhost.
  const local=await request(p,'127.0.0.1:'+p,'/api/session');
  assert.equal(local.status,200);assert.equal(local.data.loggedIn,false);
+ assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p31-readiness')).status,401,'readiness requires Panel authentication');
  const login=await request(p,'127.0.0.1:'+p,'/api/login',{method:'POST',body:{username:'admin',password:pwd}});
  assert.equal(login.status,200);assert.equal(login.data.authMode,'password');
  const localCookie=login.cookie.split(';')[0];
+ assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p31-readiness',{cookie:localCookie})).data.enabled,false);
+ assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/primary-selection',{cookie:localCookie,method:'POST',body:{action:'p31-prepare'}})).status,403,'candidate activation requires CSRF');
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/sites',{cookie:localCookie})).status,200);
  // Access JWT validated on every remote request. Does NOT require Panel password.
  assert.equal((await request(p,host,'/api/session')).status,403,'remote blocked without JWT');
