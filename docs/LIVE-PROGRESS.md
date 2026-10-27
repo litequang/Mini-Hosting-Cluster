@@ -1,5 +1,14 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 27/10/2026 — XZ3 canary: DONE kiểm tra ngay sau update
+
+- **Release thật:** MHC-LAB-20261027.1, source commit `f128154f37408c67650356ae90485c30461b41b7`; 78/78 manifest files live/managed/launcher/Boot khớp. Manifest SHA-256 `4fde91d40d5d2f8126bfec3b2c16b64c4f8c4c1627bc28c8fb91fe9fbf73049b`. Package/backup private dưới ~/.local/state/mhc-source-upgrade, version thật ở current.json; marker legacy giữ nguyên.
+- **Rollback thực PASS:** transaction `tx-20261027025027446-18b3f7` restore chính xác baseline source/Boot và reload/health cả Panel/Agent; áp lại cùng artifact ở `tx-20261027025251747-90e162` rồi verify PASS. Apply lặp trả ALREADY_CURRENT, PID Panel 21935/Agent 21944 giữ nguyên sau no-op. Fixture Windows 20 và Android 21 scenarios/node cùng full self-test hai Android PASS trước rollout.
+- **Dữ liệu/quyền giữ nguyên:** so private backup xác nhận config node/identity/enrollment và Panel admin/password/Access data không đổi; MariaDB SELECT 1 PASS. XZ3 không có website LAB trước update và vẫn chưa cài thêm site/Tunnel/Cloudflare.
+- **SSH/Boot:** mở rescue listener key-only 8023, verify bằng host key đã ghim, chuyển 8022 sang runit từ phiên rescue rồi kiểm SSH key mới PASS. Chỉ dừng old standalone listener sau khi rescue đã xác minh. sshd supervised PID 22197 running; rescue đã đóng, fresh 8022 key PASS. Boot còn đúng 10-mhc-start canonical; Doctor LOCAL_PASS/Panel 200/Monitor v2/authority revision 3 epoch 0 với telemetry mới.
+- **NOT RUN:** reboot/Doze, browser login, public Access XZ3, P3/cutover. Đây là canary ngay sau cập nhật, chưa nghiệm thu cold boot. Cloudflare/Primary/website routes không đổi.
+- **Việc tiếp theo:** Vsmart preflight/backup và apply đúng package/manifest trên; chỉ thực hiện sau checkpoint canary này.
+
 ## 27/10/2026 — unified source upgrade `MHC-LAB-20261027.1`: IN PROGRESS
 
 - **Source package:** một builder Git-commit → manifest SHA-256 → offline update.sh; toàn bộ managed bin, launcher, 7 live/managed Panel assets (gồm JWT), canonical Boot. Plan/hash/syntax trước dừng dịch vụ; transaction backup/file modes/absence + service/Boot, rollback restart và health cả Panel/Agent. Credential/identity/admin/DB/site/snapshot ngoài write allowlist. Xem [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md).
