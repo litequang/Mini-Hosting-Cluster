@@ -4,7 +4,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {SourceUpgrade,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA} from '../bin/source-upgrade.mjs';
+import {SourceUpgrade,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA,supportedRuntime} from '../bin/source-upgrade.mjs';
+assert.equal(supportedRuntime('android','/data/data/com.termux/files/usr'),true);
+assert.equal(supportedRuntime('linux','/data/data/com.termux/files/usr'),true);
+assert.equal(supportedRuntime('win32','/data/data/com.termux/files/usr'),false);
+assert.equal(supportedRuntime('android','/tmp/fake-prefix'),false);
 const roots=[];const write=(p,b)=>{fs.mkdirSync(path.dirname(p),{recursive:true});fs.writeFileSync(p,b);};
 const legacy=`#!/data/data/com.termux/files/usr/bin/sh
 # mhc-node-boot-managed (management services only)

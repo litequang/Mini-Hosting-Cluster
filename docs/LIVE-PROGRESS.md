@@ -7,6 +7,7 @@
 - **PASS Windows:** 20 fault/security/process scenarios của updater, SSO, candidate UI, Node/Shell syntax. **PASS Android fixture:** 21 updater scenarios trên mỗi máy và full bin/self-test.sh trên cả XZ3 lẫn Vsmart (FULL_SUITE_EXIT=0), gồm M2/P3/SSO. Harness lần đầu sai TMPDIR dài làm Unix socket EINVAL; dùng TMPDIR chuẩn ngắn đã sửa harness, không sửa/bỏ guard source.
 - **Thiết bị thật:** chưa apply release trong checkpoint package. XZ3 canary phải qua plan/backup/hash/process/fresh telemetry, SSH rescue → runit và Boot normalization trước Vsmart. Reboot/browser/Cloudflare P3 NOT RUN; không đổi DNS/Worker/Access/Primary.
 - **Việc tiếp theo:** chốt commit package đã test, build đúng một artifact, nâng XZ3 canary và kiểm rollback trước khi nâng Vsmart. Bốn phần clock-health ở workspace cha giữ nguyên.
+- **Preflight canary chưa apply:** artifact từ `5915a67` bị TERMUX_REQUIRED vì Node Termux thực trả process.platform=android. Guard được sửa nhận android/linux với prefix cố định; thêm test giữ reject Windows/sai prefix. Focused updater rerun PASS Windows và cả hai Android (21 scenarios/node). Chưa có runtime nào bị thay bởi artifact bị chặn; build lại release trước apply.
 
 ## 27/10/2026 08:40–08:49 VN — hoàn tất tiếp nhận hai LAB (source `da7d67a`)
 

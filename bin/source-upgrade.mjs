@@ -11,6 +11,7 @@ export const PANEL_FILES=['src/server.mjs','src/system.mjs','src/mhc-integration
 export const LEGACY_BOOT_SHA='dfb55b50c571c154843dd035e0c272d8c7a82b5959312e737d36399b112dca85';
 export const OLD_CANONICAL_SHA='82142c143ce49c2e259b8ce68f1dae1bcad2b13ac4368117e752e558e66d027f';
 export const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
+export const supportedRuntime=(platform,prefix)=>['android','linux'].includes(platform)&&prefix==='/data/data/com.termux/files/usr';
 const fail=code=>{throw Error(code);};
 const exists=p=>{try{return fs.lstatSync(p);}catch(e){if(e.code==='ENOENT')return null;throw e;}};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -40,7 +41,7 @@ export class SourceUpgrade{
   return this.safe(p);
  }
  gate(){
-  if(!this.fixture&&(process.platform!=='linux'||this.prefix!=='/data/data/com.termux/files/usr'))fail('TERMUX_REQUIRED');
+  if(!this.fixture&&!supportedRuntime(process.platform,this.prefix))fail('TERMUX_REQUIRED');
   for(const p of ['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json','.config/mhc-full-installer/install-incomplete'])if(exists(path.join(this.home,p)))fail('PRODUCTION_OR_INCOMPLETE_NODE');
   const cfg=path.join(this.home,'.config/mhc-full-installer');
   if(fs.readFileSync(path.join(cfg,'installed'),'utf8').trim()!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')fail('UNKNOWN_INSTALLER_MARKER');
