@@ -9,3 +9,7 @@ class_name = "ClusterAuthority"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ClusterAuthority"]
+
+# Safe opt-in Panel-only recovery check. It does not elect a website Primary.
+[triggers]
+crons = ["* * * * *"]
