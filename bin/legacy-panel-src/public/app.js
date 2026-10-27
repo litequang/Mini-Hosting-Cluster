@@ -299,7 +299,7 @@ ${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Hủy ứng viên','primary
 </div></div>`:'';
   const recovery=shared?`<div class="card"><h2>Panel chung &amp; khôi phục quản trị</h2>
  <p><b>Website Primary được ghi nhận (LAB):</b> ${esc(d.declaredPrimary?.label||'Chưa xác minh')}</p>
- <p><b>Tuyến quản trị:</b> ${d.panelRecovery?.status==='DNS_SWITCHED_RECOVERY'?'Panel đã được chuyển tới Standby':d.panelRecovery?.status==='DNS_REQUESTED'?'Đang khôi phục Panel':d.panelRecoveryEnabled?'Theo dõi để khôi phục khi Primary mất tín hiệu (LAB)':'Chưa kích hoạt khôi phục tự động (LAB)'}</p>
+ <p><b>Tuyến quản trị:</b> ${d.panelRecovery?.status==='DNS_SWITCHED_RECOVERY'?'DNS Panel đã chuyển sang Standby (chưa kiểm tra HTTP)':d.panelRecovery?.status==='DNS_REQUESTED'?'Đang khôi phục Panel':d.panelRecoveryEnabled?'Theo dõi để khôi phục khi Primary mất tín hiệu (LAB)':'Chưa kích hoạt khôi phục tự động (LAB)'}</p>
  ${d.panelRecovery?`<p>Node Panel dự phòng: <b>${esc(nodes.find(n=>n.nodeId===d.panelRecovery.targetNodeId)?.label||'Không xác định')}</b> · ${esc(mhcTime(d.panelRecovery.dnsVerifiedAt||d.panelRecovery.startedAt))}</p>`:''}
  <p class="help">Panel 9090 vẫn chạy trên mọi node. Khôi phục địa chỉ Panel không tự chuyển website, DB hoặc quyền ghi. Chuyển Primary website cần hoàn tất P3 riêng.</p></div>`:'';
   const enroll=shared?`<div class="card"><h2>Thêm điện thoại mới vào Cluster</h2><p>Điện thoại mới cần chạy bộ cài MHC một lần. Tạo mã dùng một lần, tự hết hạn sau 10 phút; node mới tham gia Standby và tự gửi Monitor.</p>${btn('Tạo mã ghép 10 phút','cluster-invite','primary')}</div>`:'';
