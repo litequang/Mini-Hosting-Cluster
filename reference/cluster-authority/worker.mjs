@@ -229,7 +229,9 @@ export class ClusterAuthority {
    if(action==='route'||action==='route-resume'){
     // Journal was committed before any external API side effects. A failed/partial PATCH
     // leaves ROUTING_REQUESTED: retry with route-resume after inspecting live DNS.
-    const applied=await p3SwitchDns(this.env,result.pending);
+    const panelFrom=result.panelRecovery?.status==='DNS_SWITCHED_RECOVERY'?
+      result.panelRecovery.targetNodeId:null;
+    const applied=await p3SwitchDns(this.env,{...result.pending,panelFromNodeId:panelFrom});
     const completed=await this.ctx.storage.transaction(async tx=>{
      const st=await tx.get('state');
      if(!st?.pending||st.pending.operationId!==result.pending.operationId||
