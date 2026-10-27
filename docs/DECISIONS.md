@@ -33,3 +33,8 @@
 - Token chỉ cấp quyền theo zone/account cụ thể, giữ trong control plane tin cậy, KHÔNG phân phát DNS Edit token xuống mọi node. Không động đến tên miền đang tồn tại ngoài danh sách/luồng MHC. Subdomain trùng thì báo xung đột, không ghi đè.
 - Không cấu hình IP cố định; website đi qua named Tunnel. Wildcard subdomain chỉ bật riêng từng domain theo opt-in, mặc định API tạo hostname cụ thể. Đổi Primary phải tái sử dụng Cloudflare routing adapter và kiểm tra trạng thái dịch vụ + cấp quyền writer độc lập.
 - **Phân vai Primary/Panel**: mọi node có Panel 9090 độc lập; `panel.giaouoc.com` bình thường trỏ tới Primary đã xác minh, nhưng có tuyến recovery vào Standby khi Primary offline. Shared authority nằm ngoài Primary. Việc chuyển Panel không phải là tự cấp Primary.
+## Ghi nhận kiểm kê 27/10/2026
+
+13. Không dùng marker installer hoặc heartbeat làm chứng nhận bản source đang cài, Tunnel/Access đang hoạt động hay node được cấp Primary; so Git blob từng file và kiểm runtime riêng.
+14. Node F3216 xuất hiện trong shared authority nhưng chưa xác định là LAB hay thiết bị thật: không áp updater/route/failover lên node đó trước khi xác minh.
+15. Nhiệm vụ tiếp nhận lần này chỉ kiểm kê và tài liệu; giữ các code clock-health ở workspace cha, không gộp vào branch hay triển khai P3/P4 trong lượt này.

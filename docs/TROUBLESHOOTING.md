@@ -53,3 +53,9 @@ User log 12:17–12:18 UTC cho thấy browser request đến origin có JWT như
 - `P3_CLOUDFLARE_NETWORK_FAILED`, `P3_DNS_VERIFY_FAILED`, `P3_CLOUDFLARE_API_FAILED`: leave `ROUTING_REQUESTED`; inspect existing DNS, then use P3 UI resume after 30s. No blind abort/rollback once route may have changed.
 - `P3_TARGET_NOT_READY`: candidate Agent is missing recent v2 metrics or Panel/Nginx not RUNNING. Confirm local host and app/DB before trying again. Unfenced writers mean unsafe production failover.
 - `P3_FINAL_CONFIRMATIONS_REQUIRED`: operator must test external website and protected Panel and verify old writer stopped before recording LAB state; recorded state is not a writer lease.
+## Kiểm kê 27/10/2026: Sony SSH và nguồn dữ liệu Monitor
+
+- Sony XZ3 LAB hiện được user báo `u0_235@192.168.1.41:8022`: strict host key PASS nhưng key đăng nhập hiện có FAIL. Thêm **public** key vào `~/.ssh/authorized_keys` trên Sony, giữ quyền thư mục 0700/file 0600; không dùng mật khẩu/key riêng trong chat. Chưa thể khẳng định XZ3 Panel/Tunnel/boot từ SSH.
+- Vsmart `sv status amh-panel` từ SSH remote trả “service directory does not exist” nếu không có `SVDIR`; dùng `sv status "$PREFIX/var/service/amh-panel"` và các đường dẫn đầy đủ để kiểm. `node-doctor`/telemetry của Sony có thể báo `sshd:stopped` dù SSH tới được màn xác thực: kiểm collector/runit trực tiếp trước khi kết luận.
+- Probe `panel.giaouoc.com` từ Windows lần này bị TLS schannel HTTP 000; không dùng nó để kết luận Cloudflare origin hỏng hoặc P3 recovery đang chạy. Cloudflare account/Worker/Cron/P3 opt-in cần xác minh bằng quyền read-only hợp lệ.
+- Trên Windows, `tests/manual-candidate-ui.mjs` FAIL ở literal `declaredPrimary:null` cũ và `tests/access-sso-panel.mjs` FAIL khi spawn Panel; bốn test fixture M2/P3 khác PASS. Không đánh dấu full regression PASS hay tự sửa test trong nhiệm vụ kiểm kê.

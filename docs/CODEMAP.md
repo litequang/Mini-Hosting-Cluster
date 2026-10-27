@@ -104,3 +104,10 @@
 - `reference/cluster-authority/wrangler.toml`: cron every 1m, opt-in secret off by default.
 - `bin/legacy-panel-src/public/app.js`: original Cluster Panel shows Panel recovery route/status distinct from LAB declaredPrimary.
 - `tests/p3-panel-recovery.mjs`: unit/fixture coverage; `docs/P3-PANEL-RECOVERY-2026-10-27.md`: deployment/runbook.
+# Đối chiếu code với runtime 27/10/2026
+
+- `reference/cluster-authority/worker.mjs`, `p3-route.mjs`, `p3-recovery.mjs`: DO membership/Monitor, P3 DNS route và Cron Panel-only recovery opt-in trong **source** `055aab5`; Cloudflare deploy hash chưa xác minh.
+- `scripts/update-existing-android-node.sh`: pin 13 file ở `f73df61`, manifest SHA khớp; không tự động triển khai Worker hoặc Cloudflare secrets. `scripts/bootstrap-new-android-node.sh` chỉ cho Termux trống.
+- `bin/node-monitor.mjs`, `bin/cluster-authority.mjs`, `bin/legacy-panel-src/public/app.js`: trên Vsmart collector đã khớp pin P3, authority client/UI còn bản cũ hơn. Marker `TEST 0.5.0C-REMOTE-PANEL` không xác định chính xác từng file.
+- `tests/p3-route.mjs`, `tests/p3-panel-recovery.mjs`, `tests/cluster-pairing.mjs`, `tests/monitor-all-nodes.mjs`: PASS fixture Windows 27/10; `tests/manual-candidate-ui.mjs`, `tests/access-sso-panel.mjs`: FAIL Windows, xem audit.
+- Code clock-health chưa commit còn ở workspace cha ngoài `.work/repository`; không nhập vào branch khi kiểm kê.

@@ -51,3 +51,6 @@
 
 ### Definition of done
 Đối với mỗi P: source + test tự động + bằng chứng **Android thật** + phiên bản ZIP/repo commit + changelog + rollback. Chỉ cần 1 release per milestone, không phát hành 5-10 bản nhỏ mà mục tiêu vẫn chưa usable.
+# Checkpoint kiểm kê 27/10/2026
+
+GitHub HEAD `055aab5` có source P3 manual DNS và Panel-only recovery, nhưng Vsmart đang cài từng file lệch pin P3; Cloudflare P3 và Sony trực tiếp chưa xác minh. Authority thực vẫn `PREPARE_ONLY`, không Primary/lease. P0/P1/P2/P3 còn IN PROGRESS; P4/P5 NOT STARTED. Mốc tiếp theo sau kiểm kê là xác minh hai LAB + Cloudflare, đồng bộ bản cài có backup, hoàn thành candidate activation/fencing/origin proof, rồi manual cutover/rollback thật. Xem `LIVE-PROGRESS.md` và `CODEX-RESUME-AUDIT-2026-10-27.md` cho bằng chứng và FAIL/NOT RUN. Không coi P3 source hay Cron Panel recovery là hoàn thành P3/P4.
