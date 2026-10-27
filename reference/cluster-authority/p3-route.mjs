@@ -42,7 +42,8 @@ function verifyRecord(r,observed){
  if(observed.id!==r.recordId||observed.name!==r.hostname||observed.type!=='CNAME'||observed.proxied!==true)
   error('P3_EXISTING_ROUTE_MISMATCH');
 }
-async function switchDns(env,{fromNodeId,targetNodeId},fetcher,onlyPanel){
+async function switchDns(env,argumentsFromTo,fetcher,onlyPanel){
+ const {fromNodeId,targetNodeId}=argumentsFromTo;
  const routes=p3Config(env).filter(r=>!onlyPanel||r.kind==='panel');
  if(onlyPanel&&routes.length!==1)error('P3_PANEL_ROUTE_MISSING_OR_DUPLICATE');
  if(!UUID.test(fromNodeId||'')||!UUID.test(targetNodeId||'')||fromNodeId===targetNodeId)
@@ -51,8 +52,13 @@ async function switchDns(env,{fromNodeId,targetNodeId},fetcher,onlyPanel){
  // or the proposed target. The latter enables safe, idempotent crash recovery.
  const planned=[];
  for(const r of routes){
-  const oldTarget=r.nodeTargets[fromNodeId],newTarget=r.nodeTargets[targetNodeId];
-  if(!TUNNEL.test(oldTarget||'')||!TUNNEL.test(newTarget||'')||oldTarget===newTarget)
+  const actualSource=r.kind==='panel'&&!onlyPanel&&UUID.test(argumentsFromTo.panelFromNodeId||'')?
+   argumentsFromTo.panelFromNodeId:fromNodeId;
+  const oldTarget=r.nodeTargets[actualSource],newTarget=r.nodeTargets[targetNodeId];
+  // After an offline recovery the protected Panel may already live on target.
+  const alreadyRecoveredPanel=r.kind==='panel'&&!onlyPanel&&actualSource===targetNodeId;
+  if(!TUNNEL.test(oldTarget||'')||!TUNNEL.test(newTarget||'')||
+     (oldTarget===newTarget&&!alreadyRecoveredPanel))
    error('P3_TARGET_TUNNEL_NOT_CONFIGURED');
   const current=await cfRequest(env,'GET',r,null,fetcher);
   verifyRecord(r,current);
