@@ -1,22 +1,43 @@
 # MHC — trạng thái thực thi duy nhất
 
-## 27/10/2026 — XZ3 canary: DONE kiểm tra ngay sau update
+## 27/10/2026 — đồng bộ và nâng cấp hai node LAB: DONE ngay sau cập nhật
 
-- **Release thật:** MHC-LAB-20261027.1, source commit `f128154f37408c67650356ae90485c30461b41b7`; 78/78 manifest files live/managed/launcher/Boot khớp. Manifest SHA-256 `4fde91d40d5d2f8126bfec3b2c16b64c4f8c4c1627bc28c8fb91fe9fbf73049b`. Package/backup private dưới ~/.local/state/mhc-source-upgrade, version thật ở current.json; marker legacy giữ nguyên.
-- **Rollback thực PASS:** transaction `tx-20261027025027446-18b3f7` restore chính xác baseline source/Boot và reload/health cả Panel/Agent; áp lại cùng artifact ở `tx-20261027025251747-90e162` rồi verify PASS. Apply lặp trả ALREADY_CURRENT, PID Panel 21935/Agent 21944 giữ nguyên sau no-op. Fixture Windows 20 và Android 21 scenarios/node cùng full self-test hai Android PASS trước rollout.
-- **Dữ liệu/quyền giữ nguyên:** so private backup xác nhận config node/identity/enrollment và Panel admin/password/Access data không đổi; MariaDB SELECT 1 PASS. XZ3 không có website LAB trước update và vẫn chưa cài thêm site/Tunnel/Cloudflare.
-- **SSH/Boot:** mở rescue listener key-only 8023, verify bằng host key đã ghim, chuyển 8022 sang runit từ phiên rescue rồi kiểm SSH key mới PASS. Chỉ dừng old standalone listener sau khi rescue đã xác minh. sshd supervised PID 22197 running; rescue đã đóng, fresh 8022 key PASS. Boot còn đúng 10-mhc-start canonical; Doctor LOCAL_PASS/Panel 200/Monitor v2/authority revision 3 epoch 0 với telemetry mới.
-- **NOT RUN:** reboot/Doze, browser login, public Access XZ3, P3/cutover. Đây là canary ngay sau cập nhật, chưa nghiệm thu cold boot. Cloudflare/Primary/website routes không đổi.
-- **Việc tiếp theo:** Vsmart preflight/backup và apply đúng package/manifest trên; chỉ thực hiện sau checkpoint canary này.
+- **Release đang chạy:** `MHC-LAB-20261027.1`, source commit `f128154f37408c67650356ae90485c30461b41b7`; implementation `5915a67`, checkpoint canary `84cc47c`. SHA của báo cáo cuối tra bằng `git log -1 --format=%H -- docs/LIVE-PROGRESS.md`. Cả hai cùng 78/78 file live/managed/launcher/Boot và manifest SHA-256 `4fde91d40d5d2f8126bfec3b2c16b64c4f8c4c1627bc28c8fb91fe9fbf73049b`. Version thật ở `~/.local/state/mhc-source-upgrade/current.json`; marker legacy 0.5.0C giữ nguyên để tương thích guard.
+- **Chức năng thực:** Panel 9090, Agent mới, Monitor v2/telemetry mới, live/managed JWT đồng bộ; cùng cluster `2c1ea7c0-1d1f-4802-8336-0925a529c431`, revision 3, epoch 0, declaredPrimary/pending null, writeLeaseGranted/automaticFailover false. Public Host thiếu JWT trả 403 tại origin trên cả hai; HTTPS public chưa đăng nhập trả 302 vào Access, chưa chứng minh authenticated browser/origin.
+- **Source mới đã triển khai:** package đầy đủ theo Git blobs; plan/hash/syntax trước mutation; backup private file/mode/absence/service/Boot; apply/verify/rollback có restart và health cả Panel/Agent; idempotent no-op. Doctor kiểm essential services, Boot canonical duy nhất. Không gọi fresh install/Doctor repair ngầm, không thay config/identity/credentials/DB/site. Runbook: [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md).
 
-## 27/10/2026 — unified source upgrade `MHC-LAB-20261027.1`: IN PROGRESS
+| Bằng chứng thiết bị thật | Sony XZ3 canary | Vsmart sau canary |
+|---|---|---|
+| Apply/verify | PASS, 78/78; final tx `tx-20261027025251747-90e162` | PASS, 78/78; tx `tx-20261027025915134-882870` |
+| Panel/Agent reload | PID 21935/21944, HTTP 200, heartbeat và telemetry mới | PID 22965/22972, HTTP 200, heartbeat và telemetry mới |
+| Apply lặp | ALREADY_CURRENT, PID không đổi | ALREADY_CURRENT, PID không đổi |
+| Rollback thật | PASS tx `tx-20261027025027446-18b3f7`: restore exact baseline + reload/health Panel/Agent; áp lại cùng artifact PASS | Không rollback live vì hậu kiểm khỏe; dùng bằng chứng canary và fault fixture |
+| Quyền/dữ liệu | Config/identity/enrollment/admin/Access bytes không đổi; SQL SELECT 1 PASS | Config/admin/Access và toàn bộ website khớp backup; SQL SELECT 1 PASS |
+| Hosting | Chưa có site LAB, không tự cài thêm | WordPress HTTP 200, form login render PHP PASS, static demo HTTP bytes khớp file; private source/config/site/SQL backup và checksum PASS |
+| SSH/Boot | Fresh SSH key/host key PASS; sshd runit PID 22197; rescue 8023 đã đóng; chỉ 10-mhc-start | Fresh SSH PASS; sshd runit PID 10518; chỉ 10-mhc-start |
+| Dịch vụ ngoài quản trị | Không cài Tunnel/Access mới | Tunnel 10536, nginx 10524, MariaDB 10514, WP PHP 10516/nginx 10513 giữ nguyên PID qua upgrade |
 
-- **Source package:** một builder Git-commit → manifest SHA-256 → offline update.sh; toàn bộ managed bin, launcher, 7 live/managed Panel assets (gồm JWT), canonical Boot. Plan/hash/syntax trước dừng dịch vụ; transaction backup/file modes/absence + service/Boot, rollback restart và health cả Panel/Agent. Credential/identity/admin/DB/site/snapshot ngoài write allowlist. Xem [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md).
-- **Sửa regression:** UI candidate giữ safety checks theo declaredPrimary LAB; Windows SSO dùng file URL và mode fixture đúng phạm vi, thêm assertion unsafe config bị chặn; self-test thêm 4 runner. Doctor không còn PASS khi essential service lỗi; Boot --status không ghi state, một canonical entry thay legacy đúng hash.
-- **PASS Windows:** 20 fault/security/process scenarios của updater, SSO, candidate UI, Node/Shell syntax. **PASS Android fixture:** 21 updater scenarios trên mỗi máy và full bin/self-test.sh trên cả XZ3 lẫn Vsmart (FULL_SUITE_EXIT=0), gồm M2/P3/SSO. Harness lần đầu sai TMPDIR dài làm Unix socket EINVAL; dùng TMPDIR chuẩn ngắn đã sửa harness, không sửa/bỏ guard source.
-- **Thiết bị thật:** chưa apply release trong checkpoint package. XZ3 canary phải qua plan/backup/hash/process/fresh telemetry, SSH rescue → runit và Boot normalization trước Vsmart. Reboot/browser/Cloudflare P3 NOT RUN; không đổi DNS/Worker/Access/Primary.
-- **Việc tiếp theo:** chốt commit package đã test, build đúng một artifact, nâng XZ3 canary và kiểm rollback trước khi nâng Vsmart. Bốn phần clock-health ở workspace cha giữ nguyên.
-- **Preflight canary chưa apply:** artifact từ `5915a67` bị TERMUX_REQUIRED vì Node Termux thực trả process.platform=android. Guard được sửa nhận android/linux với prefix cố định; thêm test giữ reject Windows/sai prefix. Focused updater rerun PASS Windows và cả hai Android (21 scenarios/node). Chưa có runtime nào bị thay bởi artifact bị chặn; build lại release trước apply.
+XZ3 chuyển SSH supervision từ daemon standalone qua listener cứu hộ key-only 8023 đã kiểm bằng host key ghim; chỉ TERM parent listener cũ từ phiên cứu hộ độc lập. Doctor LOCAL_PASS cả hai không thay thế nghiệm thu reboot. Preflight và transaction backups private được giữ trên từng node, không đưa Git. Package cùng bytes nằm dưới `~/.local/state/mhc-source-upgrade/incoming/`: XZ3 `release.482jP3`, Vsmart `release.bZPPan`; mỗi gói có `preflight-path` trỏ backup riêng. Artifact trên máy công ty: `E:\CODE\MHC\MHC\releases\MHC-LAB-20261027.1.tar`, có thể build lại từ source SHA trên.
+
+| Test | Windows | XZ3 Android | Vsmart Android |
+|---|---|---|---|
+| Updater fault/security/process reload | PASS 20 scenarios | PASS 21 scenarios, HOME cách ly | PASS 21 scenarios, HOME cách ly |
+| SSO/CSRF/JWT unsafe config và candidate UI | PASS | PASS trong full suite | PASS trong full suite |
+| Full bin/self-test.sh | NOT RUN toàn suite; focused + syntax PASS | PASS, FULL_SUITE_EXIT=0 tại source 5915a67 | PASS, FULL_SUITE_EXIT=0 tại source 5915a67 |
+| Guard Android-platform cuối f128154 | PASS focused | PASS focused 21 scenarios | PASS focused 21 scenarios |
+| Runtime sau upgrade | Không áp dụng | PASS như bảng trên | PASS như bảng trên |
+| Nhiều Android cutover/CAS mutation | NOT RUN | NOT RUN | NOT RUN |
+
+Lỗi harness TMPDIR dài gây Unix socket EINVAL đã sửa bằng TMPDIR chuẩn ngắn, giữ HOME cách ly; full suite chạy lại PASS, không bỏ assertion/guard. Artifact 5915a67 từng bị preflight TERMUX_REQUIRED do Node trả platform android; chưa mutation. Source f128154 nhận android/linux đúng Termux prefix, vẫn chặn Windows/sai prefix; cả hai triển khai chính artifact đã sửa.
+
+- **NOT RUN/còn thiếu DoD rộng hơn:** cold reboot/Doze/Termux:Boot tự khởi động; browser login trên hai Panel và Access qua Tunnel với JWT thật; restore site lên XZ3; cutover giữa hai Android. XZ3 chưa có Tunnel/Access là giới hạn có chủ đích của nhiệm vụ, không phải lỗi upgrade. M1/P1 và M2/P2 vẫn IN PROGRESS ở phạm vi roadmap, không gọi hosting/cluster hoàn tất chỉ vì source đã đồng bộ.
+- **Blocker cần user:** không còn blocker cho nâng cấp source này. Reboot cần cửa sổ có người mở lại Termux nếu Android không tự chạy; Cloudflare/đăng nhập browser và mở rộng Tunnel XZ3 cần nhiệm vụ tiếp theo, không thao tác tài khoản trong lượt này.
+- **Điều kiện trước P3:** nhiệm vụ mới cho phép tiếp tục; site/snapshot LAB riêng XZ3 đã restore và kiểm DB/media; candidate activation, writer fencing, HTTP node proof, conditional rollback; kiểm browser/authority và các quyền/allowlist Cloudflare hiện hành trước routing. Không coi mất heartbeat là fencing. Manual backup/restore đủ MVP.
+- **Việc tiếp theo duy nhất:** DỪNG sau báo cáo; chờ nhiệm vụ tiếp theo để bố trí nghiệm thu lifecycle và chuẩn bị P3. Không triển khai P3/P4/Cloudflare, không chuyển Primary/failover. M51/X7b và bốn phần clock-health ở workspace cha được giữ nguyên.
+
+## Lịch sử checkpoint — chỉ phản ánh thời điểm ghi
+
+Các mục dưới giữ bằng chứng lịch sử; trạng thái hiện hành của lần nâng cấp hai node là mục đầu trang.
 
 ## 27/10/2026 08:40–08:49 VN — hoàn tất tiếp nhận hai LAB (source `da7d67a`)
 
