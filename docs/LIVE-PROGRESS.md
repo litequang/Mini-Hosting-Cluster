@@ -1,5 +1,14 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 27/10/2026 — P3.1: IN PROGRESS; nền website hai Android DONE
+
+- **Hoạt động thật:** backup WordPress/site/static private trên Vsmart có SHA-256, SQL nén đã restore vào DB riêng `mhc_p31_restore_check`, đối chiếu số bản ghi PASS. Website gốc giữ nguyên. Core/media/static export SHA-256 `e36875944a676e19a7ff39c78cd27468ad09e6864ab2a7bda0aff2a31e21ecf0`; không chuyển SQL/users/password hashes/wp-config/options/credentials từ Vsmart.
+- **Bộ LAB riêng hai node:** `~/.local/share/mhc-p31-lab`, DB `mhc_p31_lab`, tài khoản web mới chỉ SELECT; nội dung synthetic, theme tối giản, media và static demo từ LAB Vsmart. Không gọi đây là bản sao đầy đủ dữ liệu WordPress. Mật khẩu/salts mới sinh riêng tại từng máy, không đưa argv/log/Git. `scripts/p31-prepare-lab.sh` là công cụ dựng fixture riêng, không thay installer hoặc website đăng ký.
+- **PASS Android thật Vsmart + XZ3:** WordPress HTTP/PHP và HTTP node ID; static/media bytes khớp; SQL SELECT và UPDATE bị từ chối; POST/wp-cron/wp-login/REST HTTP 403; start/stop website riêng không đổi PID Panel/Agent/SSH. Website preview đã dừng sau phép thử, chưa cấp writer/Primary. Cả hai vẫn release `MHC-LAB-20261027.1`, authority revision 3/epoch 0, Primary null.
+- **PASS Windows:** Shell syntax của công cụ dựng dataset. **NOT RUN:** candidate protocol/fault fixtures, Panel activation, hai chiều qua Panel, reboot/Doze, Cloudflare cutover. Lỗi static alias của fixture đã sửa và toàn bộ HTTP/start-stop chạy lại PASS; không mở quyền ghi để sửa HTTP.
+- **Commit:** checkpoint dữ liệu tra SHA bằng Git history của mục này; baseline trước nhiệm vụ `5cce13c`. **Thiếu DoD:** executor có journal/retry, signed readiness nonce/expiry, Panel integration, fault/rejoin/partition tests. Root SQL/shell cùng UID/Node/custom PHP/jobs ngoài fixture chưa bị fence độc lập, do đó safe Primary vẫn BLOCKED.
+- **Blocker cần user:** chưa có cho công việc source độc lập; reboot chỉ khi có người/đường cứu hộ phù hợp. **Việc tiếp theo:** hoàn thiện preview activation fail-closed từ Panel, kiểm hai Android; không đổi DNS/Worker/Access/Primary, không tiếp tục P3.2 trong lượt này.
+
 ## 27/10/2026 — đồng bộ và nâng cấp hai node LAB: DONE ngay sau cập nhật
 
 - **Release đang chạy:** `MHC-LAB-20261027.1`, source commit `f128154f37408c67650356ae90485c30461b41b7`; implementation `5915a67`, checkpoint canary `84cc47c`. SHA của báo cáo cuối tra bằng `git log -1 --format=%H -- docs/LIVE-PROGRESS.md`. Cả hai cùng 78/78 file live/managed/launcher/Boot và manifest SHA-256 `4fde91d40d5d2f8126bfec3b2c16b64c4f8c4c1627bc28c8fb91fe9fbf73049b`. Version thật ở `~/.local/state/mhc-source-upgrade/current.json`; marker legacy 0.5.0C giữ nguyên để tương thích guard.
