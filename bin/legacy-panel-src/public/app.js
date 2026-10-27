@@ -297,6 +297,11 @@ ${d.pending.status==='ROUTING_REQUESTED'?btn('Kiểm tra và tiếp tục DNS','
 ${d.pending.status==='DNS_SWITCHED_AWAITING_HTTP_CONFIRM'?btn('Xác nhận sau chuyển tuyến (LAB)','primary-lab-complete','primary'):''}
 ${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Hủy ứng viên','primary-abort','tiny warn'):''}
 </div></div>`:'';
+  const recovery=shared?`<div class="card"><h2>Panel chung &amp; khôi phục quản trị</h2>
+ <p><b>Website Primary được ghi nhận (LAB):</b> ${esc(d.declaredPrimary?.label||'Chưa xác minh')}</p>
+ <p><b>Tuyến quản trị:</b> ${d.panelRecovery?.status==='DNS_SWITCHED_RECOVERY'?'Panel đã được chuyển tới Standby':d.panelRecovery?.status==='DNS_REQUESTED'?'Đang khôi phục Panel':d.panelRecoveryEnabled?'Theo dõi để khôi phục khi Primary mất tín hiệu (LAB)':'Chưa kích hoạt khôi phục tự động (LAB)'}</p>
+ ${d.panelRecovery?`<p>Node Panel dự phòng: <b>${esc(nodes.find(n=>n.nodeId===d.panelRecovery.targetNodeId)?.label||'Không xác định')}</b> · ${esc(mhcTime(d.panelRecovery.dnsVerifiedAt||d.panelRecovery.startedAt))}</p>`:''}
+ <p class="help">Panel 9090 vẫn chạy trên mọi node. Khôi phục địa chỉ Panel không tự chuyển website, DB hoặc quyền ghi. Chuyển Primary website cần hoàn tất P3 riêng.</p></div>`:'';
   const enroll=shared?`<div class="card"><h2>Thêm điện thoại mới vào Cluster</h2><p>Điện thoại mới cần chạy bộ cài MHC một lần. Tạo mã dùng một lần, tự hết hạn sau 10 phút; node mới tham gia Standby và tự gửi Monitor.</p>${btn('Tạo mã ghép 10 phút','cluster-invite','primary')}</div>`:'';
   const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác đầu tiên chỉ chuẩn bị ứng viên. Chuyển tuyến chỉ hoạt động trên LAB có allowlist và xác nhận độc lập; không cấp writer lease.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Route LAB có nhật ký phục hồi. Worker phải có quyền DNS cho đúng tên miền thử nghiệm; chưa có write fencing thực.</p></div>`:'';
   page('Cluster — tổng quan',`
@@ -309,6 +314,7 @@ ${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Hủy ứng viên','primary
   </div>
   <div class='sectionhead'><h2>Thiết bị</h2></div><div class='grid two'>${cards||'<div class="card">Chưa có dữ liệu node.</div>'}</div>
   <div class='info' style='margin-top:16px'>${esc(notice)}</div>
+  ${recovery}
   ${enroll}
   ${selection}
   ${shared?`<div class='card' style='margin-top:16px'><b>Shared Authority M2</b><p>Revision ${Number.isSafeInteger(d.revision)?d.revision:'—'} · Epoch ${Number.isSafeInteger(d.epoch)?d.epoch:'—'} · Phiên chuẩn bị ${d.pending?'đang mở':'không có'}</p><p class='help'>PREPARE_ONLY: chưa cấp quyền Primary, không chuyển dịch vụ hay đồng bộ dữ liệu.</p></div>`:''}
