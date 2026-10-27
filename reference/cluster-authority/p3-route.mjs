@@ -42,8 +42,9 @@ function verifyRecord(r,observed){
  if(observed.id!==r.recordId||observed.name!==r.hostname||observed.type!=='CNAME'||observed.proxied!==true)
   error('P3_EXISTING_ROUTE_MISMATCH');
 }
-export async function p3SwitchDns(env,{fromNodeId,targetNodeId},fetcher=fetch){
- const routes=p3Config(env);
+async function switchDns(env,{fromNodeId,targetNodeId},fetcher,onlyPanel){
+ const routes=p3Config(env).filter(r=>!onlyPanel||r.kind==='panel');
+ if(onlyPanel&&routes.length!==1)error('P3_PANEL_ROUTE_MISSING_OR_DUPLICATE');
  if(!UUID.test(fromNodeId||'')||!UUID.test(targetNodeId||'')||fromNodeId===targetNodeId)
   error('P3_NODE_PAIR_INVALID');
  // Before touching any route, check ALL configured records point either to the incumbent
@@ -70,4 +71,13 @@ export async function p3SwitchDns(env,{fromNodeId,targetNodeId},fetcher=fetch){
   results.push({hostname:p.route.hostname,kind:p.route.kind,dnsTargetVerified:true});
  }
  return {dnsOnlyVerified:true,records:results,applicationVerified:false,writerFenced:false};
+}
+
+// Standby recovery changes only the protected Panel CNAME; website/DB and Primary
+// authority must remain unchanged. Called by the scheduled DO, never by an agent.
+export async function p3SwitchPanelDns(env,fromTo,fetcher=fetch){
+ return switchDns(env,fromTo,fetcher,true);
+}
+export async function p3SwitchDns(env,fromTo,fetcher=fetch){
+ return switchDns(env,fromTo,fetcher,false);
 }
