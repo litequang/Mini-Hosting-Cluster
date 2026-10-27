@@ -1,5 +1,7 @@
 # Roadmap còn lại — rút gọn, không tạo phiên bản TEST liên tục
 
+> Checkpoint 27/10/2026: kiểm kê P0 DONE theo phạm vi; P1/P2/P3 còn IN PROGRESS, P2.5/P4/P5 chưa chạy runtime. Hai LAB SSH đã kiểm, source/runtime hashes còn lệch. Mốc trước P3 là một package nâng cấp managed/live đầy đủ có JWT/rollback process, canary XZ3 rồi Vsmart; kế hoạch cụ thể ở mục F [audit tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md). Cloudflare account/Cron/DNS chưa xác minh. LIVE-PROGRESS là nguồn trạng thái hiện hành.
+
 ## P0 — Audit & protect existing workspace (bắt đầu ngay)
 - Đọc Git/AGENTS/docs, kiểm checkpoint vs `E:\CODE\MHC` thực tế; backup worktree và Vsmart trước.
 - Kiểm installer marker, lỗi compatibility và lệnh ảnh hưởng dữ liệu; chạy test nền. Khắc phục lỗi P0 trực tiếp.
@@ -8,7 +10,7 @@
 ## P1 — Vsmart single-node MHC hosting thật (Codex làm)
 - Kết nối SSH có fingerprint ghim trước; inspect site demo và DB/Panel, snapshot full + khả năng restore.
 - Tạo/cập nhật server mới trên Vsmart theo chiến lược **không phá dữ liệu** cho tới khi user xác nhận xóa demo nếu thật sự cần clean.
-- Nginx/PHP-FPM/MariaDB, static + WordPress LAB, backup/restore ZIP/SQL, boot recovery, Panel 9090, CPU/RAM/pin/nhiệt/lưu trữ, logs đã lọc.
+- Nginx/PHP-FPM/MariaDB, static + WordPress LAB, backup/restore ZIP/SQL, boot recovery, Panel 9090, RAM/pin/nhiệt/lưu trữ (Monitor không hiển thị CPU), logs đã lọc.
 - Nghiệm thu: reboot, website HTTP, query DB, WP actions, Panel login, backup->restore test, tự chạy services, không hỏng SSH.
 
 ## P2 — Distributed Panel + Shared Cluster Authority (phần kiến trúc ưu tiên)
@@ -51,6 +53,3 @@
 
 ### Definition of done
 Đối với mỗi P: source + test tự động + bằng chứng **Android thật** + phiên bản ZIP/repo commit + changelog + rollback. Chỉ cần 1 release per milestone, không phát hành 5-10 bản nhỏ mà mục tiêu vẫn chưa usable.
-# Checkpoint kiểm kê 27/10/2026
-
-GitHub HEAD `055aab5` có source P3 manual DNS và Panel-only recovery, nhưng Vsmart đang cài từng file lệch pin P3; Cloudflare P3 và Sony trực tiếp chưa xác minh. Authority thực vẫn `PREPARE_ONLY`, không Primary/lease. P0/P1/P2/P3 còn IN PROGRESS; P4/P5 NOT STARTED. Mốc tiếp theo sau kiểm kê là xác minh hai LAB + Cloudflare, đồng bộ bản cài có backup, hoàn thành candidate activation/fencing/origin proof, rồi manual cutover/rollback thật. Xem `LIVE-PROGRESS.md` và `CODEX-RESUME-AUDIT-2026-10-27.md` cho bằng chứng và FAIL/NOT RUN. Không coi P3 source hay Cron Panel recovery là hoàn thành P3/P4.

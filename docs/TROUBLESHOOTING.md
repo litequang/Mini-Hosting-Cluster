@@ -1,7 +1,7 @@
 # TROUBLESHOOTING / an toàn vận hành
 
 ## SSH Vsmart
-- SSH Termux lần cuối: `ssh -p 8022 u0_a180@192.168.100.27`; IP có thể thay đổi. Kiểm tra fingerprint bằng kênh tin cậy, không `StrictHostKeyChecking=no`.
+- SSH LAB đã xác minh 27/10: Vsmart `u0_a180@192.168.1.4:8022`, XZ3 `u0_235@192.168.1.41:8022`; key auth và strict host key PASS. Địa chỉ 192.168.100.27 là lịch sử; IP có thể đổi. Không dùng `StrictHostKeyChecking=no`.
 - Codex VS Code **chạy trên máy công ty cùng LAN/VPN** có thể SSH qua OpenSSH; Codex Cloud **không thể tự truy cập LAN** trừ khi có mạng riêng/tunnel được chuẩn bị. Nếu không thể truy cập, xuất bước kiểm tra cụ thể, không giả báo đã chạy.
 - Dùng key riêng/cấu hình `%USERPROFILE%\.ssh\config`; **không chép private key vào repo/chat**.
 
@@ -55,10 +55,17 @@ User log 12:17–12:18 UTC cho thấy browser request đến origin có JWT như
 - `P3_FINAL_CONFIRMATIONS_REQUIRED`: operator must test external website and protected Panel and verify old writer stopped before recording LAB state; recorded state is not a writer lease.
 ## Kiểm kê 27/10/2026: Sony SSH và nguồn dữ liệu Monitor
 
-- Sony XZ3 LAB hiện được user báo `u0_235@192.168.1.41:8022`: strict host key PASS nhưng key đăng nhập hiện có FAIL. Thêm **public** key vào `~/.ssh/authorized_keys` trên Sony, giữ quyền thư mục 0700/file 0600; không dùng mật khẩu/key riêng trong chat. Chưa thể khẳng định XZ3 Panel/Tunnel/boot từ SSH.
+- Sony XZ3 `u0_235@192.168.1.41:8022` đã nhận public key, SSH trực tiếp PASS. Không nhầm lỗi auth trước đó với trạng thái hiện tại; chi tiết source/live xem audit 27/10.
 - Vsmart `sv status amh-panel` từ SSH remote trả “service directory does not exist” nếu không có `SVDIR`; dùng `sv status "$PREFIX/var/service/amh-panel"` và các đường dẫn đầy đủ để kiểm. `node-doctor`/telemetry của Sony có thể báo `sshd:stopped` dù SSH tới được màn xác thực: kiểm collector/runit trực tiếp trước khi kết luận.
 - Probe `panel.giaouoc.com` từ Windows lần này bị TLS schannel HTTP 000; không dùng nó để kết luận Cloudflare origin hỏng hoặc P3 recovery đang chạy. Cloudflare account/Worker/Cron/P3 opt-in cần xác minh bằng quyền read-only hợp lệ.
 - Trên Windows, `tests/manual-candidate-ui.mjs` FAIL ở literal `declaredPrimary:null` cũ và `tests/access-sso-panel.mjs` FAIL khi spawn Panel; bốn test fixture M2/P3 khác PASS. Không đánh dấu full regression PASS hay tự sửa test trong nhiệm vụ kiểm kê.
 ### Kết quả SSH XZ3 sau khi thêm public key (27/10)
 
-Key auth và strict host key đã PASS. `sv status "$PREFIX/var/service/sshd"` trả **down, normally up**, nhưng có daemon `sshd` PID 9663 với PPID 1 và phiên SSH mới vào được. Không giải thích nhầm `sshd:stopped` là mất kết nối; đồng thời không coi daemon ngoài runit là bằng chứng tự phục hồi sau reboot. Chưa restart hay sửa service. Panel local và Agent/Monitor hoạt động, nhưng XZ3 **chưa có** `mhc-panel-tunnel`, remote Access chưa configured, không có site/snapshot LAB để chuyển Primary.
+Key auth và strict host key đã PASS. `sv status "$PREFIX/var/service/sshd"` trả **down, normally up**, nhưng có daemon `sshd` PID 9663 với PPID 1 và phiên SSH mới vào được. Log lọc có `Address already in use`; kiểm tra bind conflict/boot scripts trước khi sửa, giữ phiên SSH dự phòng và cứu hộ Termux. Không coi daemon ngoài runit là bằng chứng tự phục hồi sau reboot. Chưa restart/sửa service. XZ3 chưa có Panel Tunnel, remote Access hoặc site/snapshot LAB. node-doctor LOCAL_PASS không thay các kiểm tra chi tiết này.
+
+### Gate đồng bộ source và test 27/10
+
+- Vsmart managed JWT và XZ3 live/managed JWT còn blob `e19d603`, release cần `ee4ce2b` (typ optional). Updater 13 file không cập nhật JWT; không chạy hosting-panel apply từ source cũ vì có thể đưa lỗi Access 403 trở lại Vsmart. Dùng package đầy đủ đã diễn tập; giữ admin/config/identity riêng mỗi máy.
+- Updater rollback chỉ restart Panel, không restart Agent khi hồi client; repair boot nằm sau khi tắt cờ rollback. Đây là gate cần test/fix trước rollout, không gọi rollback đã nghiệm thu từ static review.
+- `access-sso-panel` trên Windows lỗi `ERR_UNSUPPORTED_ESM_URL_SCHEME`: preload `--import` cần file URL. Test source hiện tại PASS trên hai Android trong fixture cách ly. `authority-http-panels` cần TMPDIR ngoài source/Git để guard prepare-secrets không chặn fixture; không bỏ guard. `manual-candidate-ui` còn assertion cũ, FAIL trên cả hai Android. Self-test chưa gọi cả ba runner mới liên quan.
+- Git Bash `C:\Program Files\Git\bin\bash.exe` có sẵn, 32 shell syntax checks PASS; WSL bash bị từ chối không có nghĩa không thể tự kiểm Shell trên Windows. Public Panel từ cả hai Android trả 302 Access; lỗi schannel Windows trước đó không xác định origin hỏng.

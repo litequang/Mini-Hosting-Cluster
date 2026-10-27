@@ -36,5 +36,6 @@
 ## Ghi nhận kiểm kê 27/10/2026
 
 13. Không dùng marker installer hoặc heartbeat làm chứng nhận bản source đang cài, Tunnel/Access đang hoạt động hay node được cấp Primary; so Git blob từng file và kiểm runtime riêng.
-14. Node F3216 xuất hiện trong shared authority nhưng chưa xác định là LAB hay thiết bị thật: không áp updater/route/failover lên node đó trước khi xác minh.
+14. Người dùng xác nhận F3216 là LAB ở nhà; chưa có SSH trực tiếp từ công ty. Chỉ quan sát telemetry, không dùng thay hai LAB tại công ty để nghiệm thu.
 15. Nhiệm vụ tiếp nhận lần này chỉ kiểm kê và tài liệu; giữ các code clock-health ở workspace cha, không gộp vào branch hay triển khai P3/P4 trong lượt này.
+16. Đồng bộ bản mới phải kiểm cả managed source và live Panel, bao gồm JWT/bridge/index/helpers; updater 13 file không đủ nâng cấp hoàn chỉnh. Không apply Panel từ managed JWT cũ; canary XZ3 và rollback cả source lẫn process trước Vsmart. Chỉ đề xuất kế hoạch trong kiểm kê 27/10, chưa thực thi.

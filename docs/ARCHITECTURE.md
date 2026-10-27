@@ -1,44 +1,40 @@
-# ARCHITECTURE — MHC hướng đích
+# ARCHITECTURE — MHC
+
+Kiến trúc hướng đích và ranh giới source/runtime đối chiếu 27/10/2026. Bằng chứng triển khai nằm ở [LIVE-PROGRESS.md](LIVE-PROGRESS.md); [audit tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md) ghi các khoảng trống.
 
 ```text
-                                Internet
-                 panel.thophuong.com   web.thophuong.com
-                          |                 |
-              Cloudflare Tunnel/Access + route manager
-                          |                 |
-                +---------v-----------------v-------+
-                | Durable Object cluster authority   |
-                | atomic epoch/revision, Primary,    |
-                | membership, routing intent, audit  |
-                +------------------+----------------+
-                        ^           ^           ^
-                agent + panel  agent + panel  agent + panel
-                    Node A       Node B        Node N
-                   9090         9090          9090
-                Nginx/PHP/DB   Nginx/PHP/DB   Nginx/PHP/DB
+Internet: panel.giaouoc.com           Website LAB được allowlist
+           | Access + Tunnel                  | Tunnel
+           v                                  v
+       Panel 9090 trên node đang nhận route    Web/DB node phục vụ
+           |                                  |
+           +---- Cloudflare Worker / DO -------+
+                revision/epoch/membership
+                Monitor/pending/DNS journal
+                     ^       ^       ^
+                  Agent A  Agent B  Agent N
+                  Panel A  Panel B  Panel N
 ```
 
-Hình là **kiến trúc đề xuất, chưa triển khai**. Không ép tính năng route phải mua Cloudflare Load Balancing: Codex phải thẩm định các lựa chọn (Worker router, DNS/tunnel route, LB có phí), chi phí, độ trễ, tính đơn giản, chính sách truy cập trước khi quyết định.
+Mọi node có original Panel 9090 và node Agent. Authority chung độc lập điện thoại, dùng DO transaction/CAS và audit; không bầu riêng trên từng Android. Membership/heartbeat/Monitor chung đã quan sát trên Vsmart và XZ3. P3 DNS journal/Panel recovery có source, bản Cloudflare P3/Cron chưa xác minh. Sơ đồ không chứng nhận website/Panel đã tự chuyển giữa hai node.
 
-## Cấp quyền và luồng nghiệp vụ
-- Mỗi node cài cùng build, Panel 9090, agent, dịch vụ hosting phù hợp và local state. Thống kê không đồng nghĩa vai trò Primary.
-- Control plane là một authority chung bền vững, không nằm duy nhất trên Primary. Các lệnh bắt đầu từ Panel A/B/N đều gửi tới authority này, RBAC + CSRF + Cloudflare Access nếu remote.
-- Authority cập nhật epoch/revision nguyên tử; mỗi tác vụ chuyển Primary ghi `intent -> preflight -> (fence old) -> route -> verify -> commit -> rejoin/quarantine` và có idempotency key/crash replay.
-- Node agent định kỳ nhận role, theo dõi web/DB/SSH/storage, báo backup manifest và dữ liệu mới nhất **được kiểm chứng**; không tin heartbeat đơn lẻ để suy đoán node offline.
-- Auto election chọn trong các node có sức khỏe và dữ liệu chấp nhận được; node cũ rejoin mặc định standby/quarantine, phải được reprovision/restore/checksum trước khi phục vụ. Không bao giờ tự failback.
-- Nếu không thể ngăn hai node ghi đồng thời, không gắn nhãn safe HA. Chế độ best-effort mất dữ liệu/partition là opt-in LAB với cảnh báo rõ; production phải chặn đường ghi/route trực tiếp và có authority.
-- Panel public và website public là **hai kênh khác nhau**; Panel chung phải sống khi Primary chết. Panel local trên mỗi node truy cập LAN/SSH tunnel, remote qua Cloudflare Access/JWT + Panel password.
-- Có thể bỏ node-specific hostnames trong bản MVP; chỉ thêm tùy chọn sau để cứu hộ/debug, cùng Access.
-- Dữ liệu giữa node có thể lệch và không cần replication liên tục trong bản đầu. Backup và restore là trách nhiệm người dùng; hệ thống ghi rõ thời điểm xác minh được.
+## Quyền và luồng điều khiển
 
-## Giới hạn hiện tại
-Checkpoint hiện hành **không** có multi-panel authority. local manual-primary/auto-primary đã có source nhưng còn dựa trên controller đơn, các bài test giả lập không tương đương nghiệm thu hai Android thật.
+- Local Panel chỉ loopback/SSH forwarding, giữ password khôi phục. Remote dùng Tunnel + Cloudflare Access Allow policy và origin RS256/JWKS/issuer/AUD/time; JWT đã xác minh tạo admin session SSO, binding với token, cookie Secure/HttpOnly/SameSite và CSRF/Origin cho mutation.
+- Panel → shared authority bằng credential riêng vai panel; Agent heartbeat bằng credential agent. Status/history không cấp writer. Authority unreachable thì fail-closed, hiển thị lỗi cụ thể, không rơi về controller local tự bầu.
+- Monitor bounded/sanitized, không CPU/SSID/IP/process args, history 12h. Metadata snapshot `recordedAt` là thông tin ghi nhận, `verified:false` không chứng minh restore hoặc độ mới giao dịch.
+- Chuẩn bị `begin/abort` chỉ tạo/hủy pending qua revision/idempotency; P3 LAB `route/route-resume/complete` ghi journal, đổi DNS allowlist và nhận operator attestation. `declaredPrimary` là record LAB, không phải writer lease; `writeLeaseGranted:false`.
 
+## Panel recovery và Primary
 
-## Bổ sung P2.5 — Cloudflare domain automation và Panel resilience (26/10/2026)
-- `Zone discovery (read-only)` từ token theo allowlist account/zone -> chọn `subdomain + base domain` -> verify không trùng -> tạo site/Nginx + test localhost -> cập nhật DNS CNAME/Tunnel ingress đúng hostname -> HTTPS healthcheck và audit/rollback. URL/Zone ID đã được xác minh trước khi mutation, không giữ DNS edit token trên các node Standby. Nếu nhiều zone/token, phải cô lập quyền theo profile.
-- Named Tunnel đưa HTTP tới Nginx trên node; không dùng public Android IP. Cập nhật CNAME/ingress cấu hình của **Tunnel hiện có**, không thay tràn lan chính sách Access hoặc bản ghi đã tồn tại. Wildcard là opt-in, tránh xung đột.
-- `panel.giaouoc.com` là admin ingress khác website, có tuyến hồi phục vào một node Standby đủ quyền nếu Primary offline. Shared Authority độc lập giữ node-role và route intent; redirect Panel không tự mở writer. Phần routing/activation vẫn chưa triển khai.
-# Ranh giới source và runtime xác minh 27/10/2026
+Website và Panel là hai route độc lập. Thông thường Panel chung theo node Primary đã xác minh; khi route Panel incumbent mất heartbeat đủ lâu, source Cron/DO có thể chọn standby có telemetry/Panel/Tunnel khỏe và đổi riêng CNAME Panel nếu được opt-in. Site/DB/quyền ghi không đổi, không tự failback. DNS GET đúng đích không chứng minh origin/Access/HTTP khả dụng; cần hậu kiểm từ Internet.
 
-Sơ đồ dưới là mục tiêu. Source HEAD `055aab5` đã có Worker/DO Monitor, P3 DNS route và Cron khôi phục **Panel riêng**; bản deploy Cloudflare P3 chưa được kiểm. Authority quan sát từ Vsmart vẫn `PREPARE_ONLY`, `declaredPrimary:null`, `writeLeaseGranted:false`; ba heartbeat không chứng minh ba Panel/Tunnel public, website hoặc quyền writer. Manual DNS LAB là thao tác route có attestation, không cấp lease/fencing. Panel recovery nếu bật chỉ đổi CNAME Panel, không đổi website/DB. Candidate activation, origin identity và chặn mọi đường ghi vẫn cần xây và nghiệm thu trước P3 thực.
+Luồng Primary hoàn chỉnh hướng đích: `intent → preflight/data warning → fence old writer → activate candidate → route → HTTP/site/DB proof → commit → quarantine rejoin`. Hiện chưa có executor kích hoạt toàn bộ candidate, fencing mọi đường ghi, signed HTTP node proof hoặc conditional rollback được nghiệm thu. Mất heartbeat có thể là partition; không suy ra writer đã tắt. Không bật automatic writer promotion khi chưa giải quyết các gate này.
+
+Dữ liệu lệch được chấp nhận trong MVP với backup/restore thủ công và cảnh báo RPO. Snapshot khác nhau không thay thế fencing. Auto P4 phải dùng lại pipeline manual P3, health/snapshot đã xác minh/cooldown và rejoin standby; không triển khai trước P3 hai LAB đạt. M51/X7b production cần kế hoạch migration/backup/duyệt riêng.
+
+## Release và domain automation
+
+Managed source và live Panel là hai cây riêng; đồng bộ phải bao gồm JWT/bridge/index/helper, giữ riêng identity/secrets/admin/database. Updater 13 file hiện có là cập nhật một phần, chưa đủ DoD đồng bộ; rollback phải phục hồi cả files và process Agent/Panel tương ứng. Boot log/marker không thay test reboot thực.
+
+P2.5 hướng đích: zone read allowlist → chọn hostname → tạo local site/nginx → DNS/Tunnel ingress → HTTPS health/audit/rollback, token quyền tối thiểu ở control plane. Nút tạo website hiện chưa tự publish Cloudflare. Không cần Android IP tĩnh hoặc mua Load Balancing để bắt đầu; chọn route adapter theo quyền/giới hạn thực tế, giữ các hostname production ngoài allowlist.

@@ -1,113 +1,45 @@
-# CODEMAP — MHC checkpoint 0.5C-REMOTE-PANEL
+# CODEMAP — MHC
 
-## M1/M2 đang triển khai 26/10/2026
-- `reference/cluster-authority/`: Worker/DO cho shared membership + pending preparation, chưa cấp writer/route.
-- `bin/cluster-authority.mjs`: client private config, heartbeat/watch/runit agent, shared Panel request.
-- `reference/cluster-authority/prepare-secrets.mjs`: gom enrollment private cho Wrangler, không xuất token.
-- `bin/prepare-panel-tunnel-token.sh`: nhập Tunnel token ẩn trên TTY Termux LAB.
-- `bin/panel-tunnel-service.sh`: connector runit riêng cho Panel giaouoc LAB, token-file và rotating logs, không thay named-tunnel.
-- `tests/authority-http-panels.mjs`: hai Panel HTTP process + HTTPS client, DO storage fixture, chạy POSIX/Termux.
-- `docs/SHARED-AUTHORITY-M2.md`: API, auth, cấu hình LAB và phần chưa hoàn thành.
-- `docs/LIVE-PROGRESS.md`: nguồn trạng thái thực thi duy nhất, checkpoint và bằng chứng.
-- `docs/CLUSTER-UI-HEARTBEAT-REMOTE-ACCESS-2026-10-26.md`: cập nhật 2 Android đã kết nối M2 theo bằng chứng người dùng; bản sửa heartbeat Cluster (commit `f0c94a4`), hướng dẫn deploy UI và kiểm tra HTTP 403 khi Cloudflare Access tới Panel.
-- `docs/CONTINUE-MHC.md`: kết nối/phục hồi sau gián đoạn, GitHub branch.
-- `tests/cluster-authority.mjs`, `tests/authority-panel.mjs`, `tests/guard-management.mjs`, `tests/service-environment.sh`: các regression mới.
+Đối chiếu source ngày 27/10/2026 trên branch `codex/m1-m2-foundation`, HEAD kiểm kê `da7d67a`; runtime snapshot `f73df61`, updater `764ba51`. Trạng thái đã cài/nghiệm thu chỉ ghi tại [LIVE-PROGRESS.md](LIVE-PROGRESS.md); bảng dưới mô tả source. [Báo cáo tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md) có hash hai LAB và kế hoạch đồng bộ.
 
-- `install.sh`: Termux fresh install/upgrade guard, marker và rollback code.
-- `bin/mhc-full-wrapper`: CLI dispatcher `~/mhc-full`; lệnh `primary-select`, `auto-primary`, `remote-panel`, `node-guard`, `hosting-panel`, `clone`, `node`, `file-sync`, `replication`, `sites`, `serve`, `backup`, `restore`.
-- `bin/legacy-panel.sh`: bridge sửa **original Panel 9090**, plan/apply/rollback; phải bảo vệ `~/android-hosting-panel/data/admin.json`.
-- `bin/legacy-panel-src/src/server.mjs`: HTTP routes/cookie admin/CSRF/Access guard của Panel 9090.
-- `bin/legacy-panel-src/src/mhc-integration.mjs`: các API MHC liên kết vào Panel gốc, chỉ lộ trạng thái allowlisted.
-- `bin/legacy-panel-src/src/mhc-remote-access.mjs`: JWT Cloudflare Access RS256/JWKS và hostname; private-only rate-limited `MHC_REMOTE_ACCESS_DENIED` reason code for 403, including granular JOSE header failures; RFC-optional `typ` is accepted only with RS256/kid/signature/issuer/AUD/time checks (no JWT/cookie/claims in logs). `scripts/apply-remote-access-diagnostics.sh` patches only this origin module with backup and HTTP rollback.
-- `bin/legacy-panel-src/public/index.html`, `public/app.js`: UI nguyên gốc bổ sung Monitor/Cluster/Primary.
-- `bin/manual-primary.mjs`: local controller/manual selection ghi nhận, chưa HA authority.
-- `bin/auto-primary.mjs`: recommendation, scoring sơ bộ, Cloudflare DNS adapter, route journal, rejoin metadata.
-- `bin/node-role-guard.mjs`: demote LAB via `sv down`, chưa bảo vệ mọi writer.
-- `bin/node-enroll.*`, `bin/member-telemetry.mjs`, `bin/cluster-summary.mjs`: tham gia cluster, telemetry, overview.
-- `bin/node-clone.mjs`, `bin/node-readiness.mjs`, `bin/node-standby.mjs`: clone snapshot, readiness và standby LAB.
-- `bin/wordpress.sh`, `bin/site-serve.sh`, `bin/sites.sh`, `bin/daily-backup.sh`, `bin/backup-verify.sh`, `bin/restore.sh`: hosting, backup/restore.
-- `bin/gtid-*.mjs`, `bin/replication-observer.mjs`: GTID LAB.
-- `bin/file-*.mjs`, `bin/lab-acceptance-gate.mjs`, `bin/physical-lab-attest.mjs`, `bin/field-lab-coordinator.mjs`: delta/checkpoint/acceptance LAB.
-- `reference/cloudflare-lab-witness/`: witness Cloudflare LAB, chưa triển khai account.
-- `tests/`: 38 runner test Node (.mjs) + 3 test Shell, `bin/self-test.sh` chạy hồi quy tổng hợp.
-- `vendor/`, `reference/`: lịch sử và module reference; không xóa vội trước khi đối chiếu package paths.
+## Control plane và original Panel
 
-**Codex phải làm CODEMAP sâu hơn khi audit repo thật**, thêm vị trí registry, node config, data schema, API contract, test coverage. Đừng suy đoán từ tên file; đọc mã.
+| Module | Vị trí và contract |
+|---|---|
+| Shared authority | `reference/cluster-authority/worker.mjs`: Worker + SQLite DO binding `MHC_AUTHORITY`; API `/v1/clusters/:uuid/{status,heartbeat,history,invite,join,begin,abort,route,route-resume,complete}`. Status/history GET, các thao tác khác POST; panel/agent credentials tách vai; mutation dùng revision/request id/journal. |
+| Authority state | DO key `state`: revision/epoch, membership động, heartbeat, history, invitation, pending/receipt/audit, declaredPrimary LAB và panelRecovery. Static membership từ private Worker config. Không có writer lease thực. |
+| DNS adapter | `reference/cluster-authority/p3-route.mjs`: exact zone/record/Tunnel allowlist, site trước Panel, GET/PATCH/GET verify, replay/conflict checks. |
+| Panel recovery | `reference/cluster-authority/p3-recovery.mjs`: lựa standby có heartbeat/telemetry/Panel/Tunnel tốt; `worker.mjs` scheduled → DO maintenance/journal; `wrangler.toml` cron mỗi phút, opt-in mới mutation. |
+| Node authority client | `bin/cluster-authority.mjs`: private enrollment/config, HTTPS reply checks/512KiB cap, status/history/invite/join, shared begin/abort/P3 route, heartbeat watcher/runit Agent. Không fallback sang local Primary khi authority lỗi. |
+| Telemetry | `bin/node-monitor.mjs`: RAM/storage/battery/temperature/Wi-Fi RSSI/network rates/Node RSS/12 services/snapshot metadata; bounded, không CPU/SSID/IP/process args. Snapshot `verified:false` cho tới khi có bằng chứng độc lập. |
+| Panel server | `bin/legacy-panel-src/src/server.mjs`: original 9090, session/cookie/CSRF/Origin, local password, remote Access SSO. `/api/mhc/cluster`, `/api/mhc/primary-selection`, `/api/mhc/monitor/history` và invite dùng bridge chung. |
+| Origin JWT | `bin/legacy-panel-src/src/mhc-remote-access.mjs`: RS256/JWKS/issuer/AUD/time, typ optional, hostname guard và private reason codes; JWT-bound remote session, local recovery password. |
+| Panel bridge/UI | `bin/legacy-panel-src/src/mhc-integration.mjs`: local collector, shared status/history/pairing/actions. `public/app.js`, `style.css`, `index.html`: Cluster candidate/P3 LAB/recovery, Monitor nhiều node, 12h history/15s refresh. |
 
-## Bổ sung tiếp quản hợp nhất 26/10/2026
-- `docs/HANDOFF-PACKAGE-SELECTION.md`: provenance, baseline và nhánh PREFLIGHT.
-- `docs/HANDOFF-SOURCE-AUDIT-2026-10-26.md`: state paths, giới hạn manual/auto/guard và thứ tự sửa.
-- `docs/HANDOFF-ENVIRONMENT.md`: kết nối/thiết bị được ghi nhận và đầu vào chưa có.
-- `docs/HANDOFF-ACCEPTANCE.md`: checklist PASS/FAIL/NOT RUN cho executor tiếp theo.
+## Cài đặt, boot và state trên node
 
-Đếm test từ tệp thực tế trong checkpoint; không hiểu số runner là số assertion hay bằng chứng Android.
+- `install.sh`: clean install và source-only `--upgrade` có guard/rollback; upgrade chạy full self-test rồi thay toàn bộ managed bin/launcher, không tự cập nhật live Panel.
+- `bin/legacy-panel.sh`: original Panel plan/apply/rollback, source từ managed `bin/legacy-panel-src`; giữ `data/admin.json`. Live và managed phải đồng bộ, đặc biệt JWT module.
+- `scripts/update-existing-android-node.sh`: pin 13 file live/managed management, backup/health rollback; **không phải full source upgrade** và không bao gồm JWT module, bridge installer/index/helpers. Audit 27/10 phát hiện thiếu đồng bộ và rollback Agent/boot cần xử lý trước rollout.
+- `scripts/bootstrap-new-android-node.sh`: fresh-only aarch64 Termux; không dùng cho hai LAB đã cài. `scripts/apply-*`: các patch lịch sử có pin riêng, không chồng lên nhau để thay một release đầy đủ.
+- `bin/node-doctor.sh`, `bin/node-boot.sh`: diagnostics và management repair/wake-lock/boot; chỉ `node-doctor --check` là kiểm kê. `node-boot --status` có mkdir/chmod state trước status branch nên khi cần read-only tuyệt đối hãy đọc metadata/log đã lọc thay vì gọi repair/status helper mù quáng.
+- `bin/mhc-full-wrapper`: dispatcher `~/mhc-full`; `bin/panel-tunnel-service.sh`, `prepare-panel-tunnel-token.sh`: connector Panel riêng với private token-file và log rotation.
+- Managed source: `~/.local/share/mhc-full-installer/bin`; live Panel `~/android-hosting-panel`; private state `~/.config/mhc-full-installer/{installed,node-identity.json,authority.json,authority-enrollment.json}`. Chỉ ghi đường dẫn trong docs; không đọc/copy credentials để kiểm kê.
+- Panel config/admin tại `~/android-hosting-panel/data`; hosting site registry tại `~/.config/mhc-full-installer/{sites,static}`; managed WordPress nginx/PHP tại `~/.local/share/mhc-full-installer/hosting`; snapshots `~/hosting-backups/mhc-full/snapshot-*`. Không copy identity/config giữa nodes.
 
-## M2 SSO 26/10/2026 — đã cập nhật nguồn, chưa nghiệm thu Android
-- `bin/legacy-panel-src/src/server.mjs`: `GET /api/session` tạo session từ JWT Access đã được xác minh, cookie Secure/HttpOnly/SameSite, session bound JWT hash. `POST /api/login` chỉ localhost, CSRF giữ nguyên.
-- `bin/legacy-panel-src/public/app.js`: tự đăng nhập remote từ Access, logout qua `/cdn-cgi/access/logout`, local login form vẫn tồn tại.
-- `bin/legacy-panel-src/src/mhc-remote-access.mjs`: bắt buộc chữ ký RS256/JWKS, issuer, AUD, hạn; notice phù hợp Access-only remote.
-- `tests/access-sso-panel.mjs`: kiểm thử HTTP process và signed-JWT/JWKS mock, chỉ mới kiểm cú pháp, **chưa chạy**.
-- `scripts/apply-panel-access-sso.sh`: rollout có backup/rollback và HTTP localhost check trên Vsmart LAB, chưa chạy trên Android.
-- `docs/PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`: kiến trúc một hostname Panel đi theo Primary; M3/M4 writer/route chuyển thực **chưa triển khai**.
+## Hosting và legacy LAB
 
-## M3 26/10 — UI chọn node ứng viên, chưa cutover
-- `bin/legacy-panel-src/public/app.js` `mhcClusterPage()` trình bày dropdown và trạng thái shared Pending trên trang mặc định. `dynamicAction('primary-begin')` lấy shared status mới trước khi ghi CAS; `primary-abort` hủy pending.
-- `scripts/apply-primary-candidate-ui.sh` sao lưu / xác minh Git blob SHA, triển khai riêng `public/app.js` trên Vsmart/XZ3 LAB. Không restart, không sửa backend DB/Cloudflare.
-- `tests/manual-candidate-ui.mjs` xác nhận cấu trúc UI/authority fail closed (chưa thực chạy).
-- `reference/cluster-authority/worker.mjs` vẫn chỉ `begin/abort` PREPARE_ONLY, không writer grant / declaredPrimary. M3 executor, route và guard thật còn thiếu.
+- `bin/wordpress.sh`, `site-serve.sh`, `sites.sh`, `daily-backup.sh`, `backup-verify.sh`, `restore.sh`: site/HTTP/PHP/DB/backup/restore; cần kiểm dữ liệu thật tại LAB riêng.
+- `bin/manual-primary.mjs`, `auto-primary.mjs`, `node-role-guard.mjs`: local legacy selection/recommendation/demotion; không thay shared authority. Guard không chứng minh fencing mọi writer và không tự bật candidate.
+- `bin/node-enroll.*`, `member-telemetry.mjs`, `cluster-summary.mjs`, `node-clone.mjs`, `node-readiness.mjs`, `node-standby.mjs`: inventory/clone/readiness LAB.
+- `bin/gtid-*`, `replication-observer.mjs`, `file-*`, `lab-acceptance-gate.mjs`, `physical-lab-attest.mjs`, `field-lab-coordinator.mjs`: nhánh LAB/replication nâng cao, không chặn MVP backup/restore thủ công.
+- `vendor/`: baseline Panel/DR/cluster dependencies được giữ để installer và fixture resolve module; `reference/cloudflare-lab-witness/` là reference cũ, không mặc định là witness đang deploy.
 
-## Monitor V2 toàn cụm (26/10/2026; source pushed, runtime NOT RUN)
-- `bin/node-monitor.mjs`: thu thập giới hạn CPU/RAM/pin/nhiệt độ pin/storage mạng + 9 trạng thái runit, không gửi địa chỉ IP/SSID/log/process args.
-- `bin/cluster-authority.mjs`: heartbeat mở rộng với telemetry allowlisted; panel token truy vấn `history` (512 KiB max response, GET), agent token không có quyền.
-- `reference/cluster-authority/worker.mjs`: mô hình DO cũ vẫn `SHARED_AUTHORITY_PREPARE_ONLY`; lưu telemetry mới nhất và lịch sử 12h x 5 phút per-node; chỉ panel mới được xem history.
-- `bin/legacy-panel-src/src/mhc-integration.mjs`: collector node chạy local và bridge history Cloudflare; có fallback khi chưa cài collector.
-- `bin/legacy-panel-src/src/server.mjs`: API bảo vệ `/api/mhc/monitor/history?nodeId`; giữ Access/session/CSRF hiện hành.
-- `bin/legacy-panel-src/public/app.js`: Monitor toàn cụm trong Panel gốc, CPU/RAM/pin/nhệt độ/storage/network/services, cảnh báo, đồ thị và khoảng thiếu báo cáo (không coi là proof offline).
-- `scripts/apply-monitor-all-nodes.sh`: opt-in LAB installer SHA pin + backup/rollback, không triển khai Cloudflare Worker. `tests/monitor-all-nodes.mjs`: tests node/Worker từ dữ liệu giả (NOT RUN trong phiên ChatGPT).
-- `docs/MONITOR-V2-ALL-NODES.md`: source map, hướng dẫn triển khai hai điện thoại và Worker cùng binding, checklist.
+## Tests và bàn giao
 
-## 26/10 — fix monitor installer and legacy parity
-- `scripts/apply-monitor-all-nodes.sh`: no longer mistakes server.mjs for JWT verifier; checks local `src/mhc-remote-access.mjs` RS256 guard, pins SHA of CPU-free all-node UI.
-- `bin/node-monitor.mjs`: omits CPU, adds wifi RSSI, allowlisted Node.js processes RSS, local snapshot metadata, 12 runit service status values; no SSID/BSSID/process cmd.
-- `reference/cluster-authority/worker.mjs`: strips unexpected private fields and persists sanitized metrics; history includes RSSI, not CPU.
-- `bin/legacy-panel-src/public/app.js`: no CPU in dashboard, process list or Monitor; node cards include role, DB/Web/Tunnel/Panel/Sync badges, last snapshot; details include Wifi/RSSI/process RAM, verified-unknown handling.
-- `docs/MONITOR-V2-PAIRING-DESIGN.md`: one-use 10min pairing target; current shared Cloudflare authority static membership cannot use old inventory-only invite unchanged.
+Có 48 runner Node `.mjs` và 6 Shell `.sh` tại tests root; số file không phải số assertion hay kết quả PASS. `bin/self-test.sh` chạy regression/syntax, nhưng hiện chưa gọi `p3-panel-recovery`, `access-sso-panel`, `manual-candidate-ui`. Kết quả cụ thể xem LIVE-PROGRESS/audit.
 
-
-## 26/10 — một lệnh setup node mới, một mã ghép, khôi phục reboot XZ3
-- `scripts/bootstrap-new-android-node.sh`: fresh-only full Termux aarch64 install, source pin `2f14deb8`, integrates original Panel/Monitor CSS, PHP/Nginx/Node/MariaDB/SSH/runit, Termux:API and managed boot diagnostics; no existing-node overwrite or writer activation.
-- `scripts/update-existing-android-node.sh`: update release nguồn 13 file SHA pin (gồm live Panel và managed source), backup/rollback Panel, Agent, Boot, source verification; dành riêng Vsmart/XZ3 LAB, giữ admin JWT/DB/Tunnel.
-- `bin/node-boot.sh` + `bin/node-doctor.sh`: Termux:Boot wake lock, start-services/runsvdir, SSH, Panel, Agent enrolled, boot-last.log, pin/API diagnostics, Worker schema/heartbeat distinction.
-- `bin/cluster-authority.mjs`: `sharedInvite`, `joinWithCode`, CLI `mhc-full join MHC1...`, local identity+keys, HTTPS DO enrollment and agent start. `bin/mhc-full-wrapper` maps join and node-doctor.
-- `reference/cluster-authority/worker.mjs`: authenticated Panel-only invite, dynamic hashed credentials, 10-min single-use invitation, Node identity validation, transaction, dynamic member heartbeat; no writer grant.
-- `bin/legacy-panel-src/src/mhc-integration.mjs` + `server.mjs` + `public/app.js`: Panel invite endpoint with existing session/CSRF; Monitor all-node cards auto expanded; `public/style.css` responsive redesign.
-- `tests/cluster-pairing.mjs` and `tests/monitor-all-nodes.mjs`: fixture coverage, `bin/self-test.sh` includes both tests and new shell syntax. Node runner NOT RUN in ChatGPT runtime.
-- `docs/ONE-COMMAND-NODE-SETUP.md`: one command and pairing/reboot runbook. Worker deployment + Android permissions still operator actions.
-
-## 26/10 MHC Monitor expanded V3 delivery
-- `bin/legacy-panel-src/public/app.js`: `mhcMonitorPage()` renders full node cards for all nodes without any per-node click; local/live node ordering, 15s polling, async 3-concurrent bounded history, missing telemetry v2 versus stale heartbeat.
-- `bin/legacy-panel-src/public/style.css`: responsive 2-column desktop/1-column narrow, readable service chips, metric tiles, process/memory history; integrated into original Panel 9090 rather than standalone monitor.
-- `bin/legacy-panel-src/src/mhc-integration.mjs`: removes legacy CPU probing fallback.
-- `scripts/update-existing-android-node.sh`: immutable source+13 SHA pins, Node ESM stdin check, pre-install local Panel HTTP check, guaranteed rollback on unsuccessful health verification including explicit exit; release commit `33480440f9b5e7652467ff59d31a67332c231dc0`.
-
-
-## P3 LAB operator-assisted Cloudflare cutover — source 26/10
-- `reference/cluster-authority/p3-route.mjs`: isolated Worker/DO DNS API adapter, allowed exact zone+record ids, known tunnel targets, site-before-panel, current target comparison and idempotent retry.
-- `reference/cluster-authority/worker.mjs`: `route`/`route-resume`/`complete` with Durable Object status journal, revision CAS/idempotence and operator attestations; `writerLeaseGranted:false`, no independent fencing.
-- `bin/cluster-authority.mjs`, `bin/legacy-panel-src/public/app.js`: shared P3 LAB client and original Panel UI actions. `bin/legacy-panel-src/src/server.mjs` original route/CSRF/Access reused unchanged.
-- `tests/p3-route.mjs` + `bin/self-test.sh`: mocked Cloudflare DNS adapter tests (real Node runner NOT RUN), syntax/source test checks only. `docs/P3-LAB-MANUAL-CUTOVER.md`: private config gates and device test runbook. P3 production not accepted.
-
-## 27/10/2026 P3 Panel recovery milestone
-- `reference/cluster-authority/p3-recovery.mjs`: pure standby selection with stale incumbent/healthy Panel+Tunnel gates; never grants writer.
-- `reference/cluster-authority/worker.mjs`: scheduled Cloudflare Worker → DO `recoverPanel()` durable journal, single panel-only DNS recover, retries/audit, exposes panelRecovery read-only state.
-- `reference/cluster-authority/p3-route.mjs`: DNS CNAME adapter with `p3SwitchPanelDns` for Panel only; manual P3 `p3SwitchDns` handles Panel having previously been recovered elsewhere.
-- `reference/cluster-authority/wrangler.toml`: cron every 1m, opt-in secret off by default.
-- `bin/legacy-panel-src/public/app.js`: original Cluster Panel shows Panel recovery route/status distinct from LAB declaredPrimary.
-- `tests/p3-panel-recovery.mjs`: unit/fixture coverage; `docs/P3-PANEL-RECOVERY-2026-10-27.md`: deployment/runbook.
-# Đối chiếu code với runtime 27/10/2026
-
-- `reference/cluster-authority/worker.mjs`, `p3-route.mjs`, `p3-recovery.mjs`: DO membership/Monitor, P3 DNS route và Cron Panel-only recovery opt-in trong **source** `055aab5`; Cloudflare deploy hash chưa xác minh.
-- `scripts/update-existing-android-node.sh`: pin 13 file ở `f73df61`, manifest SHA khớp; không tự động triển khai Worker hoặc Cloudflare secrets. `scripts/bootstrap-new-android-node.sh` chỉ cho Termux trống.
-- `bin/node-monitor.mjs`, `bin/cluster-authority.mjs`, `bin/legacy-panel-src/public/app.js`: trên Vsmart collector đã khớp pin P3, authority client/UI còn bản cũ hơn. Marker `TEST 0.5.0C-REMOTE-PANEL` không xác định chính xác từng file.
-- `tests/p3-route.mjs`, `tests/p3-panel-recovery.mjs`, `tests/cluster-pairing.mjs`, `tests/monitor-all-nodes.mjs`: PASS fixture Windows 27/10; `tests/manual-candidate-ui.mjs`, `tests/access-sso-panel.mjs`: FAIL Windows, xem audit.
-- Code clock-health chưa commit còn ở workspace cha ngoài `.work/repository`; không nhập vào branch khi kiểm kê.
+- M2: `tests/cluster-authority.mjs`, `authority-panel.mjs`, `authority-http-panels.mjs`, `cluster-pairing.mjs`, `monitor-all-nodes.mjs`, `remote-panel.mjs`, `access-sso-panel.mjs`.
+- P3: `tests/p3-route.mjs`, `p3-panel-recovery.mjs`, `manual-candidate-ui.mjs`; DNS/DO/JWT fixtures không chứng minh live cutover.
+- Windows SSO fixture cần file URL cho `--import`; POSIX HTTP fixture cần TMPDIR ngoài source/Git. Candidate UI test còn assertion cũ.
+- `docs/HANDOFF-*`, `PROJECT-STATUS-2026-10-26.md`: hồ sơ lịch sử; `CONTINUE-MHC.md`: kết nối/recovery. Code clock-health riêng ở workspace cha chưa nhập Git, phải đối chiếu trước khi gộp.
