@@ -91,3 +91,10 @@ Key auth và strict host key đã PASS. `sv status "$PREFIX/var/service/sshd"` t
 - Updater rollback chỉ restart Panel, không restart Agent khi hồi client; repair boot nằm sau khi tắt cờ rollback. Đây là gate cần test/fix trước rollout, không gọi rollback đã nghiệm thu từ static review.
 - `access-sso-panel` trên Windows lỗi `ERR_UNSUPPORTED_ESM_URL_SCHEME`: preload `--import` cần file URL. Test source hiện tại PASS trên hai Android trong fixture cách ly. `authority-http-panels` cần TMPDIR ngoài source/Git để guard prepare-secrets không chặn fixture; không bỏ guard. `manual-candidate-ui` còn assertion cũ, FAIL trên cả hai Android. Self-test chưa gọi cả ba runner mới liên quan.
 - Git Bash `C:\Program Files\Git\bin\bash.exe` có sẵn, 32 shell syntax checks PASS; WSL bash bị từ chối không có nghĩa không thể tự kiểm Shell trên Windows. Public Panel từ cả hai Android trả 302 Access; lỗi schannel Windows trước đó không xác định origin hỏng.
+
+
+## P3.2 Worker DNS network failed trước khi gửi API
+
+Nếu Worker báo P3_CLOUDFLARE_NETWORK_FAILED nhưng DNS token GET bằng CLI vẫn PASS, kiểm fetch options trong workerd thật; Node mocks không đủ. Runtime workerd hiện từ chối redirect:error ngay khi tạo Request. Dùng redirect:manual và từ chối !response.ok, không follow Location vì request mang Authorization. Nguồn runtime: [Cloudflare workerd http.c++](https://github.com/cloudflare/workerd/blob/main/src/workerd/api/http.c%2B%2B). Local probe bằng cùng compatibility_date2026-10-01 tái hiện error rejected/manual accepted; regression phải kiểm manual và3xx fail-closed trước PATCH.
+
+Sau lỗi, giữ journal DNS_REQUESTED; kiểm actual records, sửa/deploy Worker giữ DO/vars/secrets, đợi cooldown rồi p32-resume bằng readiness mới. Không abort pending P3.1 hoặc tự sửa DNS ngoài journal để làm test qua. DNS_AWAITING_HTTP chỉ là API PASS; vẫn cần Access origin proof qua Panel LAB thật trước khi đổi ứng viên.

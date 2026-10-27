@@ -30,7 +30,9 @@ async function cfRequest(env,method,route,body,fetcher){
  let res;
  try{res=await fetcher(url,{method,headers:{
   'authorization':'Bearer '+env.MHC_P3_CF_TOKEN,'content-type':'application/json'},
-  ...(body?{body:JSON.stringify(body)}:{}),redirect:'error',cache:'no-store',
+  // workerd only implements follow/manual; error throws before any request.
+  // Manual plus !ok below rejects redirects without forwarding credentials.
+  ...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',cache:'no-store',
   signal:AbortSignal.timeout(7000)});}
  catch{error('P3_CLOUDFLARE_NETWORK_FAILED');}
  if(!res.ok)error('P3_CLOUDFLARE_API_FAILED');

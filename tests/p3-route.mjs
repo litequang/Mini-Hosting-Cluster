@@ -12,6 +12,7 @@ const env={MHC_P3_LAB_ENABLED:'OPERATOR_ASSISTED_DNS_ONLY',MHC_P3_INITIAL_PRIMAR
 const records=new Map(routes.map(x=>[x.recordId,{id:x.recordId,name:x.hostname,type:'CNAME',proxied:true,content:old}]));
 let requests=[];
 const fetcher=async (url,opts)=>{
+ assert.equal(opts.redirect,'manual','Workers supports manual redirects; never forward API credentials to a redirected origin');
  const id=url.split('/').at(-1),item=records.get(id);requests.push({method:opts.method,id});
  if(!item)return new Response(JSON.stringify({success:false}),{status:404});
  if(opts.method==='PATCH')Object.assign(item,JSON.parse(opts.body));
@@ -31,4 +32,10 @@ assert.equal(requests.filter(x=>x.method==='PATCH').length,2,'Replay must not PA
 records.get('c'.repeat(32)).content='other.cfargotunnel.com';
 await assert.rejects(p3SwitchDns(env,{fromNodeId:a,targetNodeId:z},fetcher),/P3_ROUTE_CONFLICT_MANUAL_REVIEW/);
 assert.equal(requests.filter(x=>x.method==='PATCH').length,2,'Conflict must not write DNS');
+let redirectCalls=0;
+await assert.rejects(p3SwitchDns(env,{fromNodeId:a,targetNodeId:z},async(url,opts)=>{
+ redirectCalls++;assert.equal(opts.redirect,'manual');
+ return new Response(null,{status:302,headers:{location:'https://other.invalid/never-forward-authorization'}});
+}),/P3_CLOUDFLARE_API_FAILED/);
+assert.equal(redirectCalls,1,'Redirect response must fail closed before a second request or PATCH');
 console.log('PASS: P3 DNS route fail-closed, site-before-panel, verified CNAME, retry safe, config gate and conflict refusal');
