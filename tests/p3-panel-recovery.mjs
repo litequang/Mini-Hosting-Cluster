@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {p3RecoveryPlan} from '../reference/cluster-authority/p3-recovery.mjs';
 import {p3SwitchDns,p3SwitchPanelDns} from '../reference/cluster-authority/p3-route.mjs';
+import worker,{ClusterAuthority} from '../reference/cluster-authority/worker.mjs';
 
 // Standalone, fake time + fake DNS only; no real phone, Cloudflare or website involved.
 const a='d97965f8-b2e9-4a8a-97d6-acb40504bdf1';
@@ -60,4 +61,35 @@ assert.equal(records.get('b'.repeat(32)).content,tb,'manual Primary now redirect
 assert.equal(calls.filter(x=>x.method==='PATCH').length,2,'no duplicate Panel PATCH');
 records.get('c'.repeat(32)).content='wrong.cfargotunnel.com';
 await assert.rejects(p3SwitchPanelDns(env,{fromNodeId:a,targetNodeId:b},fakeCF),/P3_ROUTE_CONFLICT_MANUAL_REVIEW/);
+// Exercise actual Durable Object recovery state transition against fake Cloudflare API.
+for(const record of records.values())record.content=ta;
+const now2=Date.now(),secrets=['X','Y','Z','W'].map(x=>x.repeat(43));
+const liveEnv={...env,MHC_CLUSTER_ID:'6e4d47a1-1c67-4710-b42a-18108d1be66b',
+ MHC_MEMBERS_JSON:JSON.stringify([{nodeId:a,label:'Vsmart',agentKey:secrets[0],panelKey:secrets[1]},
+  {nodeId:b,label:'XZ3',agentKey:secrets[2],panelKey:secrets[3]}])};
+const store=new Map([['state',{schema:1,revision:1,epoch:0,pending:null,heartbeats:{
+ [a]:{receivedAt:now2-360000,sequence:1},
+ [b]:{receivedAt:now2-15000,metricsAt:now2-15000,sequence:1,telemetry:running}
+}}]]);
+const storage={transaction:async callback=>callback({
+ get:async key=>store.get(key),put:async(key,val)=>{store.set(key,val);}
+})};
+const savedFetch=globalThis.fetch;
+try{
+ globalThis.fetch=fakeCF;
+ const authority=new ClusterAuthority({storage},liveEnv);
+ const first=await authority.recoverPanel();
+ assert.equal((await first.json()).action,'P3_PANEL_RECOVERY_DNS_VERIFIED');
+ const later=await authority.recoverPanel();
+ assert.equal((await later.json()).reason,'RECOVERY_ACTIVE');
+ assert.equal(store.get('state').pending,null);
+ assert.equal(store.get('state').declaredPrimary,undefined);
+ assert.equal(records.get('b'.repeat(32)).content,ta,'scheduled recovery never touches website');
+ assert.equal(records.get('c'.repeat(32)).content,tb,'scheduled recovery updates Panel route');
+ const scheduled=[];
+ await worker.scheduled({},{
+  ...liveEnv,MHC_AUTHORITY:{idFromName:()=>42,get:()=>({fetch:async req=>scheduled.push(req.url)})}
+ },{waitUntil:p=>scheduled.push(p)});
+ assert.equal(scheduled.length,2,'scheduled handler invokes shared authority independently');
+}finally{globalThis.fetch=savedFetch;}
 console.log('PASS: P3 standby Panel selection, schedule guards, DNS-only recovery, retries, manual route after recovery, conflict fails closed');
