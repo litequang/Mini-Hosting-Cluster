@@ -308,6 +308,8 @@ ${d.pending.status==='PREPARED_NO_WRITER_GRANT'?btn('Hủy ứng viên','primary
 <div class="btnrow">${btn('Kiểm readiness hai node','primary-p31-check')}${d.pending?.status==='PREPARED_NO_WRITER_GRANT'?btn('Bật preview chỉ đọc trên ứng viên','primary-p31-prepare','primary'):''}</div>
 <div class="toolbar"><select id="p31Target">${nodes.map(n=>`<option value="${esc(n.nodeId)}" ${n.nodeId===d.pending?.targetNodeId?'selected':''}>${esc(n.label)}</option>`).join('')}</select>${btn('Dừng preview về Standby','primary-p31-standby','tiny warn')}</div>
 ${readiness?.nodes?.map(n=>{const fresh=n.verified&&Date.now()<=n.expiresAt&&n.epoch===d.epoch&&n.revision===d.revision;return `<p><b>${esc(nodes.find(x=>x.nodeId===n.nodeId)?.label||n.nodeId)}</b>: ${!fresh?'Chưa xác minh hoặc proof đã hết hạn':!n.previewReady?'Thiếu dữ liệu/dịch vụ':n.websiteServing?'Website LAB đang preview chỉ đọc':'Dữ liệu sẵn sàng, website đang Standby'}<br><small>${esc(n.problem||n.problems?.join(', ')||'')} · P3.1 cấp writer: KHÔNG · kiểm lúc ${esc(mhcTime(n.checkedAt))}<br>MHC ${esc(n.version||'chưa xác minh')} · dataset ${esc(n.dataset?.datasetId||'chưa có')} · tạo lúc ${esc(mhcTime(n.dataset?.preparedAt))}</small></p>`;}).join('')||'<p>Heartbeat chưa đủ: bấm kiểm readiness để xác minh dữ liệu, SQL và HTTP riêng từng node.</p>'}</div>`:'';
+  const lab=d.p32,labJournal=lab?.journal;
+  const p32=shared?`<div class="card"><h2>P3.2 — tuyến Internet LAB chỉ đọc</h2><p>Panel thử nghiệm: <a href="https://panel-lab.giaouoc.com" target="_blank" rel="noopener">panel-lab.giaouoc.com</a><br>Website thử nghiệm: <a href="https://preview-lab.giaouoc.com" target="_blank" rel="noopener">preview-lab.giaouoc.com</a></p><p>Không đổi panel.giaouoc.com, không cấp quyền ghi.</p>${lab?.enabled?`<p>Revision tuyến ${Number(lab.routeRevision)} · ${esc(labJournal?.status||'Chưa kiểm Internet')}<br>Panel: ${esc(nodes.find(n=>n.nodeId===lab.panelNodeId)?.label||lab.panelNodeId)}<br>Preview: ${esc(nodes.find(n=>n.nodeId===lab.siteNodeId)?.label||lab.siteNodeId)}</p><p>${labJournal?.httpVerified?'Đã kiểm Access và node ký proof qua tuyến LAB.':'DNS/API chưa đủ: mở Panel LAB rồi bấm xác minh Internet.'}</p><div class="toolbar"><select id="p32Target">${nodes.filter(n=>['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24'].includes(n.nodeId)).map(n=>`<option value="${esc(n.nodeId)}" ${n.nodeId===d.pending?.targetNodeId?'selected':''}>${esc(n.label)}</option>`).join('')}</select></div><div class="btnrow">${btn('Chuyển Panel + preview LAB','p32-route')}${btn('Chỉ chuyển Panel LAB','p32-panel')}${btn('Tiếp tục tuyến bị gián đoạn','p32-resume')}${btn('Rollback tuyến LAB','p32-rollback')}${btn('Xác minh Internet từ Panel LAB','p32-confirm','primary')}</div>`:'<p>Worker hiện chưa có P3.2 hoặc chưa được cấu hình LAB. Chưa thể chuyển tuyến.</p>'}</div>`:'';
   const selection=shared?`<div class="card"><h2>Chọn node dự kiến làm Primary</h2><p>Thao tác đầu tiên chỉ chuẩn bị ứng viên. Chuyển tuyến chỉ hoạt động trên LAB có allowlist và xác nhận độc lập; không cấp writer lease.</p>${intent}${!d.pending?`<div class="toolbar"><select id="primaryTarget">${primaryChoices||'<option value="">Chưa có node sẵn sàng</option>'}</select>${primaryChoices?btn('Chọn node — bắt đầu chuẩn bị','primary-begin','primary'):''}</div>`:''}<p class="help">Route LAB có nhật ký phục hồi. Worker phải có quyền DNS cho đúng tên miền thử nghiệm; chưa có write fencing thực.</p></div>`:'';
   page('Cluster — tổng quan',`
   <div class='sectionhead'><div><h2>Cụm máy chủ</h2><p>Trạng thái từ Cloudflare, tự cập nhật mỗi 20 giây khi mở trang</p></div><div class='btnrow'>${btn('Làm mới','cluster-overview')}${btn('Kỹ thuật LAB','cluster-advanced')}</div></div>
@@ -323,6 +325,7 @@ ${readiness?.nodes?.map(n=>{const fresh=n.verified&&Date.now()<=n.expiresAt&&n.e
   ${enroll}
   ${selection}
   ${p31}
+  ${p32}
   ${shared?`<div class='card' style='margin-top:16px'><b>Shared Authority M2</b><p>Revision ${Number.isSafeInteger(d.revision)?d.revision:'—'} · Epoch ${Number.isSafeInteger(d.epoch)?d.epoch:'—'} · Phiên chuẩn bị ${d.pending?'đang mở':'không có'}</p><p class='help'>PREPARE_ONLY: chưa cấp quyền Primary, không chuyển dịch vụ hay đồng bộ dữ liệu.</p></div>`:''}
   `);
  }finally{state.clusterOverviewLoading=false;}
@@ -423,6 +426,13 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
  if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
 
+ if(['p32-route','p32-panel','p32-resume','p32-rollback','p32-confirm'].includes(type)){
+  const live=await req('/api/mhc/primary-selection');if(!live.p32?.enabled)throw Error('Worker chưa cấu hình tuyến P3.2 LAB');
+  if(type!=='p32-confirm'&&!confirm(type==='p32-rollback'?'Rollback chỉ hai tuyến LAB. Website cũ có thể cần chuẩn bị lại preview; không rollback dữ liệu. Tiếp tục?':'Thao tác DNS thật chỉ cho panel-lab.giaouoc.com và preview-lab.giaouoc.com. Không cấp Primary/writer. Tiếp tục?'))return;
+  const id=$('#p32Target')?.value,action=type==='p32-panel'?'p32-route':type;
+  await req('/api/mhc/p32-route',{method:'POST',body:{action,id,kind:type==='p32-panel'?'panel':'both',requestId:crypto.randomUUID(),expectedRevision:live.revision,expectedRouteRevision:live.p32.routeRevision}});
+  toast('Đã cập nhật tuyến LAB; xem trạng thái DNS và xác minh HTTP');await nav('cluster');return;
+ }
  if(type==='primary-p31-check'){
   state.p31Readiness=await req('/api/mhc/p31-readiness');toast('Đã kiểm proof mới; không cấp quyền writer');await nav('cluster');return;
  }

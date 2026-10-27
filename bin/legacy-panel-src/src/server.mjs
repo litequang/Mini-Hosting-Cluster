@@ -12,7 +12,7 @@ import {listDatabases,createDatabase,listTables,backupDatabase,restoreDatabase} 
 import {listBackups,backupSiteArchive,backupFile} from './backups.mjs';
 import {backupStatus,startBackup,verifyLatest,downloadableSnapshot} from './tpp-backup-manager.mjs';
 import {nodeProcessStats} from './node-process-monitor.mjs';
-import {mhcModules,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard,mhcP31Readiness} from './mhc-integration.mjs';
+import {mhcModules,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard,mhcP31Readiness,mhcP32OriginProof,mhcP32Action} from './mhc-integration.mjs';
 import {existingSite,statusExisting,listExistingFiles,readExistingFile,writeExistingFile,mkdirExisting,deleteExisting,renameExisting,downloadExistingFile,deployExisting,rollbackExisting,existingLog} from './existing-site.mjs';
 const PUBLIC=path.join(ROOT,'public');
 const sessions=new Map(),attempts=new Map();let mutations=Promise.resolve();
@@ -22,7 +22,7 @@ function send(res,status,data){const out=Buffer.from(JSON.stringify(data));res.w
 function jsonBody(buf){if(!buf.length)return {};try{return JSON.parse(buf.toString('utf8'));}catch{throw new HttpError(400,'Invalid JSON');}}
 async function readBody(req,max=30*1024*1024){const parts=[];let size=0;for await(const ch of req){size+=ch.length;if(size>max)throw new HttpError(413,'Upload too large');parts.push(ch);}return Buffer.concat(parts);}
 function cookie(req,name){const raw=req.headers.cookie||'';return raw.split(';').map(s=>s.trim()).find(p=>p.startsWith(name+'='))?.slice(name.length+1)||'';}
-function accessBinding(req){return crypto.createHash('sha256').update(String(req.headers['cf-access-jwt-assertion']||'')).digest('hex');}
+function accessBinding(req){return crypto.createHash('sha256').update(JSON.stringify([String(req.headers.host||'').toLowerCase(),String(req.headers['cf-access-jwt-assertion']||'')])).digest('hex');}
 function auth(req){
  const id=cookie(req,'amh_session'),session=sessions.get(id);
  if(!session)return null;
@@ -75,6 +75,8 @@ async function api(req,res,url){
  if(route==='/api/mhc/auto-primary'&&method==='GET')return send(res,200,await mhcAutomaticElection());
  if(route==='/api/mhc/primary-selection'&&method==='GET')return send(res,200,await mhcPrimarySelection());
  if(route==='/api/mhc/p31-readiness'&&method==='GET')return send(res,200,await mhcP31Readiness());
+ if(route==='/api/mhc/p32-origin-proof'&&method==='GET')return send(res,200,await mhcP32OriginProof(url.searchParams.get('nonce'),{host:String(req.headers.host||'').toLowerCase(),accessVerified:req.mhcRemoteAccess===true}));
+ if(route==='/api/mhc/p32-route'&&method==='POST'){const b=jsonBody(await readBody(req,4096));return send(res,200,await queueMutate(()=>mhcP32Action(b,{host:String(req.headers.host||'').toLowerCase(),accessVerified:req.mhcRemoteAccess===true,jwt:req.headers['cf-access-jwt-assertion']})));}
  if(route==='/api/mhc/primary-selection'&&method==='POST'){const b=jsonBody(await readBody(req,4096));return send(res,200,await queueMutate(()=>mhcPrimaryAction(b)));}
  if(route==='/api/mhc/modules'&&method==='GET')return send(res,200,await mhcModules());
  if(route==='/api/mhc/cluster'&&method==='GET')return send(res,200,await mhcCluster());

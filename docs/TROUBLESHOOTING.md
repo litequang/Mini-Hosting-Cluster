@@ -1,5 +1,16 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## P3.2 read-only LAB
+
+- P32_WORKER_NOT_CONFIGURED/P32_NOT_ENABLED: kiểm Worker hiện hữu đã có source P3.2 và đúng vars/secret; không bật MHC_P3_LAB_ENABLED để lách guard P3.1. Có OAuth Wrangler không đồng nghĩa có DNS/Access permission.
+- P32_EXACT_LAB_ALLOWLIST_REQUIRED/P32_TWO_SEPARATE_TUNNELS_REQUIRED: chỉ panel-lab.giaouoc.com và preview-lab.giaouoc.com, đúng2 node/tunnel khác nhau; không sửa allowlist thành hostname production.
+- P32_PROOF_* hoặc P32_SIGNATURE_INVALID: refresh epoch/revision/challenge, public key pin; không đọc/copy private key hoặc tắt signature check. Client giữ bounded error code có chữ số để Panel hiển thị P32 cụ thể.
+- P32_PUBLIC_ACCESS_ORIGIN_REQUIRED/P32_CONFIRM_FROM_PUBLIC_LAB_PANEL_REQUIRED: xác minh từ Panel LAB thật qua Access, localhost proof không chứng minh tuyến Internet. Không rewrite Panel Host thành127.0.0.1; preview Host override riêng18131 là cấu hình khác.
+- P32_PUBLIC_PREVIEW_IDENTITY_MISMATCH/P32_PUBLIC_PREVIEW_UNREACHABLE: kiểm Access cùng AUD cho2 LAB hosts, cloudflared required JWT, header/node và body hash, cache bypass; giữ DNS_AWAITING_HTTP, không đánh dấu PASS từ CNAME.
+- P32_ROUTE_PENDING: journal còn DNS_REQUESTED/DNS_AWAITING_HTTP, chưa cho begin/abort làm tắt preview khi đang đổi tuyến. Kiểm DNS, resume ≥60s hoặc rollback có điều kiện. ROLLBACK_DNS_AWAITING_HTTP cho phép chuẩn bị lại preview trên old node; DNS rollback không tự chứng minh HTTP/dữ liệu.
+- P32_CONFIG_CHANGED_DURING_ROUTE/P32_SPLIT_ROUTE_ROLLBACK_REQUIRES_REVIEW: không ghi đè journal hoặc target tùy ý; đối chiếu route/site/Panel thực trước. Không xóa pending lock mù.
+- Fixture tar đóng từ Windows có thể mất executable bits: khôi phục mode từ Git100755 **chỉ trong HOME/source fixture** trước test. Không đổi chmod live để sửa test. Package upgrade dùng explicit manifest modes nên kiểm riêng.
+
 ## P3.1 candidate nội bộ
 
 - `P31_UNPROVEN_WRITER_FENCING` / `P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED`: fail-closed có chủ đích, không sửa flags hoặc dùng checkboxes DNS-only cũ để bypass. Preview hoạt động không đồng nghĩa Primary đã chuyển.

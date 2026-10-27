@@ -11,7 +11,7 @@ function remote(p,request){return new Promise((resolve,reject)=>{
  proc.stdin.end(JSON.stringify(request)+'\n');
 });}
 export async function p31Request(nodeId,action,body={},options={}){
- const c=config(),p=peer(c,nodeId),s=await sharedStatus(),nonce=crypto.randomBytes(32).toString('hex');
+ const c=config(),p=peer(c,nodeId),s=await sharedStatus(),nonce=options.nonce||crypto.randomBytes(32).toString('hex');
  if(!['probe','prepare','standby','promote'].includes(action))throw Error('P31_ACTION_INVALID');
  // Do not even send a writer command: no Worker lease/fencing contract exists in P3.1.
  if(action==='promote')throw Error('P31_UNPROVEN_WRITER_FENCING');
@@ -20,8 +20,9 @@ export async function p31Request(nodeId,action,body={},options={}){
  const envelope=nodeId===c.nodeId?await new CandidateNode().accept(r):await remote(p,r);
  const proof=verifyProof(envelope,{publicKey:p.publicKey,nonce,nodeId,clusterId:c.clusterId,epoch:s.epoch,revision:s.revision,operationId:s.pending?.operationId||null});
  const fresh=await sharedStatus();if(fresh.epoch!==s.epoch||fresh.revision!==s.revision||(fresh.pending?.operationId||null)!==(s.pending?.operationId||null))throw Error('P31_AUTHORITY_CHANGED_AFTER_PROOF');
- return proof;
+ return options.envelope?envelope:proof;
 }
+export async function p31OriginProof(nonce,origin){return new CandidateNode().probe(nonce,origin);}
 export async function p31Readiness(){
  if(!p31Enabled())return {enabled:false,canPromote:false};const c=config();
  const nodes=await Promise.all(c.peers.map(async p=>{try{return {...await p31Request(p.nodeId,'probe'),verified:true};}catch(e){return {nodeId:p.nodeId,verified:false,previewReady:false,websiteServing:false,writerGranted:false,fencingVerified:false,problem:/^P31_[A-Z_]+$/.test(e.message)?e.message:'P31_AUTHORITY_UNAVAILABLE'};}}));

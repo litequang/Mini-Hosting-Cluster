@@ -13,13 +13,17 @@ let cache={team:'',expires:0,keys:[]};
 export function config(){
  try{
   const st=fs.lstatSync(CONF);
-  if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)!==0||st.size>2048) return null;
+  if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077)!==0||st.size>4096) return null;
   const c=JSON.parse(fs.readFileSync(CONF,'utf8'));
   if(c.schema!==1||!HOST.test(c.hostname)||!TEAM.test(c.teamDomain)||!AUD.test(c.audience)||c.hostname===c.teamDomain)return null;
-  return {hostname:c.hostname,teamDomain:c.teamDomain,audience:c.audience};
+  const applications=c.applications??[];
+  if(!Array.isArray(applications)||applications.length>3)return null;
+  const seen=new Set([c.hostname]);
+  for(const a of applications){if(!a||!HOST.test(a.hostname)||!TEAM.test(a.teamDomain)||!AUD.test(a.audience)||a.hostname===a.teamDomain||seen.has(a.hostname))return null;seen.add(a.hostname);}
+  return {hostname:c.hostname,teamDomain:c.teamDomain,audience:c.audience,applications:applications.map(a=>({hostname:a.hostname,teamDomain:a.teamDomain,audience:a.audience}))};
  }catch{return null;}
 }
-export function publicStatus(){const c=config();return {configured:!!c,remoteHostname:c?.hostname||null,accessJwtRequired:true,usesOriginalPanel:true,port:9090,cloudflareAccessDeploymentVerified:false,controllerRoleVerified:false,notice:c?'Remote HTTPS requires a verified Cloudflare Access JWT and an Access Allow policy. Panel password remains available only on localhost/SSH forwarding.':'Remote panel is disabled. Localhost/SSH forwarding remains available.'};}
+export function publicStatus(){const c=config();return {configured:!!c,remoteHostname:c?.hostname||null,remoteHostnames:c?[c.hostname,...c.applications.map(a=>a.hostname)]:[],accessJwtRequired:true,usesOriginalPanel:true,port:9090,cloudflareAccessDeploymentVerified:false,controllerRoleVerified:false,notice:c?'Remote HTTPS requires a verified Cloudflare Access JWT for the exact hostname/application. Panel password remains available only on localhost/SSH forwarding.':'Remote panel is disabled. Localhost/SSH forwarding remains available.'};}
 function decode64(s){if(s.length>16384||!/^[A-Za-z0-9_-]+$/.test(s))throw Error('Invalid JWT encoding');return Buffer.from(s,'base64url');}
 async function keysFor(team,fetcher){
  if(cache.team===team&&Date.now()<cache.expires&&cache.keys.length)return cache.keys;
@@ -76,10 +80,11 @@ export async function verifyAccess(token,c,fetcher=fetch,onReject=()=>{}){
 export async function authorizeRequest(req,port,fetcher=fetch){
  const host=String(req.headers.host||'').toLowerCase();
  if(host===`127.0.0.1:${port}`||host===`localhost:${port}`)return {remote:false,host};
- const c=config();
- if(!c)return deny('REMOTE_CONFIG_INVALID');
+ const base=config();
+ if(!base)return deny('REMOTE_CONFIG_INVALID');
+ const c=[base,...base.applications].find(a=>host===a.hostname||host===a.hostname+':443');
  // Some reverse proxies include the standard HTTPS port in Host.
- if(host!==c.hostname&&host!==c.hostname+':443')return deny('HOST_MISMATCH');
+ if(!c)return deny('HOST_MISMATCH');
  let reason='JWT_REJECTED';
  if(!(await verifyAccess(req.headers['cf-access-jwt-assertion'],c,fetcher,r=>{reason=r;})))return deny(reason);
  return {remote:true,host};

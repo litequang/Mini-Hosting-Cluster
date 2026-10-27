@@ -1,5 +1,14 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 27/10/2026 — P3.2 dùng tuyến LAB riêng, không mở writer gate
+
+- User chọn panel-lab.giaouoc.com và preview-lab.giaouoc.com. Giữ panel.giaouoc.com; mỗi phone một Tunnel riêng, không chia connector ngẫu nhiên.
+- Tái dùng adapter GET/PATCH/GET trong DO hiện có, thêm journal routeRevision riêng cho read-only LAB; không bật legacy checkbox route/complete hoặc writer promote. Declared Primary/epoch/lease giữ nguyên.
+- Application LAB riêng có cùng Team/policy admin, AUD đúng app LAB; không sửa app production. Mỗi origin pin exact host/AUD, session gắn Host+JWT; SSH localhost giữ password.
+- DNS-only/recovery không tự PASS HTTP: cần origin nhận Access JWT và ký challenge, public preview header/hash khớp local signed readiness. Rollback DNS read-only không rollback dữ liệu; old preview chưa bật phải hiện chờ HTTP.
+- Cron Panel-only recovery không là auto election P4. Root/shell/same UID/privileged SQL ngoài guard vẫn làm safe writer Primary BLOCKED. Không dùng P3.2 để cấp writer production.
+- User yêu cầu dừng thao tác trình duyệt đang dùng; ưu tiên CLI/API và quyền hiện có. Không mở thêm hoặc điều khiển Chrome để cấu hình tài khoản.
+
 ## 27/10/2026 — P3.1 nội bộ, giữ fail-closed writer
 
 - Nhiệm vụ mới cho phép chuẩn bị dữ liệu LAB riêng, activation/proof và begin/abort trên hai Android, không cho đổi DNS/deploy Worker/Access hoặc cutover Internet. Giới hạn nhiệm vụ kiểm kê trước không ngăn công việc P3.1 mới.

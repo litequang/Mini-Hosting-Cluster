@@ -79,20 +79,24 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
- try{response=await fetcher(url,{method:['status','history'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
-  body:['status','history'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
+ try{response=await fetcher(url,{method:['status','history','p32-status'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
+  body:['status','history','p32-status'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(action.startsWith('p32-')&&action!=='p32-status'?45000:5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
  const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
  if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>524288){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
  let v;try{v=JSON.parse(raw);}catch{throw Error('AUTHORITY_REPLY_INVALID');}
- if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z_]{1,60}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
+ if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
  if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||v.writeLeaseGranted!==false||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
  return v;
 }
 export async function sharedStatus(role='panel'){return authorityRequest(config(role),'status');}
+export async function sharedLabRequest(action,body={}){
+ if(!['p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))throw Error('AUTHORITY_LAB_ACTION_INVALID');
+ labDirectory();return authorityRequest(config('panel'),action,body);
+}
 export async function sharedInvite(){
  const c=config('panel'),current=await authorityRequest(c,'status');
  const issued=await authorityRequest(c,'invite',{requestId:crypto.randomUUID(),expectedRevision:current.revision});

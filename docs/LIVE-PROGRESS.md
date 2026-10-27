@@ -2,7 +2,21 @@
 
 Checkpoint 27/10/2026 sau hậu kiểm hai Android. Đây là trạng thái hiện hành; checkpoint cũ tra Git history. Branch: codex/m1-m2-foundation, checkout: E:\CODE\MHC\MHC\.work\repository. Không sửa bốn phần clock-health ở workspace cha, M51/X7b hay Cloudflare production.
 
-## P3.1 — nền candidate nội bộ: DONE trong phạm vi read-only
+## P3.2 — source/config/test: DONE; triển khai và nghiệm thu Internet: IN PROGRESS
+
+- **Runtime hiện hành:** hai Android vẫn source774f7c9/P31, revision7/epoch2, Primary/pending null/writer false ở preflight P3.2; Panel/Agent/SSH/supervisor Standby khỏe. XZ3 có cloudflared2026.10.3 nhưng chưa có token/config Access/Tunnel service. Chưa mutation Cloudflare trong checkpoint source này.
+- **Source mới:** p32-lab trong DO hiện có dùng exact panel-lab.giaouoc.com và preview-lab.giaouoc.com user đã chọn; CAS/receipt/audit/routeRevision riêng, pinned Ed25519 proof, DNS retry/rollback, HTTP-confirm từ Access origin, Panel-only recovery/no-failback. Tái dùng DNS adapter, giữ guard promote/legacy route/complete P3.1. Không sửa declaredPrimary/epoch/lease, không bật P4.
+- **Original Panel:** exact host/AUD theo application, thêm app LAB giữ base production, session gắn Host+JWT, origin proof tự ký chỉ từ context server; request SSH không tự khai origin. Local password/CSRF/logout giữ nguyên. Script p32-cloudflare chỉ GET audit hoặc xuất plan; không tự mutate tài khoản.
+- **PASS Windows:** Access process login/session/CSRF/logout với multi-host/AUD;18 candidate scenarios; P32 real Ed25519+DO/DNS fault/retry/CAS/concurrency/HTTP confirmation/rollback/recovery; GET-only audit/redaction/plan; authority/Panel bridge và UI structural/syntax. Wrangler4.152.0 dry-run bundle PASS, không upload.
+- **PASS Android fixture riêng trên XZ3 và Vsmart:** full bin/self-test.sh FULL_SUITE_EXIT=0,22 candidate scenarios,57 assertions Remote Panel/CLI; full-suite archive SHA256 ab38748fd49b94d43ae0ad4b5ecfc858a870df2e5dee84e01abba7cc3ca4d1c1. Sau full suite, thêm guard distinct keys/mapping nhất quán và chạy lại focused P32+audit trên cả hai PASS. Đây là HOME/process fixture trên Android thật, không phải Cloudflare cutover live.
+- **FAIL đã xử lý:** full suite lần đầu exit126 vì Windows tar mất executable bits của fixture; khôi phục đúng mode100755 từ Git trong source fixture rồi chạy lại full PASS. Không sửa guard/assertion hoặc chmod runtime để làm test qua.
+- **Read-only Cloudflare đã xác minh:** Wrangler OAuth có sẵn (đường xdg.config, không đọc/xuất token); active Worker version a616d65b-da3e-436b-a554-39751c11c5c9, created26/10/2026; binding MHC_AUTHORITY/ClusterAuthority namespace c941ad9ddcaa4dfdbe474d429a37d8f8, chỉ thấy2 secret refs MHC_CLUSTER_ID/MHC_MEMBERS_JSON, không đọc values. Tunnel mhc-vsmart-lab/3d23199a-decb-4de9-87b4-81afd508db18 healthy, chưa có XZ3 trong list. Worker source hash/Cron, Access app/policy và DNS/ingress account chi tiết còn NOT VERIFIED; metadata deployment không thay source hash.
+- **NOT RUN ở checkpoint source:** rollout P32 hai node, Worker P32 deploy, tạo Tunnel XZ3, LAB Access/login Internet, đổi DNS hai hướng, outage/recovery Cloudflare thật và reboot/Doze. Không báo P3.2 DONE từ fixture. Hai hostname production/Panel đang dùng giữ nguyên.
+- **Commit:** checkpoint nguồn này tra Git log gần nhất cho reference/cluster-authority/p32-lab.mjs; baseline3b42d47, runtime774f7c9. **Thiếu DoD:** tài nguyên/ingress/Access/DNS LAB thật, deploy giữ DO/secrets, hai node cùng package, acceptance HTTP/SQL/rollback/recovery từ Internet. Fencing writer vẫn là P3.3 BLOCKED.
+- **Blocker cần user:** chọn cách cấu hình CLI/API hay user tự thao tác; thiếu AUD LAB/token riêng XZ3/quyền DNS Access được xác minh. Không yêu cầu token vào chat. User phản ánh việc mở Chrome; đã dừng thao tác trình duyệt, ưu tiên CLI/API. **Việc tiếp theo:** commit/push nguồn đã test, build package từ cùng SHA và canary XZ3 rồi Vsmart; sau đó tiếp tục Cloudflare trong scope2 LAB hostnames bằng quyền thực đang có.
+- Contract và thao tác Cloudflare cụ thể: [P32-CLOUDFLARE-LAB.md](P32-CLOUDFLARE-LAB.md). File này vẫn là nguồn trạng thái duy nhất.
+
+## P3.1 — checkpoint trước: DONE trong phạm vi read-only
 
 **P3 Manual Primary an toàn vẫn BLOCKED.** Không coi rehearsal read-only là chuyển Primary.
 

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import {execFile} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 const HOME=process.env.HOME||os.homedir();
@@ -16,6 +17,35 @@ function p31Configured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-i
 async function p31Client(){return import(pathToFileURL(path.join(BIN,'p31-control.mjs')).href);}
 async function sharedView(){try{return {...await (await sharedClient()).sharedStatus(),...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
 export async function mhcP31Readiness(){if(!p31Configured())return {enabled:false,canPromote:false};return (await p31Client()).p31Readiness();}
+export async function mhcP32OriginProof(nonce,context){if(!p31Configured())throw Error('P31_NOT_CONFIGURED');return (await p31Client()).p31OriginProof(nonce,context);}
+export async function mhcP32Action(body,context={}){
+ if(!p31Configured()||!['p32-route','p32-resume','p32-rollback','p32-confirm'].includes(body?.action))throw Error('P32_ACTION_NOT_AVAILABLE');
+ const client=await sharedClient(),live=await client.sharedStatus(),lab=live.p32,j=lab?.journal;
+ if(!lab?.enabled)throw Error('P32_WORKER_NOT_CONFIGURED');
+ if(body.expectedRevision!==live.revision||body.expectedRouteRevision!==lab.routeRevision)throw Error('P32_REVISION_CONFLICT');
+ let target=body.id,kind=body.kind||'both',envelope;
+ if(body.action==='p32-confirm'){
+  if(context.accessVerified!==true||!['panel-lab.giaouoc.com','panel-lab.giaouoc.com:443'].includes(context.host))throw Error('P32_CONFIRM_FROM_PUBLIC_LAB_PANEL_REQUIRED');
+  if(!j?.challenge)throw Error('P32_NO_CONFIRMABLE_ROUTE');
+  let preview;
+  if(j.kind==='both'){
+   let response,bytes=Buffer.alloc(0);
+   try{
+    response=await fetch('https://preview-lab.giaouoc.com/?mhc_p32='+j.challenge,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(7000),headers:{cookie:'CF_Authorization='+context.jwt,'cache-control':'no-cache'}});
+    for await(const b of response.body||[]){bytes=Buffer.concat([bytes,Buffer.from(b)]);if(bytes.length>524288)throw Error('oversized');}
+   }catch{throw Error('P32_PUBLIC_PREVIEW_UNREACHABLE');}
+   if(response.status!==200||!response.headers.get('x-mhc-node'))throw Error('P32_PUBLIC_PREVIEW_UNVERIFIED');
+   preview={hostname:'preview-lab.giaouoc.com',status:response.status,nodeId:response.headers.get('x-mhc-node'),bodySha256:crypto.createHash('sha256').update(bytes).digest('hex')};
+  }
+  envelope=await mhcP32OriginProof(j.challenge,{host:context.host,accessVerified:true,...(preview?{preview}:{})});
+  target=j.targetNodeId;kind=j.kind;
+ }else{
+  if(body.action==='p32-resume'){target=j?.targetNodeId;kind=j?.kind;}
+  if(body.action==='p32-rollback'){target=j?.from?.panelNodeId;kind=j?.kind;}
+  envelope=await (await p31Client()).p31Request(target,'probe',{}, {envelope:true});
+ }
+ return client.sharedLabRequest(body.action,{requestId:body.requestId,expectedRevision:body.expectedRevision,expectedRouteRevision:body.expectedRouteRevision,targetNodeId:target,kind,envelope});
+}
 function run(file,args=[],ms=2200){return new Promise(resolve=>{
   execFile(file,args,{timeout:ms,maxBuffer:32768,encoding:'utf8',env:{...process.env}},(err,stdout,stderr)=>{
     resolve(err?null:String(stdout||stderr||'').trim().slice(0,32768));

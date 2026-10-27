@@ -23,7 +23,7 @@ node - "$HOME/android-hosting-panel/data/remote-access.json" <<'JS'
 const fs=require('node:fs'),file=process.argv[2],st=fs.lstatSync(file);
 if(!st.isFile()||st.isSymbolicLink()||(st.mode&0o077))throw Error('Private origin Access config required');
 const c=JSON.parse(fs.readFileSync(file,'utf8'));
-if(c.schema!==1||c.hostname!=='panel.giaouoc.com'||!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(c.teamDomain)||!/^[A-Za-z0-9_-]{32,128}$/.test(c.audience))throw Error('Configure giaouoc Panel Access first');
+if(c.schema!==1||!['panel.giaouoc.com','panel-lab.giaouoc.com'].includes(c.hostname)||!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(c.teamDomain)||!/^[A-Za-z0-9_-]{32,128}$/.test(c.audience))throw Error('Configure giaouoc Panel Access first');
 JS
 help="$(cloudflared tunnel run --help)"
 [[ "$help" == *--token-file* ]] || fail 'cloudflared token-file support required'

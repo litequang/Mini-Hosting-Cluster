@@ -66,7 +66,7 @@ export class CandidateNode{
   for(const [url,method] of [['/','POST'],['/wp-cron.php','GET'],['/wp-login.php','GET'],['/wp-json/','GET']])if((await get(this.fetch,'http://127.0.0.1:18131'+url,method)).status!==403)fail('P31_HTTP_WRITE_GATE_FAILED');
   return {status:200,phpRendered:true,staticVerified:true,mediaVerified:true,httpMutationDenied:true,bodySha256:hash(root.bytes)};
  }
- async probe(nonce){
+ async probe(nonce,origin=null){
   const c=this.config();if(!HEX.test(nonce||''))fail('P31_NONCE_INVALID');const s=await this.authorityState();
   const problems=[];let dataset=null,database=null,http=null;
   for(const [key,fn] of [['dataset',()=>this.dataset()],['database',()=>this.database()],['http',()=>this.httpProbe(c)]])try{const v=await fn();if(key==='dataset')dataset=v;else if(key==='database')database=v;else http=v;}catch(e){problems.push(/^P31_[A-Z_]+$/.test(e.message)?e.message:'P31_'+key.toUpperCase()+'_UNAVAILABLE');}
@@ -78,6 +78,11 @@ export class CandidateNode{
   const proof={schema:1,nodeId:c.nodeId,clusterId:c.clusterId,nonce,checkedAt,expiresAt:checkedAt+15000,epoch:s.epoch,revision:s.revision,operationId:s.pending?.operationId||null,version:current.version,commit:current.commit,role:'STANDBY_READ_ONLY',writerGranted:false,fencingVerified:false,activation:state.desired==='PREVIEW'&&http?'READ_ONLY_PREVIEW':'STANDBY_QUARANTINE',previewReady:!!dataset&&!!database&&Object.values(management).every(Boolean),websiteServing:!!http,dataset,database,http,management,problems,blocker:'P31_PRIVILEGED_AND_SAME_UID_WRITERS_NOT_FENCED'};
   const key=this.safe(path.join(this.cfg,'proof-key.pem')),st=fs.lstatSync(key);if(st.isSymbolicLink()||(!this.fixture&&(st.mode&0o077)))fail('P31_SIGNING_KEY_UNSAFE');
   Object.assign(proof,{scope:'ISOLATED_P31_DATASET_ONLY',nodeWritersFenced:false});
+  if(origin!==null){
+   if(!origin||typeof origin.host!=='string'||origin.host.length>253||typeof origin.accessVerified!=='boolean')fail('P31_ORIGIN_CONTEXT_INVALID');
+   proof.origin={host:origin.host,accessVerified:origin.accessVerified};
+   if(origin.preview){const p=origin.preview;if(p.hostname!=='preview-lab.giaouoc.com'||p.status!==200||!HEX.test(p.bodySha256||'')||p.nodeId!==c.nodeId)fail('P31_ORIGIN_PREVIEW_INVALID');proof.origin.preview={hostname:p.hostname,status:p.status,bodySha256:p.bodySha256,nodeId:p.nodeId};}
+  }
   return {proof,signature:crypto.sign(null,Buffer.from(JSON.stringify(proof)),fs.readFileSync(key)).toString('base64url')};
  }
  validateRequest(r,c){if(!r||!['probe','prepare','standby','promote'].includes(r.action)||r.nodeId!==c.nodeId||!HEX.test(r.nonce||'')||!UUID.test(r.requestId||'')||!Number.isSafeInteger(r.epoch)||r.epoch<0||!Number.isSafeInteger(r.revision)||r.revision<0)fail('P31_REQUEST_INVALID');}

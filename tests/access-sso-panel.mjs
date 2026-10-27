@@ -32,7 +32,8 @@ try{
  const salt=crypto.randomBytes(16).toString('hex');
  fs.writeFileSync(path.join(panel,'data/admin.json'),JSON.stringify({salt,hash:crypto.scryptSync(pwd,salt,64).toString('hex')}),{mode:0o600});
  const host='panel.lab.example',team='mhc-lab.cloudflareaccess.com',aud='a'.repeat(64);
- fs.writeFileSync(path.join(panel,'data/remote-access.json'),JSON.stringify({schema:1,hostname:host,teamDomain:team,audience:aud}),{mode:0o600});
+ const labHost='panel-lab.giaouoc.com',labAud='b'.repeat(64),sameAudHost='same-policy.lab.example';
+ fs.writeFileSync(path.join(panel,'data/remote-access.json'),JSON.stringify({schema:1,hostname:host,teamDomain:team,audience:aud,applications:[{hostname:labHost,teamDomain:team,audience:labAud},{hostname:sameAudHost,teamDomain:team,audience:aud}]}),{mode:0o600});
  const keys=crypto.generateKeyPairSync('rsa',{modulusLength:2048});
  const jwk={...keys.publicKey.export({format:'jwk'}),kid:'mhc-fixture',alg:'RS256'};
  const jwks=path.join(tmp,'jwks.json');fs.writeFileSync(jwks,JSON.stringify({keys:[jwk]}));
@@ -69,11 +70,13 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  const local=await request(p,'127.0.0.1:'+p,'/api/session');
  assert.equal(local.status,200);assert.equal(local.data.loggedIn,false);
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p31-readiness')).status,401,'readiness requires Panel authentication');
+ assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p32-origin-proof?nonce='+('a'.repeat(64)))).status,401,'origin proof requires real Panel session');
  const login=await request(p,'127.0.0.1:'+p,'/api/login',{method:'POST',body:{username:'admin',password:pwd}});
  assert.equal(login.status,200);assert.equal(login.data.authMode,'password');
  const localCookie=login.cookie.split(';')[0];
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p31-readiness',{cookie:localCookie})).data.enabled,false);
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/primary-selection',{cookie:localCookie,method:'POST',body:{action:'p31-prepare'}})).status,403,'candidate activation requires CSRF');
+ assert.equal((await request(p,'127.0.0.1:'+p,'/api/mhc/p32-route',{cookie:localCookie,method:'POST',body:{action:'p32-route'}})).status,403,'new LAB route also requires CSRF');
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/sites',{cookie:localCookie})).status,200);
  // Access JWT validated on every remote request. Does NOT require Panel password.
  assert.equal((await request(p,host,'/api/session')).status,403,'remote blocked without JWT');
@@ -89,6 +92,15 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  assert(remote.cookie.includes('Secure'),'remote cookie bound to HTTPS');
  assert(remote.cookie.includes('SameSite=Strict'));
  const remoteCookie=remote.cookie.split(';')[0];
+ assert.equal((await request(p,labHost,'/api/session',{jwt})).status,403,'original app JWT cannot authorize separate LAB app');
+ const labJwt=sign({aud:[labAud]});
+ assert.equal((await request(p,host,'/api/session',{jwt:labJwt})).status,403,'LAB app JWT cannot authorize original app');
+ const labSession=await request(p,labHost,'/api/session',{jwt:labJwt});
+ assert.equal(labSession.status,200);assert.equal(labSession.data.authMode,'cloudflare-access');
+ assert.equal((await request(p,sameAudHost,'/api/sites',{jwt,cookie:remoteCookie})).status,401,'session also bound to hostname when two applications share an AUD');
+ assert.equal((await request(p,'unconfigured.giaouoc.com','/api/session',{jwt:labJwt})).status,403,'no wildcard host expansion');
+ assert.equal((await request(p,labHost,'/api/logout',{method:'POST',jwt:labJwt,cookie:labSession.cookie.split(';')[0],csrf:labSession.data.csrf,origin:'https://'+host})).status,403,'LAB CSRF cannot use original hostname Origin');
+ assert.equal((await request(p,labHost,'/api/logout',{method:'POST',jwt:labJwt,cookie:labSession.cookie.split(';')[0],csrf:labSession.data.csrf,origin:'https://'+labHost})).status,200,'LAB logout preserves same-host CSRF');
  assert.equal((await request(p,host,'/api/sites',{jwt,cookie:remoteCookie})).status,200,'Access-only authenticated API');
  assert.equal((await request(p,'127.0.0.1:'+p,'/api/session',{cookie:remoteCookie})).data.loggedIn,false,'remote cookie does not grant localhost admin');
  assert.equal((await request(p,host,'/api/sites',{jwt,cookie:localCookie})).status,401,'localhost password session not valid remotely');
@@ -97,7 +109,7 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  const logout=await request(p,host,'/api/logout',{method:'POST',jwt,cookie:remoteCookie,csrf:remote.data.csrf,origin:'https://'+host});
  assert.equal(logout.status,200);assert.equal(logout.data.accessLogout,true);
  assert(!err.includes(jwt),'raw JWT must not appear in Panel error output');
- console.log('PASS: Access verified JWT auto-login, remote secure cookie, no second password, local password recovery, cross-origin session isolation, JWT binding, CSRF/logout.');
+ console.log('PASS: Access JWT auto-login, exact multi-host/AUD isolation, host-bound session, Secure cookie, localhost recovery, JWT binding, CSRF/logout.');
 }finally{
  if(proc){proc.kill();if(proc.exitCode===null)await new Promise(r=>proc.once('exit',r));}
  fs.rmSync(tmp,{force:true,recursive:true});

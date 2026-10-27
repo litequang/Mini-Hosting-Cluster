@@ -1,5 +1,6 @@
 import {p3Config,p3SwitchDns,p3SwitchPanelDns} from './p3-route.mjs';
 import {p3RecoveryPlan} from './p3-recovery.mjs';
+import {p32Action,p32View,p32BlocksPreparation,P32_BUILD} from './p32-lab.mjs';
 // M2: shared membership and durable preparation journal. NO writer lease or route cutover.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TOKEN=/^[A-Za-z0-9_-]{43,128}$/;
@@ -54,11 +55,20 @@ function members(env){
  }
  return m;
 }
-async function json(req){
+async function authorizedRole(s,staticList,nodeId,role,dynamicToken){
+ if(role==='dynamic'){
+  const member=(s.dynamicMembers||[]).find(n=>n.nodeId===nodeId);
+  if(!member||!TOKEN.test(dynamicToken||''))fail('UNAUTHORIZED',401);
+  const value=await hash(dynamicToken);return equal(value,member.panelDigest)?'panel':equal(value,member.agentDigest)?'agent':null;
+ }
+ if(role!=='joining'&&!staticList.some(n=>n.nodeId===nodeId))fail('UNAUTHORIZED',401);
+ return role;
+}
+async function json(req,max=4096){
  // Bound streamed input before JSON parsing, including requests without Content-Length.
  const reader=req.body?.getReader();if(!reader)return {};
  const chunks=[];let size=0;
- while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>4096){await reader.cancel();fail('BODY_TOO_LARGE',413);}chunks.push(value);}
+ while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();fail('BODY_TOO_LARGE',413);}chunks.push(value);}
  const bytes=new Uint8Array(size);let offset=0;for(const x of chunks){bytes.set(x,offset);offset+=x.length;}
  let b;try{b=JSON.parse(new TextDecoder().decode(bytes));}catch{fail('INVALID_BODY');}
  if(!b||typeof b!=='object'||Array.isArray(b))fail('INVALID_BODY');return b;
@@ -66,13 +76,16 @@ async function json(req){
 export default {
  async scheduled(event,env,ctx){
   // Cron survives Android outages and must never grant writer privileges.
+  if(env.MHC_P32_LAB_ENABLED==='READ_ONLY_ROUTING'&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'&&UUID.test(env.MHC_CLUSTER_ID||'')){
+   const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));ctx.waitUntil(stub.fetch(new Request('https://authority.internal/p32-maintenance',{method:'POST'})));return;
+  }
   if(env.MHC_P3_PANEL_RECOVERY_ENABLED!=='LAB_PANEL_ONLY'||!UUID.test(env.MHC_CLUSTER_ID||''))return;
   const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));
   ctx.waitUntil(stub.fetch(new Request('https://authority.internal/maintenance',{method:'POST'})));
  },
  async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
@@ -80,12 +93,12 @@ export default {
   // Dynamic member credentials can only be verified inside this cluster's Durable Object.
   const role=action==='join'?'joining':staticRole||(UUID.test(id||'')&&TOKEN.test(token)?'dynamic':null);
   if(!role)return reply({error:'UNAUTHORIZED'},401);
-  if(action==='heartbeat'&&role==='panel'||['begin','abort','route','route-resume','complete','history','invite'].includes(action)&&role==='agent')return reply({error:'ROLE_DENIED'},403);
-  if(request.method!==(['status','history'].includes(action)?'GET':'POST'))return reply({error:'METHOD_NOT_ALLOWED'},405);
+  if(action==='heartbeat'&&role==='panel'||(['begin','abort','route','route-resume','complete','history','invite'].includes(action)||action.startsWith('p32-'))&&role==='agent')return reply({error:'ROLE_DENIED'},403);
+  if(request.method!==(['status','history','p32-status'].includes(action)?'GET':'POST'))return reply({error:'METHOD_NOT_ALLOWED'},405);
   const nonce=request.headers.get('x-mhc-nonce');if(!UUID.test(nonce||''))fail('NONCE_REQUIRED');
   const targetNodeId=action==='history'?request.headers.get('x-mhc-target'):null;
   if(action==='history'&&!UUID.test(targetNodeId||''))fail('MONITOR_TARGET_INVALID',400);
-  const body=action==='history'?{targetNodeId}:action==='status'?{}:await json(request);
+  const body=action==='history'?{targetNodeId}:['status','p32-status'].includes(action)?{}:await json(request,action.startsWith('p32-')?16384:4096);
   const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(match[1]));
   // Only the authenticated Worker can call this binding; no caller headers are forwarded.
   return await stub.fetch(new Request('https://authority.internal/'+action,{method:'POST',body:JSON.stringify({action,body,nodeId:id,role,nonce,clusterId:match[1],
@@ -96,26 +109,28 @@ export class ClusterAuthority {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(req){
   if(new URL(req.url).pathname==='/maintenance'&&req.method==='POST')return this.recoverPanel();
+  if(new URL(req.url).pathname==='/p32-maintenance'&&req.method==='POST'){
+   try{return reply({p32:await p32Action({ctx:this.ctx,env:this.env,action:'p32-recover',internal:true})});}catch(e){return reply({error:e.status?e.message:'P32_RECOVERY_UNAVAILABLE'},e.status||503);}
+  }
   try{
    const {action,body,nodeId,role,nonce,clusterId,dynamicToken}=await req.json();
    if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
    if(action!=='join'&&!UUID.test(nodeId))fail('INVALID_INTERNAL_REQUEST');
-   if(!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join'].includes(action))fail('INVALID_ACTION');
+   if(!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))fail('INVALID_ACTION');
    const staticList=members(this.env);
    const now=Date.now();
+   if(action.startsWith('p32-')){
+    const view=await p32Action({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:async s=>(await authorizedRole(s,staticList,nodeId,role,dynamicToken))==='panel',now});
+    const status=await this.fetch(new Request('https://authority.internal/status',{method:'POST',body:JSON.stringify({action:'status',body:{},nodeId,role,nonce,clusterId,dynamicToken})}));
+    if(!status.ok)return status;return reply({...await status.json(),p32:view});
+   }
    if(['route','route-resume','complete'].includes(action))p3Config(this.env);
    const result=await this.ctx.storage.transaction(async tx=>{
     const s=await tx.get('state')||{schema:1,revision:0,epoch:0,pending:null,heartbeats:{}};
     if(s.schema!==1||!Number.isSafeInteger(s.revision)||s.revision<0||!Number.isSafeInteger(s.epoch)||s.epoch<0||!s.heartbeats)fail('STATE_INVALID',503);
     const dynamic=Array.isArray(s.dynamicMembers)?s.dynamicMembers:[];
     const list=[...staticList,...dynamic.map(n=>({nodeId:n.nodeId,label:n.label}))];
-    let effectiveRole=role;
-    if(role==='dynamic'){
-     const member=dynamic.find(n=>n.nodeId===nodeId);
-     if(!member||!TOKEN.test(dynamicToken||''))fail('UNAUTHORIZED',401);
-     const digest=await hash(dynamicToken);
-     effectiveRole=equal(digest,member.panelDigest)?'panel':equal(digest,member.agentDigest)?'agent':null;
-    }else if(role!=='joining'&&!staticList.some(n=>n.nodeId===nodeId))fail('UNAUTHORIZED',401);
+    const effectiveRole=await authorizedRole(s,staticList,nodeId,role,dynamicToken);
     if(!effectiveRole)fail('UNAUTHORIZED',401);
     if(action==='join'&&role!=='joining')fail('ROLE_DENIED',403);
     if(action==='heartbeat'&&effectiveRole!=='agent'||['begin','abort','route','route-resume','complete','history','invite'].includes(action)&&effectiveRole!=='panel'||action==='status'&&effectiveRole==='joining')fail('ROLE_DENIED',403);
@@ -165,6 +180,7 @@ export class ClusterAuthority {
      if(old){if(old.digest!==digest)fail('IDEMPOTENCY_CONFLICT',409);receipt=old.receipt;}
      else{
       if(s.revision!==body.expectedRevision)fail('REVISION_CONFLICT',409);
+      if(['begin','abort'].includes(action)&&p32BlocksPreparation(await tx.get('p32')))fail('P32_ROUTE_PENDING',409);
       if(action==='begin'){
        if(s.pending)fail('TRANSITION_PENDING',409);
        if(s.panelRecovery?.status==='DNS_REQUESTED')fail('P3_PANEL_RECOVERY_IN_PROGRESS',409);
@@ -218,7 +234,7 @@ export class ClusterAuthority {
      metricsAt:s.heartbeats[n.nodeId]?.metricsAt?new Date(s.heartbeats[n.nodeId].metricsAt).toISOString():null,
      telemetry:s.heartbeats[n.nodeId]?.telemetry||null,role:'STANDBY_NO_WRITER_GRANT'}));
     const history=action==='history'?await tx.get('monitor-history:'+body.targetNodeId)||[]:null;
-    return {mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,
+    return {mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
      declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],

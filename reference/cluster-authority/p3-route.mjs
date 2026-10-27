@@ -87,3 +87,15 @@ export async function p3SwitchPanelDns(env,fromTo,fetcher=fetch){
 export async function p3SwitchDns(env,fromTo,fetcher=fetch){
  return switchDns(env,fromTo,fetcher,false);
 }
+
+// Read-only verification, including an initial LAB target that is already selected.
+export async function p3InspectDns(env,nodeByKind,fetcher=fetch,onlyPanel=false){
+ const records=[];
+ for(const r of p3Config(env).filter(r=>!onlyPanel||r.kind==='panel')){
+  const target=r.nodeTargets[nodeByKind[r.kind]];if(!TUNNEL.test(target||''))error('P3_TARGET_TUNNEL_NOT_CONFIGURED');
+  const current=await cfRequest(env,'GET',r,null,fetcher);verifyRecord(r,current);
+  if(current.content!==target)error('P3_ROUTE_CONFLICT_MANUAL_REVIEW');
+  records.push({hostname:r.hostname,kind:r.kind,dnsTargetVerified:true});
+ }
+ return {dnsOnlyVerified:true,records,applicationVerified:false,writerFenced:false};
+}
