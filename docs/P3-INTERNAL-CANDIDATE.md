@@ -46,6 +46,8 @@ Configure chờ runit tạo supervise/ok trước sv-enable, luôn đặt SVDIR 
 
 Nếu lỗi: dùng SSH Windows bình thường, dừng riêng `sv -w 10 down "$PREFIX/var/service/mhc-lab-p31"`; kiểm port 18131/19131 đã đóng và Panel/Agent/SSH còn khỏe. Không restore DB hoặc authorized_keys toàn bộ chỉ để rollback source, vì có thể ghi đè khóa mới người dùng thêm sau checkpoint. Giữ backup/dataset/config private; source rollback theo NODE-SOURCE-UPGRADE, đồng thời dừng service mới trước khi quay lại bản không có P3.1.
 
+Rollback source không rollback authority: ghi revision/epoch/operation trước và sau, không ghi đè pending hoặc hạ epoch. Chỉ áp lại đúng artifact đã verify; reload Panel/Agent rồi khởi động lại riêng supervisor ở Standby. Nếu authority đã tiến thêm hoặc dữ liệu đã phát sinh ghi, dừng để đối chiếu thay vì suy ra rollback source cũng khôi phục quyền Primary/dữ liệu.
+
 ## P3.2 — checklist thao tác Cloudflare chưa thực hiện
 
 | Hạng mục cần chuẩn bị | Ai thao tác / điều kiện |

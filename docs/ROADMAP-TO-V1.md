@@ -1,6 +1,6 @@
 # Roadmap còn lại — rút gọn, không tạo phiên bản TEST liên tục
 
-> Checkpoint 27/10/2026: kiểm kê P0 DONE theo phạm vi; P1/P2/P3 còn IN PROGRESS, P2.5/P4/P5 chưa chạy runtime. Hai LAB SSH đã kiểm, source/runtime hashes còn lệch. Mốc trước P3 là một package nâng cấp managed/live đầy đủ có JWT/rollback process, canary XZ3 rồi Vsmart; kế hoạch cụ thể ở mục F [audit tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md). Cloudflare account/Cron/DNS chưa xác minh. LIVE-PROGRESS là nguồn trạng thái hiện hành.
+> Trạng thái thực thi hiện hành chỉ ở [LIVE-PROGRESS.md](LIVE-PROGRESS.md), gồm source đã cài, test Android thật, blocker và phần NOT RUN. Roadmap này giữ mục tiêu/Definition of Done; các mô tả lệch source và kế hoạch nâng cấp trong audit tiếp nhận là checkpoint lịch sử, không thay thế hậu kiểm mới.
 
 ## P0 — Audit & protect existing workspace (bắt đầu ngay)
 - Đọc Git/AGENTS/docs, kiểm checkpoint vs `E:\CODE\MHC` thực tế; backup worktree và Vsmart trước.

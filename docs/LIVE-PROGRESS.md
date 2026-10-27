@@ -1,247 +1,71 @@
 # MHC — trạng thái thực thi duy nhất
 
-## 27/10/2026 — P3.1: IN PROGRESS; nền website hai Android DONE
+Checkpoint 27/10/2026 sau hậu kiểm hai Android. Đây là trạng thái hiện hành; checkpoint cũ tra Git history. Branch: codex/m1-m2-foundation, checkout: E:\CODE\MHC\MHC\.work\repository. Không sửa bốn phần clock-health ở workspace cha, M51/X7b hay Cloudflare production.
 
-- **Checkpoint runtime bổ sung:** hai node đã cài `MHC-LAB-20261027-P31` source `a1fa578`, 81/81 hash PASS, peer forced-command SSH + signed proof hai node PASS từ Panel Vsmart đã đăng nhập/CSRF thật. Pending PREPARE trên authority hiện revision 4/epoch 1, operation `bb9ad49e-07a2-40c5-be1e-206b65b7284d`, target XZ3, Primary null/writer false. Hai client đồng thời qua cùng Panel Vsmart chỉ một begin thành công (không ghi thành concurrency hai Panel thật).
-- **Runtime PASS mới:** preview WordPress/PHP/static/media XZ3 qua API Panel Vsmart, proof scope dataset riêng; promote và DNS route bị từ chối dù đủ checkbox. Mất Agent thật dừng preview, phục hồi Agent không tự resume, Panel/SSH PID giữ nguyên; restart supervisor thật về quarantine PASS. SQL synthetic backup trên cả hai đã checksum/gzip/restore DB riêng `mhc_p31_restore_probe` PASS. SIGKILL live, chiều ngược, Panel XZ3 đăng nhập và reboot còn NOT RUN ở checkpoint này.
-- **Lỗi thực đã xác định:** MariaDB PUBLIC thừa hưởng write scopes test/test-pattern mặc định làm guard SELECT-only từ chối đúng. Hai DB test chỉ có schema mặc định rỗng, không bảng/explicit grant app. Đã backup private và revoke đúng hai PUBLIC test scopes trên cả hai; application grants/passwords/site gốc không đổi, strict guard giữ nguyên. Helper `scripts/p31-restrict-public-test.mjs` có plan/apply, refuse nếu schema đang dùng/grant lạ, restore nếu verify lỗi; dataset builder kiểm PUBLIC sớm.
-- **Sửa source trước rollout cuối:** đợi runit adoption trước sv-enable; giữ error code P31 whitelist từ peer, không lộ stderr khác. Đo heartbeat vừa nhận trên XZ3 có age -533ms vì clock của authority đi trước Android; guard dùng dung sai 2s nhất quán proof, stale >90s/future >2s vẫn fail-closed. Focused boundary/process tests được chạy lại; không tăng ngưỡng stale, không đổi Worker hoặc cấp writer. Preview hiện đã quarantine; pending PREPARE giữ để tiếp tục, không xóa/reset.
+## P3.1 — nền candidate nội bộ: DONE trong phạm vi read-only
 
-- **Hoạt động thật:** backup WordPress/site/static private trên Vsmart có SHA-256, SQL nén đã restore vào DB riêng `mhc_p31_restore_check`, đối chiếu số bản ghi PASS. Website gốc giữ nguyên. Core/media/static export SHA-256 `e36875944a676e19a7ff39c78cd27468ad09e6864ab2a7bda0aff2a31e21ecf0`; không chuyển SQL/users/password hashes/wp-config/options/credentials từ Vsmart.
-- **Bộ LAB riêng hai node:** `~/.local/share/mhc-p31-lab`, DB `mhc_p31_lab`, tài khoản web mới chỉ SELECT; nội dung synthetic, theme tối giản, media và static demo từ LAB Vsmart. Không gọi đây là bản sao đầy đủ dữ liệu WordPress. Mật khẩu/salts mới sinh riêng tại từng máy, không đưa argv/log/Git. `scripts/p31-prepare-lab.sh` là công cụ dựng fixture riêng, không thay installer hoặc website đăng ký.
-- **PASS Android thật Vsmart + XZ3:** WordPress HTTP/PHP và HTTP node ID; static/media bytes khớp; SQL SELECT và UPDATE bị từ chối; POST/wp-cron/wp-login/REST HTTP 403; start/stop website riêng không đổi PID Panel/Agent/SSH. Website preview đã dừng sau phép thử, chưa cấp writer/Primary. Cả hai vẫn release `MHC-LAB-20261027.1`, authority revision 3/epoch 0, Primary null.
-- **Source mới:** executor/supervisor riêng, signed Ed25519 readiness với nonce/expiry và epoch/revision/operation, peer forced-command SSH ghim host/public proof key, journal/receipt/lock; original Panel có readiness/prepare/Standby. Chặn promote và route/complete DNS cũ khi P3.1 cấu hình. Chưa gọi preview là Primary; proof chỉ scope ISOLATED_P31_DATASET_ONLY, nodeWritersFenced false. Chi tiết [P3-INTERNAL-CANDIDATE.md](P3-INTERNAL-CANDIDATE.md).
-- **PASS Windows:** 17 candidate scenarios; updater 20 scenarios; SSO/API auth/CSRF, authority bridge, candidate UI, P3 route/recovery; Node/Shell syntax. **PASS Android fixture:** 21 candidate scenarios/node, gồm actual child stop khi mất Agent/Authority và SIGKILL/orphan restart quarantine. Full bin/self-test.sh PASS cả XZ3 và Vsmart trong HOME cách ly (FULL_SUITE_EXIT=0); sau full suite, focused candidate 21 scenarios/node chạy lại với proof scope cuối PASS. UI thêm nhãn phạm vi/version/dataset và archive guard cuối kiểm syntax; không gọi đây là cold boot hoặc live cutover. Lỗi harness assertion đợi state trước khi stop/quarantine hoàn tất đã sửa bằng đợi cả children chết lẫn state Standby; giữ nguyên guard/assertion.
-- **NOT RUN ở checkpoint source:** triển khai candidate service/peer config, hai chiều qua Panel thật, reboot/Doze và Cloudflare cutover. Lỗi static alias của fixture đã sửa và toàn bộ HTTP/start-stop chạy lại PASS; không mở quyền ghi để sửa HTTP.
-- **Rollout source 0a43313:** cả hai PASS 81/81, Panel/Agent reload/heartbeat mới; Vsmart WordPress HTTP 200, config/admin/site nguyên vẹn và Tunnel/hosting PID giữ nguyên. Peer setup XZ3 tạo keys/config đúng nhưng sv-enable lỗi vì SSH không có SVDIR; supervisor đang down, chưa bật preview. Sửa module setup tự truyền SVDIR, không chỉnh marker hoặc tắt guard; áp lại cùng release P31 bằng package source SHA đã sửa trước khi tiếp tục.
-- **Commit:** dữ liệu `f0c6d00`, baseline `5cce13c`; source executor tra SHA commit mục này. **Thiếu DoD:** rollout đúng package hai node và kiểm Panel/Agent loss/restart thật. Root SQL/shell cùng UID/Node/custom PHP/jobs ngoài fixture chưa bị fence độc lập, do đó safe Primary vẫn BLOCKED.
-- **Blocker cần user:** chưa có cho công việc source độc lập; reboot chỉ khi có người/đường cứu hộ phù hợp. **Việc tiếp theo:** sau full regression đạt, deploy cùng source package XZ3 canary rồi Vsmart; cấu hình dedicated peer channel và thử hai chiều prepare/preview/quarantine qua Panel, không đổi DNS/Worker/Access/Primary hoặc tiếp tục P3.2.
+**P3 Manual Primary an toàn vẫn BLOCKED.** Không coi rehearsal read-only là chuyển Primary.
 
-## 27/10/2026 — đồng bộ và nâng cấp hai node LAB: DONE ngay sau cập nhật
+- Cả Vsmart và XZ3 chạy MHC-LAB-20261027-P31, source **774f7c97a10226bf33c1bc27e16504ad612f98d3**, verify **81/81** file live/managed/launcher/Boot PASS. Manifest SHA-256: b43178ca201767d8caa834ab4fa7bf5f8ce7426e6345383b1f451d3161060ce0.
+- Đọc lại qua Panel Vsmart đăng nhập thật: authority **revision7 / epoch2**, declaredPrimary null, pending null, writeLeaseGranted false. Hai proof verified, previewReady true, websiteServing false, activation STANDBY_QUARANTINE. HTTP18131 đóng/P31_HTTP_UNAVAILABLE là trạng thái dự kiến sau thử nghiệm, không phải lỗi website Vsmart gốc. Không còn pending cần resume.
+- Hoạt động thật: original Panel9090 và Agent/Monitor trên mỗi node; signed readiness hai node; begin/CAS → prepare → preview read-only → HTTP/SQL/media/static check → Standby → abort. Dedicated peer SSH chỉ forced-command, pinned host/proof keys; shell bị từ chối. Journal/receipt/lock cho retry; restart/rejoin luôn quarantine và giữ Panel/Agent/SSH.
+- Proof Ed25519 gắn node/cluster/version/epoch/revision/operation, nonce ngẫu nhiên, TTL15s và authority đọc lại; không dùng heartbeat thay readiness. Scope ISOLATED_P31_DATASET_ONLY, nodeWritersFenced false.
+- Promote luôn bị P31_UNPROVEN_WRITER_FENCING; route/route-resume/complete bị P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED trước Cloudflare mutation, dù đủ checkbox. Authority chưa có writer lease/commit Primary.
 
-- **Release đang chạy:** `MHC-LAB-20261027.1`, source commit `f128154f37408c67650356ae90485c30461b41b7`; implementation `5915a67`, checkpoint canary `84cc47c`. SHA của báo cáo cuối tra bằng `git log -1 --format=%H -- docs/LIVE-PROGRESS.md`. Cả hai cùng 78/78 file live/managed/launcher/Boot và manifest SHA-256 `4fde91d40d5d2f8126bfec3b2c16b64c4f8c4c1627bc28c8fb91fe9fbf73049b`. Version thật ở `~/.local/state/mhc-source-upgrade/current.json`; marker legacy 0.5.0C giữ nguyên để tương thích guard.
-- **Chức năng thực:** Panel 9090, Agent mới, Monitor v2/telemetry mới, live/managed JWT đồng bộ; cùng cluster `2c1ea7c0-1d1f-4802-8336-0925a529c431`, revision 3, epoch 0, declaredPrimary/pending null, writeLeaseGranted/automaticFailover false. Public Host thiếu JWT trả 403 tại origin trên cả hai; HTTPS public chưa đăng nhập trả 302 vào Access, chưa chứng minh authenticated browser/origin.
-- **Source mới đã triển khai:** package đầy đủ theo Git blobs; plan/hash/syntax trước mutation; backup private file/mode/absence/service/Boot; apply/verify/rollback có restart và health cả Panel/Agent; idempotent no-op. Doctor kiểm essential services, Boot canonical duy nhất. Không gọi fresh install/Doctor repair ngầm, không thay config/identity/credentials/DB/site. Runbook: [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md).
+### Dữ liệu, backup và quyền ghi
 
-| Bằng chứng thiết bị thật | Sony XZ3 canary | Vsmart sau canary |
-|---|---|---|
-| Apply/verify | PASS, 78/78; final tx `tx-20261027025251747-90e162` | PASS, 78/78; tx `tx-20261027025915134-882870` |
-| Panel/Agent reload | PID 21935/21944, HTTP 200, heartbeat và telemetry mới | PID 22965/22972, HTTP 200, heartbeat và telemetry mới |
-| Apply lặp | ALREADY_CURRENT, PID không đổi | ALREADY_CURRENT, PID không đổi |
-| Rollback thật | PASS tx `tx-20261027025027446-18b3f7`: restore exact baseline + reload/health Panel/Agent; áp lại cùng artifact PASS | Không rollback live vì hậu kiểm khỏe; dùng bằng chứng canary và fault fixture |
-| Quyền/dữ liệu | Config/identity/enrollment/admin/Access bytes không đổi; SQL SELECT 1 PASS | Config/admin/Access và toàn bộ website khớp backup; SQL SELECT 1 PASS |
-| Hosting | Chưa có site LAB, không tự cài thêm | WordPress HTTP 200, form login render PHP PASS, static demo HTTP bytes khớp file; private source/config/site/SQL backup và checksum PASS |
-| SSH/Boot | Fresh SSH key/host key PASS; sshd runit PID 22197; rescue 8023 đã đóng; chỉ 10-mhc-start | Fresh SSH PASS; sshd runit PID 10518; chỉ 10-mhc-start |
-| Dịch vụ ngoài quản trị | Không cài Tunnel/Access mới | Tunnel 10536, nginx 10524, MariaDB 10514, WP PHP 10516/nginx 10513 giữ nguyên PID qua upgrade |
+- Website WordPress/static Vsmart gốc giữ nguyên. Backup private: ~/.local/state/mhc-p31-lab/backup.0PwO4C; pointer latest-backup-path. SQL thật đã checksum/gzip/restore DB riêng mhc_p31_restore_check và đối chiếu số bản ghi PASS. SQL/users/password hashes/wp-config/options/credentials không chuyển khỏi Vsmart.
+- Hai node có dataset mới mhc-p31-synthetic-v1, thư mục ~/.local/share/mhc-p31-lab, DB mhc_p31_lab, user web mhc_p31_web, password/salts sinh riêng từng máy. Core/media/static từ LAB Vsmart, archive SHA-256 e36875944a676e19a7ff39c78cd27468ad09e6864ab2a7bda0aff2a31e21ecf0. **Không phải bản sao đầy đủ WordPress gốc.** SQL synthetic mỗi node đã checksum/gzip/restore vào DB mới mhc_p31_restore_probe PASS, không restore đè/drop DB.
+- Đã chặn/kiểm thật trong dataset: HTTP chỉ GET/HEAD; POST/login/admin/cron/XML-RPC/REST/upload PHP bị chặn; WordPress cron/file modifications/outbound HTTP tắt; SQL SELECT-only, UPDATE bị từ chối. Manifest kiểm cấu hình private mà không xuất nội dung. PHP/Nginx riêng loopback19131/18131, không đụng WordPress gốc18080.
+- **Chưa fence độc lập:** privileged/root SQL, shell/Node/PHP tùy ý, file ghi trực tiếp cùng Android UID, cron/job/service ngoài fixture và writer website gốc. Dừng nginx, mất heartbeat, SQL read_only hoặc nhãn Primary không chứng minh các đường này đã đóng. Safe Primary tiếp tục fail-closed; không cấp writer production.
+- MariaDB PUBLIC từng thừa hưởng quyền ghi mặc định test/test-pattern. Preflight hai node xác minh schema mặc định rỗng, 0 bảng/explicit app grants; backup private rồi revoke đúng hai scope không dùng. Application grants/passwords giữ nguyên. Helper plan/apply từ chối schema đang dùng/grant lạ, restore nếu verify lỗi. Guard SELECT-only vẫn nghiêm ngặt.
 
-XZ3 chuyển SSH supervision từ daemon standalone qua listener cứu hộ key-only 8023 đã kiểm bằng host key ghim; chỉ TERM parent listener cũ từ phiên cứu hộ độc lập. Doctor LOCAL_PASS cả hai không thay thế nghiệm thu reboot. Preflight và transaction backups private được giữ trên từng node, không đưa Git. Package cùng bytes nằm dưới `~/.local/state/mhc-source-upgrade/incoming/`: XZ3 `release.482jP3`, Vsmart `release.bZPPan`; mỗi gói có `preflight-path` trỏ backup riêng. Artifact trên máy công ty: `E:\CODE\MHC\MHC\releases\MHC-LAB-20261027.1.tar`, có thể build lại từ source SHA trên.
+### Test và bằng chứng
 
-| Test | Windows | XZ3 Android | Vsmart Android |
+| Kiểm tra | Windows mock/source | Vsmart Android | XZ3 Android / nhiều Android |
 |---|---|---|---|
-| Updater fault/security/process reload | PASS 20 scenarios | PASS 21 scenarios, HOME cách ly | PASS 21 scenarios, HOME cách ly |
-| SSO/CSRF/JWT unsafe config và candidate UI | PASS | PASS trong full suite | PASS trong full suite |
-| Full bin/self-test.sh | NOT RUN toàn suite; focused + syntax PASS | PASS, FULL_SUITE_EXIT=0 tại source 5915a67 | PASS, FULL_SUITE_EXIT=0 tại source 5915a67 |
-| Guard Android-platform cuối f128154 | PASS focused | PASS focused 21 scenarios | PASS focused 21 scenarios |
-| Runtime sau upgrade | Không áp dụng | PASS như bảng trên | PASS như bảng trên |
-| Nhiều Android cutover/CAS mutation | NOT RUN | NOT RUN | NOT RUN |
+| Candidate protocol | PASS17 scenarios + setup adoption/error redaction | PASS21 scenarios + setup, HOME fixture cách ly, source cuối | PASS21 scenarios + setup, HOME fixture cách ly, source cuối |
+| Full bin/self-test.sh | NOT RUN toàn suite; focused/syntax PASS | PASS snapshot nền P3.1, FULL_SUITE_EXIT=0 | PASS cùng snapshot nền P3.1, FULL_SUITE_EXIT=0 |
+| Source cuối774f7c9 | PASS focused/syntax; updater20 và SSO/bridge/UI/P3 route liên quan PASS ở nền | PASS focused candidate/setup + verify81/81 + live | PASS focused candidate/setup + verify81/81 + live; full suite không chạy lại ở SHA cuối |
+| HTTP/PHP/SQL/static/media | Không coi mock là hosting thật | PASS dataset riêng; site gốc / và /wp-login.php HTTP200 | PASS dataset riêng, media/static bytes khớp, SELECT/UPDATE denied/HTTP403 |
+| Auth/CSRF/peer | PASS fixture401/403 | PASS mật khẩu hiện có, readiness chưa login401, POST thiếu CSRF403 | PASS signed peer và dedicated key từ chối shell hai chiều; login chính Panel XZ3 NOT RUN |
+| Rehearsal hai hướng | Không áp dụng | PASS chọn/preview target XZ3 rồi target Vsmart qua API Panel Vsmart thật | PASS hai target Android thật; thao tác từ hai Panel đã login/browser click NOT RUN |
+| Hai request đồng thời | PASS fixture CAS | PASS hai client cùng Panel Vsmart, đúng1 accepted/1 REVISION_CONFLICT | NOT RUN concurrency từ hai Panel vật lý |
+| Agent loss/restart/SIGKILL | PASS fixture, stale/replay/epoch/tamper/retry/concurrency | Management/Standby giữ khỏe | PASS fault live XZ3: dừng preview/quarantine, không auto resume, giữ Panel/SSH; SIGKILL reap child groups |
+| Authority outage | PASS fail-closed fixture | PASS process fixture trên Android | NOT RUN outage mạng authority live; không cắt endpoint đang dùng |
+| Heartbeat ổn định | PASS boundary future>2s/stale>90s | Guard cùng chính sách | PASS live37s, 14 HTTP200 qua2 heartbeat mới; age -533ms đã sửa bằng dung sai2s, không nới stale90s |
+| Source rollback/reapply | PASS updater fault fixture | Backup/verify PASS, không rollback live | PASS rollback thật rồi áp lại cùng artifact; rev4/epoch1 giữ nguyên lúc thử, không rollback DB/route |
+| Reboot/Doze/cold boot | Không áp dụng | NOT RUN | NOT RUN; Doctor LOCAL_PASS/Boot READY không thay nghiệm thu reboot |
+| Safe writer Primary/Internet cutover | BLOCKED | BLOCKED | BLOCKED; không đổi DNS/Worker/Access/secrets hoặc cấp lease |
 
-Lỗi harness TMPDIR dài gây Unix socket EINVAL đã sửa bằng TMPDIR chuẩn ngắn, giữ HOME cách ly; full suite chạy lại PASS, không bỏ assertion/guard. Artifact 5915a67 từng bị preflight TERMUX_REQUIRED do Node trả platform android; chưa mutation. Source f128154 nhận android/linux đúng Termux prefix, vẫn chặn Windows/sai prefix; cả hai triển khai chính artifact đã sửa.
+Full-suite snapshot archive SHA-256: 2429107dad06022cc0cc9d1c9da294e2c68d29c8a1e98cb031e405ee0f4840f9. Chỉ focused và live checks chạy lại trên source cuối. Đã dọn riêng fixture PREFIX/tmp do phiên này tạo; full logs giữ private tại ~/.local/state/mhc-p31-lab/test-evidence/. Backup/package/dataset giữ nguyên, không đưa raw logs/SQL/credentials lên Git.
 
-- **NOT RUN/còn thiếu DoD rộng hơn:** cold reboot/Doze/Termux:Boot tự khởi động; browser login trên hai Panel và Access qua Tunnel với JWT thật; restore site lên XZ3; cutover giữa hai Android. XZ3 chưa có Tunnel/Access là giới hạn có chủ đích của nhiệm vụ, không phải lỗi upgrade. M1/P1 và M2/P2 vẫn IN PROGRESS ở phạm vi roadmap, không gọi hosting/cluster hoàn tất chỉ vì source đã đồng bộ.
-- **Blocker cần user:** không còn blocker cho nâng cấp source này. Reboot cần cửa sổ có người mở lại Termux nếu Android không tự chạy; Cloudflare/đăng nhập browser và mở rộng Tunnel XZ3 cần nhiệm vụ tiếp theo, không thao tác tài khoản trong lượt này.
-- **Điều kiện trước P3:** nhiệm vụ mới cho phép tiếp tục; site/snapshot LAB riêng XZ3 đã restore và kiểm DB/media; candidate activation, writer fencing, HTTP node proof, conditional rollback; kiểm browser/authority và các quyền/allowlist Cloudflare hiện hành trước routing. Không coi mất heartbeat là fencing. Manual backup/restore đủ MVP.
-- **Việc tiếp theo duy nhất:** DỪNG sau báo cáo; chờ nhiệm vụ tiếp theo để bố trí nghiệm thu lifecycle và chuẩn bị P3. Không triển khai P3/P4/Cloudflare, không chuyển Primary/failover. M51/X7b và bốn phần clock-health ở workspace cha được giữ nguyên.
+Rehearsal thật: target XZ3 operation bb9ad49e-07a2-40c5-be1e-206b65b7284d, rev4/epoch1 → abort rev5; target Vsmart operation 0acffbd4-0c50-4f90-bf61-002b8d8b6dee, rev6/epoch2 → preview/Standby → abort rev7. Mỗi target HTTP200/PHP/static/media và signed proof PASS, writer luôn false. Website gốc Vsmart phục vụ suốt, chưa hạ writer gốc thành Standby.
 
-## Lịch sử checkpoint — chỉ phản ánh thời điểm ghi
+Hậu kiểm cuối: config/admin/remote-access bytes cả hai không đổi; toàn bộ website Vsmart khớp backup; SQL SELECT1 PASS cả hai. Vsmart Panel/Agent PID13942/13949; Tunnel10536, SSH10518, nginx10524, MariaDB10514, WP PHP10516/nginx10513 giữ nguyên qua rollout. XZ3 Panel/Agent PID31406/31408 sau reapply, SSH22197 giữ nguyên. XZ3 không có site gốc18080/Tunnel/WP services là đúng phạm vi, không phải regression. Doctor LOCAL_PASS hai node.
 
-Các mục dưới giữ bằng chứng lịch sử; trạng thái hiện hành của lần nâng cấp hai node là mục đầu trang.
+### Commit, artifact và phục hồi
 
-## 27/10/2026 08:40–08:49 VN — hoàn tất tiếp nhận hai LAB (source `da7d67a`)
+- Đã push: **f0c6d00** dataset/backup; **0a43313** candidate/proof/Panel; **a1fa578** SVDIR cho setup SSH; **774f7c9** PUBLIC guard, runit adoption, clock skew có giới hạn, lỗi peer an toàn và acceptance client.
+- SHA checkpoint tài liệu này: tra git log -1 --format=%H -- docs/LIVE-PROGRESS.md. Source cài trên node vẫn774f7c9; docs commit không có nghĩa đã deploy lại.
+- Artifact: E:\CODE\MHC\MHC\releases\MHC-LAB-20261027-P31.tar; SHA-256 **35d9ecf8e3ab546502c632d295dec97b8d31b07acc0bf29e693876c92bd7dbd9**. Thư mục package và .tar.sha256 cùng nơi; build từ immutable Git blobs774f7c9, không có dữ liệu/credentials thiết bị.
+- XZ3 package: ~/.local/state/mhc-source-upgrade/incoming/release.8pQbE4; final APPLIED tx-20261027081210263-fe1d24, rollback đã thử tx-20261027080516885-be58fc. Vsmart package: incoming/release.MKen4O; APPLIED tx-20261027080711222-b6c4da. Mỗi package có preflight-path tới backup private; current.json chỉ version/transaction trên node. Không chọn rollback theo mtime hoặc dùng updater cũ.
+- Truy cập/preview/rollback: [CONTINUE-MHC.md](CONTINUE-MHC.md), [P3-INTERNAL-CANDIDATE.md](P3-INTERNAL-CANDIDATE.md), [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md). Không reset mật khẩu; file test password XZ3 vẫn ABSENT ở hậu kiểm cuối.
 
-- **P0 DONE trong phạm vi kiểm kê:** fetch branch sạch, local/upstream cùng `da7d67a`; so 245 file code ở workspace cha, giữ bốn phần clock-health chưa nhập Git. Báo cáo hợp nhất: [CODEX-RESUME-AUDIT-2026-10-27.md](CODEX-RESUME-AUDIT-2026-10-27.md), có kế hoạch source-only trước P3. Checkpoint docs trước `a6bfa55`, `da7d67a`; SHA chứa kết quả mới xem commit của mục này.
-- **P1 IN PROGRESS:** Vsmart SSH/Panel/Agent/Tunnel/WordPress services khỏe, 9090/18080/wp-login HTTP 200, MariaDB SELECT 1 PASS. Snapshot metadata có, collector verified:false; restore/upload PASS lịch sử `889786e` ngày 26/10 giữ nguyên bằng chứng. Reboot/Doze/restore mới NOT RUN. Tiếp theo cho P1: hậu kiểm lifecycle trong cửa sổ LAB sau đồng bộ source.
-- **P2 IN PROGRESS:** cả hai Android thật SSH key/strict host key PASS, Panel 9090 HTTP 200, MariaDB SELECT 1 PASS, Agent/telemetry mới cùng authority revision 3/epoch 0. Source runtime gần nhất `f73df61`, updater `764ba51`. Hash manifest Vsmart 9/13 khớp, XZ3 10/13; full managed bin Vsmart 57 khớp/8 khác/2 thiếu, XZ3 62 khớp/5 khác. XZ3 thiếu Tunnel/Access/site/snapshot, sshd runit lỗi bind nhưng daemon ngoài runit phục vụ SSH. Live JWT XZ3 và managed JWT cả hai còn cũ; updater 13 file không sửa JWT. Việc tiếp theo cụ thể: chuẩn bị một package source-only đầy đủ có rollback Agent/Panel/boot, test trên XZ3 canary, rồi mới Vsmart; chưa triển khai trong nhiệm vụ này.
-- **P3 IN PROGRESS source, live NOT RUN/BLOCKED:** DNS/journal/recovery code và fixture có; candidate activation, fencing mọi writer, HTTP identity/conditional rollback và site restore XZ3 còn thiếu. Cloudflare Worker version/Cron/DNS/Access account CHƯA XÁC MINH; public HTTPS từ hai Android HTTP 302 chỉ chứng minh tới cổng Access. **P2.5/P4/P5 NOT STARTED runtime**; Panel-only recovery không phải auto Primary.
-- **PASS Windows:** 16 JS syntax, 32 shell syntax bằng Git Bash, 13 manifest SHA. **PASS fixture trên MỖI Android:** p3-route, p3-panel-recovery, cluster-pairing, monitor-all-nodes, remote-panel (45 assertions), authority-panel, cluster-authority, authority-http-panels, access-sso-panel. Hai Panel HTTP trong fixture vẫn là hai process trên một máy, không phải installed two-node cutover.
-- **FAIL/giới hạn:** manual-candidate-ui literal `declaredPrimary:null` cũ FAIL trên cả hai; SSO Windows fixture FAIL do `--import` path C: thiếu file URL (Android PASS). Authority HTTP lúc đầu bị guard TMPDIR trong source; chạy lại TMPDIR ngoài source PASS. Full self-test/updater fault injection/live browser/reboot/two-Android CAS/cutover NOT RUN. Test source cách ly đã dọn, PID Panel/Agent thật giữ nguyên.
-- **Blocker cần người dùng/môi trường:** phiên quản trị Cloudflare hợp lệ để xác minh sau; F3216 là LAB ở nhà chỉ quan sát heartbeat, không có SSH từ công ty. Các sửa packaging/tests/SSH supervision tự làm được trong nhiệm vụ triển khai tiếp theo; không cần user chạy hộ test đã làm được.
-- **Nhiệm vụ tiếp theo duy nhất:** sửa và diễn tập package đồng bộ toàn bộ managed/live source + JWT, rollback đúng cả process; trình kết quả canary/plan rollout trước khi làm P3. Không đổi Cloudflare, cài/nâng cấp node hoặc chạm M51/X7b trong checkpoint kiểm kê này.
+## Các milestone còn lại
 
-Các mục dưới là lịch sử theo ngày/checkpoint; NOT RUN/PASS cũ không tự chuyển thành kết quả hiện tại.
+| Milestone | Trạng thái | Hoạt động thật / source và SHA | Thiếu DoD / blocker cần user | Một việc tiếp theo |
+|---|---|---|---|---|
+| P0 kiểm kê/bảo vệ, đồng bộ hai LAB | DONE theo phạm vi | Git/SSH/backup/upgrade+rollback canary thật PASS; baseline5cce13c, hiện774f7c9 | Không phải audit production | Giữ backup, đọc current.json trước thay đổi |
+| M1/P1 hosting | IN PROGRESS | Vsmart WP/PHP/SQL/upload/backup/restore thật PASS26/10, source889786e; hậu kiểm mới PASS; XZ3 dataset riêng PASS774f7c9 | Reboot/Doze NOT RUN, cần operator/đường cứu hộ | Hẹn reboot canary XZ3 có người mở Termux nếu cần |
+| M2/P2 Panel và authority | IN PROGRESS | Hai Android9090+Agent/Monitor/shared authority/proof thật PASS774f7c9; login Vsmart PASS | Login/browser XZ3, AccessJWT hợp lệ Internet và Panel dự phòng NOT RUN | Kiểm login Panel XZ3 bằng mật khẩu hiện có |
+| P2.5 website/subdomain tự động | NOT STARTED runtime | Tạo site cục bộ có source; chưa tích hợp publishing Cloudflare vào nút tạo; route fixture PASS ở baseline5cce13c | Cần account/zone allowlist khi được giao P3.2 | Chốt domain/route cần quyền LAB trong P3.2 |
+| M3/P3 Manual Primary | BLOCKED; nền P3.1 DONE | Hai target read-only rehearsal thật PASS774f7c9; chưa writer lease/Primary commit/Internet route | Fencing mọi writer chưa có; Tunnel/Access XZ3 và public recovery NOT RUN | Chốt giới hạn writer/lease trước mở promote |
+| M4/P4 Auto Primary | NOT STARTED runtime | Legacy recommendation/source route có, không là auto mới; nền774f7c9 chặn promote | Manual chưa đạt DoD, chưa nghiệm thu reboot/partition/recovery | Tái dùng luồng Manual khi đạt DoD |
+| P5 migration M51/X7b | NOT STARTED | Không truy cập/sửa production, chưa test migration | Backup độc lập và user duyệt từng mốc | Giữ nguyên production đến khi LAB đạt DoD |
 
-## 27/10/2026 — P3 independent Panel recovery, source checkpoint (LAB only)
+**Blocker cần user:** chưa nhập file private test password Panel XZ3; reboot cần người/đường cứu hộ. Fencing và writer lease là phần kỹ thuật còn thiếu, không yêu cầu user tự chạy test thay. F3216 là LAB ở nhà, không dùng thay hai LAB công ty và không thao tác.
 
-- **Implemented/pushed** `reference/cluster-authority/p3-recovery.mjs` deterministic eligibility: incumbent heartbeat absent >=5m (previously observed), standby heartbeat & telemetry <=90s, `amh-panel` and `mhc-panel-tunnel` running, sticky failback-disabled selection, blocks concurrent Primary transition.
-- **Cloudflare Worker** Cron every minute via `wrangler.toml`. Opt-in secret `MHC_P3_PANEL_RECOVERY_ENABLED=LAB_PANEL_ONLY`; DOES NOT change DNS until opted in. DO commits `DNS_REQUESTED` before panel DNS API PATCH, idempotent GET verify, cooldown retry after 90s, `DNS_SWITCHED_RECOVERY` journal and audit after DNS verification.
-- **Panel-only** DNS recovery leaves all site hostnames, Primary identity, DB and writer lease unchanged. Operator P3 site+Panel cutover now recognizes when Panel CNAME was previously recovered to a Standby.
-- **UI original Panel 9090** shows recovery DNS route separately from website Primary without falsely claiming HTTP availability. Code snapshot `f73df611aa600e6f74a13690171fe8fe0a1f0c65`; LAB updater `764ba5189d0ed89b6b83099a4eaf246ff4c4e32a`, manifest 13 source blob SHA verified.
-- **Simulated tests:** source Worker syntax PASS, Panel JS syntax PASS, p3 recovery/DNS scenarios PASS in isolated V8 fixture, DO recovery simulated: first switch recorded + one DNS call, subsequent cron no additional DNS switch, website/Primary untouched. New `tests/p3-panel-recovery.mjs` includes Node runtime suite but **Node runner in repo NOT RUN in this session**. See `docs/P3-PANEL-RECOVERY-2026-10-27.md`.
-- **NOT COMPLETE END-TO-END:** no actual Cloudflare deployment, Worker secrets, two Android Tunnel/Access verification, device-side agent updated status, public HTTP check or independent data-path fencing. P3 manual Primary still operator-attested LAB DNS only, **not safe production writer failover**. M51/X7b production untouched.
+**P3.2 chưa thực hiện:** user đăng nhập Cloudflare tạo named Tunnel riêng XZ3, nhập token trực tiếp private; cùng issuer/AUD/policy Access cho Panel, ingress đúng localhost9090; kiểm Worker/DO hiện có và allowlist zone/hostname/Tunnel UUID. Sau đó nghiệm thu website/Panel route độc lập, Panel recovery khi incumbent mất, journal và rollback có điều kiện dữ liệu. Checklist ở P3-INTERNAL-CANDIDATE. Không tự đổi DNS/deploy Worker/nạp secrets/bật auto recovery trong P3.1. HTTP302 trước login không chứng minh Access/JWT end-to-end.
 
-## 26/10/2026 — P3 manual Primary LAB route source (NOT production-ready)
-- Implemented opt-in exact-allowlist Cloudflare DNS adapter with pre-verified CNAME targets, crash-retry-safe DO `ROUTING_REQUESTED` and `DNS_SWITCHED_AWAITING_HTTP_CONFIRM` phases, 30s resume guard, operator attestations in original Panel, and metadata `declaredPrimary` only after public HTTP/Panel operator confirmation.
-- No default DNS mutation: Worker requires explicitly enabled `MHC_P3_LAB_ENABLED`, privately configured `MHC_P3_CF_TOKEN`, `MHC_P3_ROUTES_JSON`, and initial incumbent UUID. Existing M2 monitoring/join not promoted or re-routed by source commit.
-- Mocked DNS adapter isolated evaluation **PASS**: site then panel DNS checks/patches, no duplicate PATCH on repeat, unexpected DNS content refused, feature disabled by default. JS syntax check of Worker, UI, route adapter PASS; Node test runner, device/Worker/Access real tests NOT RUN.
-- **P3 remains INCOMPLETE end to end:** cannot independently fence old DB/site writers, start target services or verify actual target application/Panel; no independent recovery-panel route if incumbent phone is dead. Do not declare live true Primary or safe automatic failover. Details `docs/P3-LAB-MANUAL-CUTOVER.md`.
-
-## 26/10/2026 — Roadmap thêm Cloudflare multi-domain auto-subdomain
-- Đã ghi **P2.5** trong `docs/ROADMAP-TO-V1.md`: list domains theo zone permissions, chọn domain + subdomain từ Mini Hosting, DNS/Tunnel ingress/Nginx tự cấu hình bằng API, HTTPS verify, rollback, không cần IP tĩnh; token ở control plane, wildcard optional; route adapter dùng chung P3/P4.
-- **SOURCE STATE VERIFIED**: `Mini Hosting > Thêm website` hiện `/api/sites` chỉ tạo thư mục/Nginx và dịch vụ Node.js. `/api/domains` báo `manual:true`. Không có Cloudflare DNS/Tunnel mutation trong đường tạo website; cần implement P2.5. Không tuyên bố đã tự tạo subdomain.
-- **Primary M3**: nút chọn ứng viên + begin/abort lưu Shared Authority Durable Object ở trạng thái `SHARED_AUTHORITY_PREPARE_ONLY`; `declaredPrimary:null`, `writeLeaseGranted:false`. Chưa chuyển route website/Panel, chưa chứng minh stop/fence writer và chưa tự bầu M4. Panel mỗi node 9090; `panel.giaouoc.com` hiện gắn Vsmart Tunnel chứ chưa theo active Primary. Source audit only, không chạy Cloudflare hoặc Android trong lượt này.
-- Nguyên tắc: Primary thông thường phục vụ cả website và Panel chung; khi Primary ngắt, URL Panel phải vào Standby recovery-only. Authority không phụ thuộc Primary; chuyển Panel không đồng nghĩa cấp quyền Primary.
-
-## 26/10/2026 — unified Monitor V3 expanded release
-
-- **SOURCE PUSHED**: every Shared Authority node visible as expanded card in original Panel 9090 Monitor, no click to expand; pin/temperature/RAM/storage/Wi-Fi/network/uptime/service states, Node.js process RSS, snapshots, unverified sync, freshness, 12-hour per-node trends. Local/current nodes first; 15s polling and lazy history loads. CPU fully hidden in UI and CPU fallback collection removed.
-- **UPDATED USER-VISIBLE ERROR**: `CHƯA CÓ MONITOR V2` where the node's heartbeat exists but no new telemetry; `DỮ LIỆU ĐÃ CŨ` for old metrics; `MẤT TÍN HIỆU` for stale heartbeat. No false claims about offline.
-- **RELEASE INSTALLER** `scripts/update-existing-android-node.sh` at commit `33480440f9b5e7652467ff59d31a67332c231dc0`, pinned to code snapshot `30e64673f84f035394e1c2a8069f68198acc5e5f`. Validated all **13** GitHub blob hashes match, JavaScript page parsed, static UI/state/security checks passed. Corrected check for ESM modules via stdin and rollback on explicit install failures.
-- **NOT RUN**: Termux physical source install, browser render on real Vsmart/XZ3 and Cloudflare Worker deploy in this session. User must run installer on both nodes and confirm `APPLIED_OK` and Monitor UI. Worker supports telemetry only after separate deployment. No change to production Primary or routing.
-
-# MHC — trạng thái thực thi duy nhất
-
-## 26/10/2026 — monitor installer failure fixed, CPU hidden, legacy node card improved
-
-- **USER OBSERVED:** invoking the original monitor installer on Termux returned `STOP: Unexpected auth module in Panel`. Root cause located in installer check of `crypto.verify` in the wrong file. Exit happened before the installer wrote Panel source. Corrected check now verifies `server.mjs` imports JWT guard and installed `mhc-remote-access.mjs` includes RSA signature verification. No weakening of auth.
-- All Panel UI CPU displays removed (Dashboard, Monitor, Node.js processes). Node telemetry no longer measures CPU. Added privacy-safe Wi-Fi RSSI (no SSID/IP/BSSID), 12 service states, process RSS list, last snapshot name/mtime (not integrity proof), DB/Web/Tunnel/Panel indicators, sync-unverified chip, 12h Wi-Fi history and gaps. Legacy monitor screenshot was used as feature baseline, not assumed to represent current live node status.
-- Updated sanitized Cloudflare Worker telemetry schema and tests. Isolated in-memory Worker fixture **PASS**: 2-node heartbeat, status, Panel-only history, legacy heartbeat, no CPU, no private fields, no writer grant. GitHub pinned installer blobs **PASS**. Corrected script commit `2656d8b9cb4ddc330a850064567ff257cf4ab030`. **NOT RUN:** new installer on Android, real Wi-Fi API/ps, real Worker deploy, old/current browser screens. Existing `panel.giaouoc.com` SSO unaffected by source plan.
-- Old `~/mhc online-enroll CODE` pairing applies to legacy monitor. Current Shared Authority MHC uses manually registered `MHC_MEMBERS_JSON` keys. Ten-minute pairing via Panel is a proposed next feature, **not deployed**; `docs/MONITOR-V2-PAIRING-DESIGN.md`.
-
-
-## 26/10/2026 — Monitor v2 all-nodes developed, GitHub pushed, runtime deployment NOT RUN
-
-- Expanded original Panel 9090's Monitor for all nodes (Vsmart/XZ3/N), rich device/service/storage/network/battery/CPU/RAM, freshness warnings, 12h history, sample gaps. Current `monitor.thophuong.com` web content was not accessible, so not claimed an exact parity audit.
-- New read-only `bin/node-monitor.mjs` collected in agent heartbeat; modified Cloudflare Worker/DO `reference/cluster-authority/worker.mjs` to retain bounded sanitized per-node telemetry and 144 history points (5min spacing). Added authenticated history API in client+Panel bridge/server. No change to Primary rights, writer grant, Tunnel routing or node identity.
-- **ISOLATED FIXTURE PASS:** Loaded actual Worker source into in-memory Request/Response/storage mocks: 2-node telemetry and history successful, malformed telemetry rejected, agent denied history, legacy heartbeat works, nothing promoted, privacy field stripped. Mock local Android collector produced correct RAM/storage/battery/services schema. Static app/bridge/server syntax checked. **NOT RUN:** Node test suite, actual Android install, true Cloudflare Worker deploy, 2 phone Monitor/browser regression, screen-off persistence.
-- Version-pinned installer `scripts/apply-monitor-all-nodes.sh` was checked against five GitHub blobs at commit `b77f557778c291ec486b9b59ff3693b137367d45`. Only existing clean LAB Vsmart and XZ3, backups, Panel/Agent-only restart and HTTP rollback. Cloudflare Worker must be updated separately under the existing name and DO binding; no secret rotation or deletion. Full instructions `docs/MONITOR-V2-ALL-NODES.md`.
-
-
-## 26/10/2026 — M3 chọn node ứng viên ngay trong Panel (source + UI rollout)
-
-- User requested immediate manual Primary selection from public Panel. Implemented **durable shared selection PREPARE only** in default `Cluster` overview: choose recent-heartbeat Vsmart/XZ3, `begin` with fresh status/CAS revision and request UUID, display selected candidate/epoch/operation state, allow abort from either Panel. Existing Cloudflare DO already persists the pending operation and rejects stale/concurrent/racing requests.
-- `bin/legacy-panel-src/public/app.js` updated in commit `bd9b02c95aede607a353e3471d9c43f832418ac8`; JavaScript syntax parsed successfully via runtime Function constructor, NOT full browser test.
-- `scripts/apply-primary-candidate-ui.sh`: pinned source + SHA check, per-node `app.js` backup, no backend/Tunnel/DB changes, after-copy HTTP asset verification + rollback. Deploy script and user runtime installation NOT RUN. Test source `tests/manual-candidate-ui.mjs` added, NOT EXECUTED.
-- **Blocking remainder for real M3:** Cloudflare admin route switch to XZ3, target service activation, old-writer fencing, authenticated HTTP+DB readiness, old-primary rejoin handling and two-Android end-to-end. `declaredPrimary:null`, `writeLeaseGranted:false` continue; DO is `SHARED_AUTHORITY_PREPARE_ONLY`. Selection is NOT promotion, no active website moved. Source work must continue without conflating these states.
-
-
-## 26/10/2026 — SSO + Primary-following Panel user request (source only)
-
-- User confirmed public `panel.giaouoc.com` **working** after JWT header fix; this does **not** mean a Primary is assigned, `declaredPrimary:null` remains.
-- User wants Cloudflare Access email-only remote admin login (no Hosting password step). Original Panel Password remains for SSH/localhost recovery. Source patches: verified-JWT-only new session on `GET /api/session` (JWT-bound, Secure/HttpOnly/SameSite=Strict cookie), CSRF unchanged, remote password login disallowed, Access logout URL, local password kept. Source syntax was parsed; E2E integration test `tests/access-sso-panel.mjs` created and syntax parsed, **NOT RUN**. LAB safe rollout script `scripts/apply-panel-access-sso.sh` created, **NOT DEPLOYED**. Do not imply live SSO until operator applies and confirms browser login. Cloudflare Allow policy must restrict admin emails.
-- User clarified the public Panel's backend should **follow the actual Primary**. The same Primary serves Panel and app. All nodes have independent local Panel; on Primary outage, independent Cloudflare authority/route must still expose standby recovery Panel until safe Primary activation. No manual Primary activation, independent fencing, web/admin switch, auto-election, or real two-node failover implemented yet. Current M2 PREPARE_ONLY. Design: `docs/PANEL-ACCESS-SSO-PRIMARY-ROUTING-2026-10-26.md`.
-
-
-## Bổ sung 26/10/2026 — Access 403 header failure observed; targeted source fix, Android re-deploy pending
-
-- **OBSERVED BY USER (later):** Vsmart private log from actual Access login contained `MHC_REMOTE_ACCESS_DENIED JWT_HEADER_INVALID` twice at 12:17 and 12:18 UTC. Prior combined JOSE validation rejected either algorithm, type or key ID, not proven which. RFC 7519 makes typ optional; patch accepts absent/case-insensitive JWT type while still requiring RS256, keyed RSA signature, issuer/aud/time; diagnostic reason now distinguishes algorithm/type/kid. Patch not yet applied to Android or verified through browser, so public access still UNVERIFIED.\n- **OBSERVED BY USER:** Vsmart Panel localhost HTTP 200; Cloudflare redirect HTTP 302; Tunnel service running; matching origin hostname/team/AUD, Access application duration 24h; Cloudflare JWKS HTTPS HTTP 200, 2 RSA/RS256 keys. Browser after login reports `{"error":"Remote Access verification required"}` (HTTP origin 403). **Cause still unverified**; no authentic JWT/header/claims observed. Source tests and physical Android deploy for new diagnostic NOT RUN.
-- **SOURCE PUSHED:** `bin/legacy-panel-src/src/mhc-remote-access.mjs` private rate-limited reason diagnostics `MHC_REMOTE_ACCESS_DENIED`, retaining RS256/issuer/AUD/clock/password/CSRF and public generic 403; `tests/remote-panel.mjs` expanded; LAB rollback script `scripts/apply-remote-access-diagnostics.sh`. Android Panel live NOT YET patched; deploy only to Vsmart as confirmed origin, then user log in through Access and read filtered private log to identify exact reason. Public 9090 remains localhost-only.
-- **USER-OBSERVED HEARTBEAT:** Vsmart runit `mhc-authority-agent` running; manual shared heartbeat succeeded. Shared state PREPARE_ONLY, no Primary/lease/auto.
-- **USER-OBSERVED UI:** Vsmart received frontend-only Cluster patch with `APPLIED_OK`; XZ3 received file by SCP, but `APPLIED_OK` not yet observed in conversation. Browser through SSH 19090 failed by strict localhost Host allowlist; 9090 forwarding works if no conflicting tunnel. No verified public UI success.
-
-
-Cập nhật sau checkpoint có ý nghĩa; không sao chép trạng thái sang báo cáo audit/status mới. HANDOFF/PROJECT-STATUS là lịch sử; [CONTINUE-MHC.md](CONTINUE-MHC.md) giữ hướng dẫn kết nối/phục hồi.
-
-Branch `codex/m1-m2-foundation`. Ngày ghi nhận 26/10/2026. Vsmart Termux aarch64, Node v26.12.1, PHP 8.5.12, SSH `192.168.1.4:8022`. Người dùng cho phép push checkpoint.
-
-## Bổ sung 26/10/2026 — hai Android M2 có heartbeat (bằng chứng người dùng)
-
-- **OBSERVED BY USER (17:19 giờ VN)**: Vsmart-LAB và Sony-XZ3 đã truy cập cùng Cloudflare authority; output `~/mhc-full cluster-authority status` từ Sony hiển thị `nodeCount:2`, `mode:SHARED_AUTHORITY_PREPARE_ONLY`, Vsmart `4ed4c025-62ae-4c2a-8d68-65dd76ecf550` và XZ3 `4a9672d1-bb62-4286-946a-a78b73e57b24` đều có `heartbeatRecent:true` tại thời điểm đọc; cluster ID `2c1ea7c0-1d1f-4802-8336-0925a529c431`. Đây là lần đầu có bằng chứng người dùng về **hai máy Android thật** cùng authority; Codex chưa tự nghiệm thu reboot, failover, browser hoặc cutover.
-- **Not M3/M4**: `declaredPrimary:null`, `revision:0`, `writeLeaseGranted:false`, `automaticFailover:false`, `canComplete:false`. Đăng ký/heartbeat thật KHÔNG chứng minh website, replication, fence hoặc HA.
-- **UI source đã push**: commit `f0c94a4` thay `bin/legacy-panel-src/public/app.js` để sửa bảng Heartbeat thiếu dữ liệu (`heartbeatRecent/lastSeenAt`) và thêm tổng quan Cluster ngắn + trang kỹ thuật LAB cũ; JS parse PASS, GitHub re-fetch PASS; **chưa có browser Android test**. Các node phải source-only upgrade và `hosting-panel apply` riêng mới nhìn thấy bản này.
-- **Public Panel Access còn lỗi**: khi cả hai máy offline user nhận Cloudflare 1033; sau online `panel.giaouoc.com` nhận `{"error":"Remote Access verification required"}` từ Panel origin. Chưa kết luận nguyên nhân; cần xác nhận route thực đang đến node nào, `remote-panel status`, trạng thái Tunnel và Access JWT Team Domain/AUD; không tắt xác minh JWT. Xem `docs/CLUSTER-UI-HEARTBEAT-REMOTE-ACCESS-2026-10-26.md`.
-- Các ghi nhận `NOT RUN` về Worker thật/hai Android trong checkpoint lịch sử phía dưới là **trước** bằng chứng mới và cần được phân biệt theo thời điểm; phần Panel Internet end-to-end và tuyến dự phòng vẫn **CHƯA ĐẠT**.
-
-## M1 — Hosting một node: IN PROGRESS
-
-- **Hoạt động thực:** source-only upgrade và Panel 9090; mật khẩu mới giữ nguyên; login/session/CSRF; static demo, nginx → PHP-FPM, MariaDB, WordPress LAB HTTP. Tạo/đọc bài và nhập ảnh WP-CLI; thêm đăng nhập HTTP, nonce, multipart upload ảnh và GET ảnh thật qua nginx/PHP/DB. Backup site/SQL, checksum, restore vào DB/thư mục riêng, phục vụ bản restore HTTP. Site gốc và Panel khỏe sau rehearsal.
-- **Commit mã triển khai:** `889786e` (base full upgrade `f05f569`). SHA256 ba script sửa cuối khớp source trên node.
-- **PASS — Windows mock/source:** service environment, guard management, authority/storage fixture và nhóm hồi quy liên quan.
-- **PASS — Vsmart Android:** full source self-test `ba0be57`, full installer self-test `f05f569`; focused `wordpress-provision`, `site-probe-cleanup`, `integration-backup`, `static-sites`, `node-clone` ở `889786e` (runner dùng fixtures dù chạy Android). HTTP/SQL/Panel và backup→restore trên là runtime thật; log `~/mhc-lab-runs/m1-m2-20261026/acceptance.log`.
-- **FAIL đã xử lý:** executable bit từ Windows tar; WP-CLI TAR thiếu file, PHP memory limit/socket MariaDB; probe EXIT trap; curl pipefail trong helper. Nhóm liên quan đã chạy lại PASS. Exit 23 cũ trong `final-deploy.log` không còn là lỗi chưa xử lý.
-- **NOT RUN:** reboot/Doze Android, thao tác giao diện trình duyệt (đường HTTP upload đã PASS bằng client), full suite lại ở `889786e` (đã chạy nhóm chịu ảnh hưởng), nhiều Android.
-- **Thiếu DoD:** M1-05 reboot/lifecycle. Có `~/.termux/boot/10-start-hosting`, chưa chứng minh tự hồi phục sau reboot. Không gọi M1 DONE chỉ vì hosting hoạt động.
-- **Blocker cần user:** reboot vật lý/Termux:Boot và mở lại Termux nếu Android không tự chạy; chưa reboot từ SSH không đặc quyền.
-- **Việc tiếp theo:** phối hợp reboot thực khi có người mở lại Termux nếu cần; chuyển trọng tâm thi công sang M2 trong lúc chờ, không lặp full self-test đã đạt.
-
-## M2 — Panel mọi node và authority chung: IN PROGRESS
-
-- **Hoạt động thực:** Panel nâng cấp trên Vsmart; origin Access JWT đã cấu hình với Team/AUD user cung cấp cho `panel.giaouoc.com`, JWKS HTTPS reachable, restart riêng Panel và auth/CSRF/password PASS. Connector riêng `mhc-panel-tunnel` (cloudflared 2026.10.3) chạy bằng token-file private user tự nhập, 4 kết nối đăng ký Cloudflare, có log rotation. Probe HTTP socket xác minh Host public thiếu/JWT sai → 403. Chưa bật authority.json/agent chung trên site đang phục vụ.
-- **Mới có source:** Worker/SQLite DO membership, heartbeat riêng agent, revision/epoch/CAS, journal/receipt/audit begin/abort; client HTTPS fail-closed; Panel bridge chung; chặn manual/auto cũ khi cấu hình authority. PREPARE_ONLY, không writer grant/Primary commit/route.
-- **Commit kết quả:** `66a4064` (connector runit thật/private enrollment), `78230ee` (bootstrap và hai Panel HTTP), `783cb80` (hosting evidence), `f05f569` (M2 bridge). Bằng chứng route/DNS mới nằm trong checkpoint chứa cập nhật này; tra SHA như hướng dẫn cuối trang.
-- **Source mới ở checkpoint này:** `cluster-authority prepare/configure` tạo credentials riêng 0600, prepare không bật shared mode; configure kiểm HTTPS và cả hai role trước ghi, không overwrite config khác. `prepare-secrets.mjs` gom membership đầy đủ vào JSON private ngoài source/Git để user nạp Wrangler qua stdin. Helper nhập Tunnel token trên TTY, không argv/stdout.
-- **PASS — Windows mock và Vsmart fixture:** concurrency chỉ một begin, auth phân vai, replay/idempotency, restart object, lỗi storage, fail-closed, bridge Panel và chặn legacy. Không tương đương Cloudflare runtime/nhiều Android.
-- **PASS — Vsmart, hai process cách ly:** `tests/authority-http-panels.mjs` chạy Panel HTTP thật + TLS client + Worker/storage fixture: private enrollment/retry, production-footprint/file permissions, handshake lỗi không cài config, CSRF/auth, hai begin chỉ một thắng, receipt replay, restart DO fixture, tắt một Panel vẫn abort từ Panel kia, authority outage không fallback. Log `~/mhc-lab-runs/m1-m2-20261026/authority-http-panels.log`. Hai HOME/process trên một Vsmart, không phải hai Android. Windows bài này NOT RUN vì cần POSIX/openssl.
-- **FAIL đã sửa trong integration mới:** Android từ chối hardlink; writer private file chuyển sang lock-directory + fsync/rename, không dùng hardlink, test chạy lại PASS.
-- **Chuẩn bị node thật PASS:** runtime bootstrap `78230ee`; identity `4ed4c025-62ae-4c2a-8d68-65dd76ecf550`, cluster dự kiến `2c1ea7c0-1d1f-4802-8336-0925a529c431`. Private enrollment và `~/mhc-lab-runs/m1-m2-20261026/cloudflare-lab-secrets.json` đã tạo cho một node, không đưa vào Git. Thêm node phải giữ UUID/key hiện có. Log `m2-prepare.log`; không chạy lại script tạo UUID/file này.
-- **PASS — route Internet trước đăng nhập:** DNS resolver public 1.1.1.1 trả A/AAAA; HTTPS request với SNI/chứng chỉ được kiểm, IP lấy từ DNS public, trả 302 đến đúng Team Domain Access; HTTP trả 301 về HTTPS. Không bypass TLS. Chưa kiểm request mang JWT hợp lệ sau user login nên chưa kết luận end-to-end Panel Internet.
-- **FAIL — DNS LAN đang chờ user sửa:** Windows/Chrome và router resolver 192.168.1.1 vẫn NXDOMAIN; đã xóa Windows DNS cache nhưng router vẫn trả cũ. Chrome thực báo `DNS_PROBE_FINISHED_NXDOMAIN`. Phiên shell không có Administrator; đã hướng dẫn user đổi DNS Wi-Fi 2 sang 1.1.1.1/1.0.0.1 bằng PowerShell admin. Không sửa router, hosts hoặc hạ xác minh TLS/JWT.
-- **NOT RUN:** Worker thật, hai Panel Android chung authority, JWT hợp lệ qua Tunnel sau đăng nhập Access, URL quản trị sống khi một node offline.
-- **Thiếu DoD:** deploy/kiểm authority Cloudflare, hai Android, Panel Internet và tuyến dự phòng độc lập Primary. Bootstrap và hai Panel HTTP một máy đã có; không tính thành multi-device DoD.
-- **BLOCKED — nghiệm thu Cloudflare/nhiều Android:** Published application route đã reachable qua DNS public; còn user khắc phục DNS LAN và đăng nhập Access/Panel, deploy Worker/nạp secrets, cung cấp SSH node LAB thứ hai. Không dùng M51/X7b thay thế.
-- **Việc tiếp theo:** xác minh Chrome vào Access/Panel sau DNS được sửa, rồi deploy Worker/nạp secrets qua stdin, configure/heartbeat endpoint thật. M3 source có thể làm độc lập nhưng chưa được tuyên bố cutover đạt.
-
-## M3 — Manual Primary end-to-end: NOT STARTED
-
-- **Hoạt động thực:** chưa cutover.
-- **Mới có source:** legacy manual record/route journal và guard stop-writer; chưa candidate activation/commit qua authority chung.
-- **Commit liên quan:** `f05f569` (chặn legacy/tích hợp PREPARE, không phải M3 đạt).
-- **Test:** legacy fixture PASS trong full suite; activation/route/HTTP identity/chuyển giữa Android NOT RUN.
-- **Thiếu DoD:** luồng durable chung: candidate/restore, dừng hoặc fence writer cũ, kích hoạt đích, route/nhận diện HTTP, commit, crash retry, rejoin quarantine. Heartbeat mất không chứng minh writer dừng.
-- **Blocker:** nghiệm thu cần authority/node thứ hai; source tiếp tục độc lập được.
-- **Việc tiếp theo:** nối transition executor vào authority sau M2 config/HTTP integration; giữ quyền ghi mặc định đóng.
-
-## M4 — Auto dùng luồng Manual: NOT STARTED
-
-- **Hoạt động thực:** chưa bật auto.
-- **Mới có source:** legacy recommendation/best-effort, không dùng làm auto mới.
-- **Commit nền:** `af8666e`; M2 `f05f569` chặn auto cũ trong shared mode.
-- **Test:** legacy fixtures PASS; auto authority/cutover nhiều Android NOT RUN.
-- **Thiếu DoD:** tái dùng M3, snapshot xác minh, health/cooldown, candidate failure và rejoin/partition.
-- **Blocker:** M3 chưa xong, thiếu nghiệm thu nhiều Android.
-- **Việc tiếp theo:** hoàn thành M3 trước, không mở replication/scoring nâng cao.
-
-## M5 — Migration production: NOT STARTED
-
-- **Hoạt động/source mới:** chưa triển khai/sửa M51/X7b.
-- **Commit nền tài liệu:** `af8666e`. Tests production NOT RUN.
-- **Thiếu DoD/blocker:** nghiệm thu LAB, backup độc lập, dry-run, user duyệt từng cutover.
-- **Việc tiếp theo:** giữ ngoài phạm vi hiện tại.
-
-## Bằng chứng checkpoint hosting
-
-```text
-PASS: real site/SQL/media snapshot restored to isolated DB/files and served HTTP
-PASS: local nginx -> PHP-FPM -> PHP for managed site.
-PASS: authenticated Panel API modules / cluster / primary-selection / auto-primary / remote-access
-PASS: new password preserved after Panel upgrade; authentication and CSRF enforced
-PASS: original WordPress and Panel healthy after restore rehearsal
-```
-
-Không lưu secrets/dump. SHA của chính bản ghi checkpoint tra bằng `git log -1 --format=%H -- docs/LIVE-PROGRESS.md` (không ghi SHA tự tham chiếu).
-
-
-## 26/10 — one-command node bootstrap + joining and XZ3 reboot repair, source pushed
-- Source release pinned `2f14deb8d6fc31118a4bbc6b0a67e38bc2049767`. Published fresh bootstrap `e4bd8cfbdebfa0aa8a3b2c1956cb04f44ee92f34` and existing-LAB unified update `d3b5f696977770cea23333d6286f2f34002e88bc`. Verified exact all 13 updater manifest blobs against release SHA; backup/rollback and boot doctor sources included.
-- One-use invite/candidate membership Worker code + Panel invite endpoint + node join CLI and management agent autostart; original Panel shows full Monitor cards for all nodes without clicks and no CPU. Existing Worker needs deploy with same binding/secrets.
-- **PASS in mock Durable Object fixture** for Panel invitation, one-time 192-bit code, dynamic node membership, Agent heartbeat, unauthorized Agent invite denied, code replay denied, no Primary/writer grant. Crypto in isolated fixture was mocked; not a real signed Cloudflare deployment.
-- **NOT RUN**: real Node automated test suite (`tests/cluster-pairing.mjs`), clean Termux installer, Android reboot/Termux:Boot, screen-off XZ3, end-to-end Worker rollout, physical third-node pairing. User-reported XZ3 stopped services after reboot; cause has not been proven on phone. The integrated boot repair is source code, not yet deployed to XZ3. `docs/ONE-COMMAND-NODE-SETUP.md` has exact operator commands.
-- Remote Panel app/site deploy orchestration, actual Primary cutover and auto failover **remain unimplemented**; no mislabeling.
-
-
-## 26/10/2026 — XZ3 báo CHƯA CÓ MONITOR V2, mã chẩn đoán phát hành
-- Chưa có bằng chứng Worker hiện đã được deploy và XZ3 Agent đã gửi telemetry. Không tự khẳng định lỗi nằm ở Termux:API.
-- Code: `bin/node-doctor.sh` kiểm tra trực tiếp collector và phân biệt status Worker schema; `bin/cluster-authority.mjs` ghi error class có giới hạn tốc độ thay cho hoàn toàn bỏ qua lỗi collector, vẫn giữ heartbeat khi thiếu metrics.
-- Single-source existing-node updater mới `scripts/update-existing-android-node.sh` commit `e36b804a237b34c5042c853fc87656df10b801e9` pin `7ea74bcc6dd519bac97cb2e4eb45d8d3570f51ed`; không sửa Cloudflare hay dữ liệu website. **NOT RUN** XZ3 thật, Worker thật, screen off hoặc browser.
-## 27/10/2026 — tiếp nhận Git và kiểm kê read-only (checkpoint source `055aab5`)
-
-- **P0 IN PROGRESS:** checkout sạch `0903b88` đã fast-forward đến GitHub `055aab5` (143 commit mới). Audit chi tiết: `CODEX-RESUME-AUDIT-2026-10-27.md`. Code clock-health riêng ở workspace cha chưa nhập Git, được bảo vệ.
-- **P1 IN PROGRESS:** Vsmart thật SSH/Panels/Agent/WordPress services và localhost 9090/18080 HTTP 200; site WordPress `mhc-lab` còn đăng ký. Reboot/restore hiện hành **NOT RUN**. M1 HTTP/SQL/upload/restore PASS là bằng chứng ngày 26/10, không được tự nâng thành nghiệm thu mới.
-- **P2 IN PROGRESS:** Vsmart authority thật có 3 node heartbeat + telemetry mới, gồm Vsmart và Sony XZ3; `PREPARE_ONLY`, revision 3, epoch 0, không Primary/lease. Vsmart Panel/Agent/Tunnel chạy; Sony SSH auth bị từ chối dù host key tin cậy, Tunnel `unknown` qua telemetry, kiểm trực tiếp **BLOCKED** chờ user thêm public key. Node thứ ba F3216 chưa rõ vai trò, không thao tác.
-- **P3 IN PROGRESS source, BLOCKED live:** 13 updater blob pins khớp `f73df61`. Vsmart collector/server khớp pin nhưng authority client/UI còn phiên bản trước P3 recovery. Cloudflare Worker/Cron/DNS/Access runtime **NOT VERIFIED**; không chạy updater/deploy/cutover. Candidate activation, fencing, origin HTTP và rollback còn thiếu. **P4/P5 NOT STARTED** runtime/migration.
-- **PASS Windows mock:** P3 route, P3 Panel recovery, pairing và Monitor tests; 7 JS syntax checks; 13 manifest hashes. **FAIL Windows:** candidate UI structural test đòi literal cũ; Access SSO process không start trong fixture. **NOT RUN:** Bash syntax, full suite, Sony direct, two-Android cutover, public browser, Cloudflare account. Commit source gần nhất `055aab5`; checkpoint audit docs SHA xem Git history sau commit.
-- **Việc tiếp theo:** xác minh Sony qua SSH key, nhận diện node F3216 và Cloudflare read-only; sau nhiệm vụ kiểm kê mới xử lý test/version drift rồi P3 LAB end-to-end. Không dùng M51/X7b để nghiệm thu.
-## 27/10/2026 — XZ3 SSH và runtime checkpoint (sau `a6bfa55`)
-
-- **P2 IN PROGRESS, PASS trên Android thật:** Sony XZ3 SSH key + pinned host key; local Panel 9090 HTTP 200, Agent/Monitor v2 `MONITOR_V2_OK`, shared authority status cùng cluster revision 3 và 3/3 telemetry sender với Vsmart. Panel/Agent/nginx/mysqld runit chạy. XZ3 source có collector/server mới nhưng authority client `8718e95` và Panel UI `bdf48f3` trước P3 recovery. Không có thao tác deploy/restart.
-- **BLOCKED cho Panel dự phòng/P3:** XZ3 `remote-panel configured:false`, `mhc-panel-tunnel` chưa cài; `sites list` rỗng, web 18080 HTTP 000, snapshot chưa xác minh. `sshd` runit đang down dù daemon ngoài supervision phục vụ SSH. Boot log cũ `MHC_BOOT_FINISHED`/Panel 200 nhưng reboot mới **NOT RUN**. Internet Access/Worker P3/Cron **NOT VERIFIED**; không có Primary/lease.
-- **Node thứ ba:** user xác nhận F3216 là LAB ở nhà; heartbeat từ authority có, SSH trực tiếp từ mạng công ty NOT RUN/không có đường truy cập. Không đưa vào nghiệm thu hai Android tại công ty.
-- **Việc tiếp theo:** xác minh Cloudflare LAB, sửa SSH supervision và cấu hình Tunnel/Access XZ3 trong mốc triển khai có backup/rollback riêng; sau đó đồng bộ source hai LAB và nghiệm thu manual cutover. Commit checkpoint tài liệu xem Git history.
+**Việc cụ thể tiếp theo khi tiếp tục:** kiểm login/API từ original Panel XZ3 sau khi có file private, rồi bố trí reboot canary có cứu hộ. Bàn giao tại Standby, dừng trước P3.2/Cloudflare/Internet cutover theo prompt.

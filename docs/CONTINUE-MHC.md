@@ -18,7 +18,7 @@ SSH: `u0_a180@192.168.1.4:8022`, key `%USERPROFILE%\.ssh\id_ed25519_mhc_lab`. Ho
 Chạy PowerShell, giữ cửa sổ mở. Nếu đã có tunnel cùng cổng, dùng lại hoặc Ctrl+C cửa sổ cũ trước:
 
 ```powershell
-ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:9090:127.0.0.1:9090 -L 127.0.0.1:18080:127.0.0.1:18080 u0_a180@192.168.1.4
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:9090:127.0.0.1:9090 -L 127.0.0.1:18080:127.0.0.1:18080 -L 127.0.0.1:18131:127.0.0.1:18131 u0_a180@192.168.1.4
 ```
 
 - Panel: http://127.0.0.1:9090, tài khoản `admin`.
@@ -34,13 +34,15 @@ ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 u0_a180@192.168.1.4 'c
 
 ## Truy cập XZ3 và rollback source hiện hành
 
-XZ3: `u0_235@192.168.1.41:8022`, dùng cùng key Windows đã có và StrictHostKeyChecking. Mở cửa sổ PowerShell riêng để xem hai Panel đồng thời:
+XZ3: `u0_235@192.168.1.41:8022`, dùng cùng key Windows đã có và StrictHostKeyChecking. Nếu tunnel Vsmart đang chiếm 9090, Ctrl+C cửa sổ đó trước; mở Panel từng node bằng đúng cổng 9090:
 
 ~~~powershell
-ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:9091:127.0.0.1:9090 u0_235@192.168.1.41
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519_mhc_lab" -p 8022 -o StrictHostKeyChecking=yes -o ExitOnForwardFailure=yes -N -L 127.0.0.1:9090:127.0.0.1:9090 -L 127.0.0.1:18131:127.0.0.1:18131 u0_235@192.168.1.41
 ~~~
 
-XZ3 Panel: http://127.0.0.1:9091; Vsmart vẫn http://127.0.0.1:9090 với lệnh phía trên. Dùng mật khẩu Panel hiện có của từng node. Không cần mở port Panel ra LAN; XZ3 chưa có Tunnel mới.
+XZ3 Panel: http://127.0.0.1:9090; dùng mật khẩu Panel hiện có. Giữ PowerShell mở. Cổng 9091→9090 trước đây không đúng Host/Origin allowlist của original Panel; không tắt guard để dùng cổng đó. Vsmart dùng lệnh ở mục trước, sau khi đóng tunnel XZ3 nếu xung đột. Không mở port Panel ra LAN; XZ3 chưa có Tunnel mới.
+
+Trong Cluster: bấm **Kiểm readiness hai node** → chọn ứng viên bằng **Chọn node — bắt đầu chuẩn bị** → **Bật preview chỉ đọc trên ứng viên**. Website LAB riêng tại http://127.0.0.1:18131 chỉ hoạt động khi preview đang bật và tunnel trỏ đúng node. Đây là dữ liệu synthetic, không phải bản sao đầy đủ WordPress gốc; không cấp Primary/writer hoặc đổi DNS. Dừng preview về Standby rồi hủy ứng viên khi kiểm xong. Nếu muốn xem preview Vsmart, dùng tunnel Vsmart ở mục trước. Bằng chứng và phần NOT RUN ở LIVE-PROGRESS, contract ở P3-INTERNAL-CANDIDATE.md.
 
 Source upgrade hiện hành: `~/.local/state/mhc-source-upgrade/current.json` chỉ version/manifest/transaction; backup và journal `tx-*` cùng thư mục. Gói tại `incoming/release.*`, file `preflight-path` trỏ backup private. Đối chiếu gói/transaction trong LIVE-PROGRESS trước khi verify/rollback, không chọn mù theo mtime. Theo [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md), rollback cần reload/health cả Panel và Agent; không restore DB để rollback source. Không chạy lại updater 13-file cũ hoặc fresh install.
 
