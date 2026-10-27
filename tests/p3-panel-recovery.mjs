@@ -26,8 +26,9 @@ const plan=(st,e=env)=>p3RecoveryPlan(st,members,e,now);
 assert.equal(plan(state(),{...env,MHC_P3_PANEL_RECOVERY_ENABLED:'NO'}).reason,'DISABLED');
 assert.equal(plan({...state(),heartbeats:{...state().heartbeats,[a]:good(20)}}).reason,'INCUMBENT_NOT_PROVEN_OFFLINE');
 assert.equal(plan({...state(),pending:{status:'PREPARED_NO_WRITER_GRANT'}}).reason,'PRIMARY_TRANSITION_PENDING');
-assert.equal(plan({...state(),heartbeats:{...state().heartbeats,[b]:good(10,{services:{'amh-panel':'running','mhc-panel-tunnel':'stopped'}}}},
-  members.filter(n=>n.nodeId!==c),env,now).kind,'start');
+const reduced=state();
+reduced.heartbeats[b]=good(10,{services:{'amh-panel':'running','mhc-panel-tunnel':'stopped'}});
+assert.equal(plan(reduced).targetNodeId,c,'choose another standby when XZ3 Tunnel is down');
 const noTunnel=state();noTunnel.heartbeats[b]=good(10,{services:{'amh-panel':'running','mhc-panel-tunnel':'stopped'}});
 noTunnel.heartbeats[c]=good(25,{services:{'amh-panel':'running','mhc-panel-tunnel':'stopped'}});
 assert.equal(plan(noTunnel).reason,'NO_HEALTHY_RECOVERY_PANEL');
