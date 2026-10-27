@@ -1,5 +1,9 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## Unified source upgrade 27/10
+
+Entry hiện hành là update.sh trong package do scripts/build-node-upgrade.mjs tạo từ commit; xem NODE-SOURCE-UPGRADE.md. Không gọi raw updater 13 file cũ để chuẩn hóa version. --plan/--verify kiểm manifest, --apply có automatic rollback files + Panel/Agent processes; source release thật ghi ở ~/.local/state/mhc-source-upgrade/current.json, marker TEST legacy giữ nguyên. NODE_NOT_APPROVED_LAB/PRODUCTION_OR_INCOMPLETE_NODE/UNKNOWN_*_BOOT phải được điều tra, không sửa marker/identity để bypass. Rollback failure giữ backup/journal, cần cứu hộ SSH, không xóa lock mù.
+
 ## SSH Vsmart
 - SSH LAB đã xác minh 27/10: Vsmart `u0_a180@192.168.1.4:8022`, XZ3 `u0_235@192.168.1.41:8022`; key auth và strict host key PASS. Địa chỉ 192.168.100.27 là lịch sử; IP có thể đổi. Không dùng `StrictHostKeyChecking=no`.
 - Codex VS Code **chạy trên máy công ty cùng LAN/VPN** có thể SSH qua OpenSSH; Codex Cloud **không thể tự truy cập LAN** trừ khi có mạng riêng/tunnel được chuẩn bị. Nếu không thể truy cập, xuất bước kiểm tra cụ thể, không giả báo đã chạy.

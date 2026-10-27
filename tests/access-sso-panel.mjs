@@ -8,6 +8,7 @@ import http from 'node:http';
 import net from 'node:net';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
 const root=path.resolve(process.argv[2]||'.');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mhc-access-sso-'));
 let proc;
@@ -37,6 +38,12 @@ try{
  const jwks=path.join(tmp,'jwks.json');fs.writeFileSync(jwks,JSON.stringify({keys:[jwk]}));
  const preload=path.join(tmp,'mock-jwks.mjs');
  fs.writeFileSync(preload,`import fs from 'node:fs';
+// Windows cannot express POSIX 0600. Emulate mode bits ONLY for this fake config;
+// an explicit unsafe-mode assertion below still exercises the real origin guard.
+if(process.platform==='win32'){
+ const originalStat=fs.lstatSync;
+ fs.lstatSync=function(p,...a){const st=originalStat.call(fs,p,...a);if(String(p)===process.env.MHC_ACCESS_FIXTURE_CONFIG)st.mode=(st.mode&~0o777)|(fs.existsSync(String(p)+'.insecure')?0o644:0o600);return st;};
+}
 const original=globalThis.fetch;
 globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  Promise.resolve(new Response(fs.readFileSync(process.env.MHC_JWKS_FIXTURE,'utf8'),{status:200,headers:{'content-type':'application/json'}})):
@@ -51,8 +58,8 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  };
  const jwt=sign();
  const p=await port();
- proc=spawn(process.execPath,['--import',preload,path.join(panel,'src/server.mjs')],{
-  env:{...process.env,HOME:tmp,AMH_PORT:String(p),MHC_JWKS_FIXTURE:jwks},stdio:['ignore','pipe','pipe']
+ proc=spawn(process.execPath,['--import',pathToFileURL(preload).href,path.join(panel,'src/server.mjs')],{
+  env:{...process.env,HOME:tmp,AMH_PORT:String(p),MHC_JWKS_FIXTURE:jwks,MHC_ACCESS_FIXTURE_CONFIG:path.join(panel,'data/remote-access.json')},stdio:['ignore','pipe','pipe']
  });
  let err='';proc.stderr.on('data',b=>{err+=b;});
  let ready=false;
@@ -69,6 +76,10 @@ globalThis.fetch=(u,o)=>String(u)==='https://${team}/cdn-cgi/access/certs'?
  assert.equal((await request(p,host,'/api/session')).status,403,'remote blocked without JWT');
  assert.equal((await request(p,'unexpected.lab.example','/api/session',{jwt})).status,403,'wrong Host blocked');
  assert.equal((await request(p,host,'/api/session',{jwt:sign({aud:['other']})})).status,403,'wrong Access audience blocked');
+ const accessConfig=path.join(panel,'data/remote-access.json');
+ if(process.platform==='win32')fs.writeFileSync(accessConfig+'.insecure','fixture');else fs.chmodSync(accessConfig,0o644);
+ assert.equal((await request(p,host,'/api/session',{jwt})).status,403,'unsafe private config permissions blocked');
+ if(process.platform==='win32')fs.unlinkSync(accessConfig+'.insecure');else fs.chmodSync(accessConfig,0o600);
  const remote=await request(p,host,'/api/session',{jwt});
  assert.equal(remote.status,200);assert.equal(remote.data.loggedIn,true);
  assert.equal(remote.data.authMode,'cloudflare-access');

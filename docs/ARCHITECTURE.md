@@ -35,6 +35,6 @@ Dữ liệu lệch được chấp nhận trong MVP với backup/restore thủ c
 
 ## Release và domain automation
 
-Managed source và live Panel là hai cây riêng; đồng bộ phải bao gồm JWT/bridge/index/helper, giữ riêng identity/secrets/admin/database. Updater 13 file hiện có là cập nhật một phần, chưa đủ DoD đồng bộ; rollback phải phục hồi cả files và process Agent/Panel tương ứng. Boot log/marker không thay test reboot thực.
+Managed source và live Panel là hai cây riêng; package source-only thống nhất lấy toàn bộ managed bin cùng 7 live Panel assets, JWT/bridge/index/helpers, launcher và một canonical Boot entry từ một commit. Manifest SHA-256 và syntax được kiểm trước dừng management process. Transaction giữ file/mode/absence, service/boot backup, journal/version record; apply và rollback restart/health cả Panel lẫn Agent, kiểm PID mới/fresh heartbeat/asset SHA. Identity/secrets/admin/database/website nằm ngoài write allowlist. Gói này thay updater 13 file cập nhật một phần; trạng thái rollout thực tế ở LIVE-PROGRESS. Boot log/marker không thay test reboot thực.
 
 P2.5 hướng đích: zone read allowlist → chọn hostname → tạo local site/nginx → DNS/Tunnel ingress → HTTPS health/audit/rollback, token quyền tối thiểu ở control plane. Nút tạo website hiện chưa tự publish Cloudflare. Không cần Android IP tĩnh hoặc mua Load Balancing để bắt đầu; chọn route adapter theo quyền/giới hạn thực tế, giữ các hostname production ngoài allowlist.

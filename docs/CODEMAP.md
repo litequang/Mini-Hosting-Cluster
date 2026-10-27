@@ -20,9 +20,9 @@
 
 - `install.sh`: clean install và source-only `--upgrade` có guard/rollback; upgrade chạy full self-test rồi thay toàn bộ managed bin/launcher, không tự cập nhật live Panel.
 - `bin/legacy-panel.sh`: original Panel plan/apply/rollback, source từ managed `bin/legacy-panel-src`; giữ `data/admin.json`. Live và managed phải đồng bộ, đặc biệt JWT module.
-- `scripts/update-existing-android-node.sh`: pin 13 file live/managed management, backup/health rollback; **không phải full source upgrade** và không bao gồm JWT module, bridge installer/index/helpers. Audit 27/10 phát hiện thiếu đồng bộ và rollback Agent/boot cần xử lý trước rollout.
+- `scripts/update-existing-android-node.sh`: entry của package thống nhất `update.sh`; `scripts/build-node-upgrade.mjs` lấy Git blobs ở commit cố định để tạo payload + manifest SHA-256. `bin/source-upgrade.mjs` thực hiện plan/apply/verify/rollback, toàn bộ managed bin/launcher + 7 live Panel assets + canonical Boot; kiểm hash/cú pháp trước mutation, private backup/journal, restart và health cả Panel/Agent. Thay updater 13 file thiếu JWT/bridge/index/helpers đã chỉ ra trong audit.
 - `scripts/bootstrap-new-android-node.sh`: fresh-only aarch64 Termux; không dùng cho hai LAB đã cài. `scripts/apply-*`: các patch lịch sử có pin riêng, không chồng lên nhau để thay một release đầy đủ.
-- `bin/node-doctor.sh`, `bin/node-boot.sh`: diagnostics và management repair/wake-lock/boot; chỉ `node-doctor --check` là kiểm kê. `node-boot --status` có mkdir/chmod state trước status branch nên khi cần read-only tuyệt đối hãy đọc metadata/log đã lọc thay vì gọi repair/status helper mù quáng.
+- `bin/node-doctor.sh`, `bin/node-boot.sh`, `bin/node-boot-entry.sh`: diagnostics, management repair/wake-lock/boot; canonical `10-mhc-start` một entry, package retire legacy đúng hash. Doctor không báo PASS khi essential service lỗi; boot --status trả trước mọi mkdir/chmod. Boot không gọi standalone sshd.
 - `bin/mhc-full-wrapper`: dispatcher `~/mhc-full`; `bin/panel-tunnel-service.sh`, `prepare-panel-tunnel-token.sh`: connector Panel riêng với private token-file và log rotation.
 - Managed source: `~/.local/share/mhc-full-installer/bin`; live Panel `~/android-hosting-panel`; private state `~/.config/mhc-full-installer/{installed,node-identity.json,authority.json,authority-enrollment.json}`. Chỉ ghi đường dẫn trong docs; không đọc/copy credentials để kiểm kê.
 - Panel config/admin tại `~/android-hosting-panel/data`; hosting site registry tại `~/.config/mhc-full-installer/{sites,static}`; managed WordPress nginx/PHP tại `~/.local/share/mhc-full-installer/hosting`; snapshots `~/hosting-backups/mhc-full/snapshot-*`. Không copy identity/config giữa nodes.
@@ -37,9 +37,10 @@
 
 ## Tests và bàn giao
 
-Có 48 runner Node `.mjs` và 6 Shell `.sh` tại tests root; số file không phải số assertion hay kết quả PASS. `bin/self-test.sh` chạy regression/syntax, nhưng hiện chưa gọi `p3-panel-recovery`, `access-sso-panel`, `manual-candidate-ui`. Kết quả cụ thể xem LIVE-PROGRESS/audit.
+Có 49 runner Node `.mjs` và 6 Shell `.sh` tại tests root; số file không phải số assertion hay kết quả PASS. Self-test đã thêm p3-panel-recovery, access-sso-panel, manual-candidate-ui và source-upgrade. Kết quả cụ thể xem LIVE-PROGRESS.
 
 - M2: `tests/cluster-authority.mjs`, `authority-panel.mjs`, `authority-http-panels.mjs`, `cluster-pairing.mjs`, `monitor-all-nodes.mjs`, `remote-panel.mjs`, `access-sso-panel.mjs`.
 - P3: `tests/p3-route.mjs`, `p3-panel-recovery.mjs`, `manual-candidate-ui.mjs`; DNS/DO/JWT fixtures không chứng minh live cutover.
-- Windows SSO fixture cần file URL cho `--import`; POSIX HTTP fixture cần TMPDIR ngoài source/Git. Candidate UI test còn assertion cũ.
+- Windows SSO fixture dùng file URL cho --import và emulation POSIX mode đúng một fake config, vẫn test unsafe mode bị chặn. POSIX HTTP fixture cần TMPDIR ngoài source/Git và đủ ngắn cho Unix sockets. Candidate UI assertion đã theo declaredPrimary LAB nhưng giữ no-writer/fencing checks.
+- `tests/source-upgrade.mjs`: acquisition/hash/missing/syntax/partial-write/Panel/Agent failures, rollback file/process, idempotence, allowlist/production/symlink guards, live/managed và protected data. [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md) là runbook package, không phải nguồn status thứ hai.
 - `docs/HANDOFF-*`, `PROJECT-STATUS-2026-10-26.md`: hồ sơ lịch sử; `CONTINUE-MHC.md`: kết nối/recovery. Code clock-health riêng ở workspace cha chưa nhập Git, phải đối chiếu trước khi gộp.

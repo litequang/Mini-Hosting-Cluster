@@ -17,7 +17,7 @@ for(const expected of [
  'primary-abort',
  'PREPARED_NO_WRITER_GRANT'
 ])assert(ui.includes(expected),'Missing UI candidate selection safeguard: '+expected);
-for(const name of ["'begin'","'abort'","TARGET_HEARTBEAT_STALE","TRANSITION_PENDING","REVISION_CONFLICT","writeLeaseGranted:false","declaredPrimary:null"])
+for(const name of ["'begin'","'abort'","TARGET_HEARTBEAT_STALE","TRANSITION_PENDING","REVISION_CONFLICT","writeLeaseGranted:false","declaredPrimary:s.declaredPrimary||null","fencingVerified:false,writerLeaseGranted:false"])
  assert(worker.includes(name),'Missing shared-authority preflight: '+name);
 for(const name of ["'begin'","'abort'","AUTHORITY_UNREACHABLE","writeLeaseGranted!==false"])
  assert(client.includes(name),'Missing fail-closed client behavior: '+name);

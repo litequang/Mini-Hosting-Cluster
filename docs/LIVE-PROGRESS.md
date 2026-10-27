@@ -1,5 +1,13 @@
 # MHC — trạng thái thực thi duy nhất
 
+## 27/10/2026 — unified source upgrade `MHC-LAB-20261027.1`: IN PROGRESS
+
+- **Source package:** một builder Git-commit → manifest SHA-256 → offline update.sh; toàn bộ managed bin, launcher, 7 live/managed Panel assets (gồm JWT), canonical Boot. Plan/hash/syntax trước dừng dịch vụ; transaction backup/file modes/absence + service/Boot, rollback restart và health cả Panel/Agent. Credential/identity/admin/DB/site/snapshot ngoài write allowlist. Xem [NODE-SOURCE-UPGRADE.md](NODE-SOURCE-UPGRADE.md).
+- **Sửa regression:** UI candidate giữ safety checks theo declaredPrimary LAB; Windows SSO dùng file URL và mode fixture đúng phạm vi, thêm assertion unsafe config bị chặn; self-test thêm 4 runner. Doctor không còn PASS khi essential service lỗi; Boot --status không ghi state, một canonical entry thay legacy đúng hash.
+- **PASS Windows:** 20 fault/security/process scenarios của updater, SSO, candidate UI, Node/Shell syntax. **PASS Android fixture:** 21 updater scenarios trên mỗi máy và full bin/self-test.sh trên cả XZ3 lẫn Vsmart (FULL_SUITE_EXIT=0), gồm M2/P3/SSO. Harness lần đầu sai TMPDIR dài làm Unix socket EINVAL; dùng TMPDIR chuẩn ngắn đã sửa harness, không sửa/bỏ guard source.
+- **Thiết bị thật:** chưa apply release trong checkpoint package. XZ3 canary phải qua plan/backup/hash/process/fresh telemetry, SSH rescue → runit và Boot normalization trước Vsmart. Reboot/browser/Cloudflare P3 NOT RUN; không đổi DNS/Worker/Access/Primary.
+- **Việc tiếp theo:** chốt commit package đã test, build đúng một artifact, nâng XZ3 canary và kiểm rollback trước khi nâng Vsmart. Bốn phần clock-health ở workspace cha giữ nguyên.
+
 ## 27/10/2026 08:40–08:49 VN — hoàn tất tiếp nhận hai LAB (source `da7d67a`)
 
 - **P0 DONE trong phạm vi kiểm kê:** fetch branch sạch, local/upstream cùng `da7d67a`; so 245 file code ở workspace cha, giữ bốn phần clock-health chưa nhập Git. Báo cáo hợp nhất: [CODEX-RESUME-AUDIT-2026-10-27.md](CODEX-RESUME-AUDIT-2026-10-27.md), có kế hoạch source-only trước P3. Checkpoint docs trước `a6bfa55`, `da7d67a`; SHA chứa kết quả mới xem commit của mục này.

@@ -9,7 +9,7 @@ warn=0
 say(){ printf '%-25s %s\n' "$1" "$2"; }
 command -v termux-battery-status >/dev/null || { say 'Termux:API CLI' 'MISSING (pkg install termux-api)';warn=1; }
 if [[ "$mode" == --repair ]];then
- boot="$HOME/.termux/boot/10-start-hosting"
+ boot="$HOME/.termux/boot/10-mhc-start"
  managed="$HOME/.local/share/mhc-full-installer/bin/node-boot.sh"
  if [[ ! -f "$managed" || -L "$managed" ]];then
   echo 'STOP: MHC managed node-boot.sh missing; update code first'
@@ -18,21 +18,15 @@ if [[ "$mode" == --repair ]];then
  mkdir -p "$HOME/.termux/boot" "$HOME/.local/state/mhc-node-setup"
  chmod 700 "$HOME/.termux/boot" "$HOME/.local/state/mhc-node-setup"
  if [[ -L "$boot" ]];then echo 'STOP: boot script is a symlink';exit 2;fi
+ if [[ -e "$HOME/.termux/boot/10-start-hosting" ]];then
+  echo 'STOP: legacy/duplicate boot entry; use the unified source package to migrate with rollback';exit 2
+ fi
  if [[ -f "$boot" ]];then
-  if ! grep -q 'start-services.sh' "$boot";then
+  if ! grep -q 'mhc-node-boot-canonical-v1' "$boot";then
    echo 'STOP: unknown boot script; inspect before rewriting';exit 2
   fi
-  if ! grep -q 'mhc-node-boot-managed' "$boot";then
-   cp -p -- "$boot" "$HOME/.local/state/mhc-node-setup/previous-10-start-hosting-$(date +%Y%m%d-%H%M%S).sh"
-  fi
  fi
- cat > "$boot" <<'MHC_BOOT'
-#!/data/data/com.termux/files/usr/bin/sh
-# mhc-node-boot-managed (management services only)
-termux-wake-lock >/dev/null 2>&1 || true
-. /data/data/com.termux/files/usr/etc/profile.d/start-services.sh
-exec /data/data/com.termux/files/usr/bin/bash "$HOME/.local/share/mhc-full-installer/bin/node-boot.sh" --once
-MHC_BOOT
+ cp "$HOME/.local/share/mhc-full-installer/bin/node-boot-entry.sh" "$boot"
  chmod 700 "$boot"
  bash "$managed" --once || echo 'WARN: boot recovery had a startup error'
 fi
@@ -44,12 +38,17 @@ for name in sshd amh-panel nginx mysqld mhc-authority-agent named-tunnel mhc-pan
   [[ "$line" == run:* ]] && status=RUNNING || status=STOPPED
  else status=NOT_INSTALLED;fi
  say "Service $name" "$status"
+ case "$name" in
+  sshd|amh-panel) [[ "$status" == RUNNING ]] || warn=1;;
+  mhc-authority-agent) if [[ -f "$HOME/.config/mhc-full-installer/authority.json" && "$status" != RUNNING ]];then warn=1;fi;;
+  mhc-panel-tunnel) if [[ -f "$HOME/android-hosting-panel/data/remote-access.json" && "$status" != RUNNING ]];then warn=1;fi;;
+ esac
 done
 http="$(curl --max-time 4 -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9090/ 2>/dev/null||true)"
 say 'Panel localhost:9090' "${http:-UNAVAILABLE}"
 [[ "$http" == 200 ]] || warn=1
-if [[ -f "$HOME/.termux/boot/10-start-hosting" ]];then
- if grep -q 'termux-wake-lock' "$HOME/.termux/boot/10-start-hosting"&&grep -q 'start-services.sh' "$HOME/.termux/boot/10-start-hosting";then
+if [[ -f "$HOME/.termux/boot/10-mhc-start" ]];then
+ if grep -q 'mhc-node-boot-canonical-v1' "$HOME/.termux/boot/10-mhc-start" && [[ ! -e "$HOME/.termux/boot/10-start-hosting" ]];then
   say 'Termux:Boot script' 'READY (open Android Termux:Boot app once)'
  else say 'Termux:Boot script' 'INCOMPLETE';warn=1;fi
 else say 'Termux:Boot script' 'MISSING';warn=1;fi
