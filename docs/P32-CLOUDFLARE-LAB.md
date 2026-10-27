@@ -97,3 +97,10 @@ Luồng P3.3 dự kiến: intent có revision/epoch → snapshot/restore đã ki
 | Rollback sau ghi | Ghi nhận mốc dữ liệu trước cấp lease; nếu đích đã nhận ghi mới thì dừng writer và xử lý backup/restore/RPO có duyệt trước khi đảo route, không tự quay DB cũ |
 
 Nếu chỉ bảo vệ được entrypoint do MHC quản lý, nhãn phải nói rõ phạm vi đó; không hứa độc quyền toàn điện thoại. Muốn guarantee trước partition với privileged/out-of-band writer cần fencing độc lập hoặc backend dữ liệu có thể thu hồi quyền từ ngoài node. Chọn thiết kế đơn giản phù hợp trong P3.3, không triển khai thêm proxy/replication hoặc auto P4 trong P3.2.
+
+
+## Tiếp tục acceptance qua CLI sau khi khởi động lại Windows
+
+Đọc LIVE-PROGRESS trước mọi mutation; không suy ra trạng thái hiện hành từ example. Source và fixtures P32 đã commit, chạy các test phù hợp theo bin/self-test.sh. tools/p32-live-panel.mjs là client dùng trên đúng Vsmart/XZ3 Termux LAB, copy bằng SSH/SCP vào thư mục state private rồi chạy Node; không đưa password/token vào arguments. Client chỉ dùng password file local đã có (panel-login-once hoặc panel-test-password0600), không reset password, từ chối node/target ngoài allowlist và footprint production. Các action: status, p32-route NODE_ID [both|panel], p32-resume, p32-rollback, confirm-denied-local. Client local không thể confirm Internet; bước đó bắt buộc từ phiên Access thật trên public Panel. Nếu thiếu password file thì local login test NOT RUN; Access SSO vẫn dùng được.
+
+Khi journal DNS_AWAITING_HTTP, mở Panel LAB hiện trỏ node đích, Cluster → Xác minh Internet từ Panel LAB; chỉ sau Worker ghi VERIFIED mới kết thúc pending/chuẩn bị ứng viên khác. DNS_REQUESTED thì kiểm actual records và p32-resume sau cooldown; không blind abort. Tắt Windows không tự xóa journal/source/backup trên phones hoặc Cloudflare; giữ Android/Termux/network hoạt động nếu cần public preview. Worker adapter source có thể mới hơn payload node vì reference/cluster-authority không thuộc gói81 file điện thoại.
