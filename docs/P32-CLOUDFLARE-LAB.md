@@ -45,6 +45,10 @@ AUD là tag public, không phải JWT/Access service token. Codex thực hiện 
 
 Quyền Wrangler OAuth đang có có thể dùng để đọc/deploy Worker hiện hữu; không suy ra đủ quyền Access/DNS từ việc whoami thành công. Kiểm các API read-only trước. Nếu cần token mới, user tạo trong account và nhập trực tiếp file/TTY private trên máy công ty, không gửi chat. DNS Edit token chỉ giữ control plane/Worker Secret, không đưa xuống Android. Account Tunnel Edit/Access Apps and Policies Edit chỉ khi cần cấu hình các tài nguyên LAB; script phải xác minh đúng account/IDs, backup và giữ dữ liệu ngoài scope.
 
+Nếu OAuth bị403 Access/DNS: tạo riêng2 API tokens tại https://dash.cloudflare.com/profile/api-tokens. CONTROL chỉ Account → Access: Apps and Policies → Edit, scope account35b2468610cfa060d5d02865b7996a74 (Tunnel Edit chỉ thêm nếu API Tunnel cũng thiếu). DNS-ONLY: Zone → DNS → Edit và Zone → Zone → Read, Include → Specific zone → giaouoc.com, không Account permissions. Giữ CONTROL trên Windows; chỉ DNS-ONLY được nạp Worker Secret. Không đưa token quản trị Access vào Worker hoặc Android.
+
+Nhập hai token bằng PowerShell trên máy công ty: `& 'E:\CODE\MHC\MHC\.work\repository\tools\prepare-cloudflare-p32-secrets.ps1'`. Helper có sẵn trong repo, hỏi hidden input, lưu Windows DPAPI theo user tại %LOCALAPPDATA%\MHC-P32\control-token.xml và dns-token.xml, ACL user/SYSTEM, không overwrite. Không gửi token/JWT/XML contents vào chat; chỉ báo đã lưu. Codex dùng credentials trong bộ nhớ cho API đúng scope và chỉ xuất kết quả đã lọc.
+
 scripts/p32-cloudflare.mjs có audit GET-only (Worker settings/deployments/schedules, Tunnel/config, Access/policy selector types, giaouoc DNS), không xuất binding values/token/email selectors/IP. POSIX tokenFile cần0600, parent0700, ngoài Git; API thiếu quyền được báo riêng. Không phải trình mutate tài khoản. plan nhận JSON không chứa secrets: zoneId, records[{id,hostname,kind}], tunnels{nodeId:UUID}, proofKeys{nodeId:publicPEM}, teamDomain, audience; xuất vars và ingress LAB để review, không ghi Cloudflare.
 
 ## Worker và journal
