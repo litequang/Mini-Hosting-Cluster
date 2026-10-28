@@ -18,8 +18,12 @@ fi
 command -v pkg >/dev/null || fail N1_TERMUX_PACKAGE_MANAGER_MISSING
 mkdir -p "$state"; chmod 700 "$state"
 printf '[N1] Preparing bootstrap dependencies; existing SSH keys remain intact\n'
-pkg update -y || fail N1_PACKAGE_INDEX_FAILED_RETRY_SAME_COMMAND
-pkg install -y nodejs git curl coreutils util-linux || fail N1_BOOTSTRAP_PACKAGES_FAILED_RETRY_SAME_COMMAND
+need_packages=0
+for cmd in node git curl sha256sum flock;do command -v "$cmd" >/dev/null || need_packages=1;done
+if [[ "$need_packages" == 1 ]];then
+ pkg update -y || fail N1_PACKAGE_INDEX_FAILED_RETRY_SAME_COMMAND
+ pkg install -y nodejs git curl coreutils util-linux || fail N1_BOOTSTRAP_PACKAGES_FAILED_RETRY_SAME_COMMAND
+fi
 manifest="$state/release-$N1_RELEASE_SOURCE.json"
 printf '%s' "$N1_MANIFEST_BASE64" | base64 -d > "$manifest.tmp"
 printf '%s  %s\n' "$N1_MANIFEST_SHA" "$manifest.tmp" | sha256sum -c --status || fail N1_MANIFEST_CHECKSUM_FAILED

@@ -1,5 +1,5 @@
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import crypto from 'node:crypto';import assert from 'node:assert/strict';
-import {FreshInstaller,STAGES,verifyRelease} from '../bin/new-node-install.mjs';
+import {FreshInstaller,STAGES,verifyRelease,waitForSupervisor} from '../bin/new-node-install.mjs';
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),root=fs.mkdtempSync(path.join(os.tmpdir(),'mhc-n1-'));
 let checks=0;const source=path.join(root,'source');fs.mkdirSync(source);
 const names=['bin/new-node-install.mjs','bin/mhc-full-wrapper','bin/node-boot-entry.sh','bin/cluster-authority.mjs','bin/legacy-panel-src/src/server.mjs','bin/legacy-panel-src/src/mhc-integration.mjs','bin/legacy-panel-src/public/app.js','bin/node-monitor.mjs','bin/daily-backup.sh','bin/node-doctor.sh','vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/config.mjs'];
@@ -14,6 +14,8 @@ let packages=0;class Fixture extends FreshInstaller{
 }
 function fixture(name,options={}){const home=path.join(root,name),prefix=path.join(root,name+'-prefix');fs.mkdirSync(home,{recursive:true});fs.mkdirSync(prefix,{recursive:true});return new Fixture({home,prefix,source,fixture:true,execute:(cmd,args)=>{if(cmd==='ssh-keygen'){const file=args.at(-1);fs.writeFileSync(file,'fixture ssh private key',{mode:0o600});fs.writeFileSync(file+'.pub','fixture ssh public key',{mode:0o600});return {status:0};}throw Error('Unexpected fixture command');},...options});}
 try{
+ let polls=0;await waitForSupervisor(['mysql','panel'],p=>p==='mysql'||polls>=2,async()=>{polls++;},4);assert.equal(polls,2);checks++;
+ await assert.rejects(waitForSupervisor(['missing'],()=>false,async()=>{},2),/SUPERVISOR_NOT_READY/);checks++;
  assert.equal(verifyRelease(source,raw,hash(raw)).commit,m.commit);checks++;
  assert.throws(()=>verifyRelease(source,raw,'0'.repeat(64)),/CHECKSUM_FAILED/);checks++;
  const bad=JSON.stringify({...m,files:[{...files[0],path:'bin/../../escape'},...files.slice(1)]});assert.throws(()=>verifyRelease(source,bad,hash(bad)),/PATH_INVALID/);checks++;

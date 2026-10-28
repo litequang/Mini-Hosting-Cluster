@@ -6,6 +6,7 @@ const PREFIX='/data/data/com.termux/files/usr',MARKER='TEST 0.5.0C-REMOTE-PANEL 
 const digest=b=>crypto.createHash('sha256').update(b).digest('hex');
 const fail=c=>{throw Error(c);};
 export const STAGES=['packages','runtime','identity','panel-admin','services','verify'];
+export async function waitForSupervisor(paths,exists=fs.existsSync,pause=ms=>new Promise(r=>setTimeout(r,ms)),attempts=60){for(let i=0;i<attempts;i++){if(paths.every(p=>exists(p)))return;await pause(250);}fail('N1_SUPERVISOR_NOT_READY_RETRY_SAME_RELEASE');}
 const footprints=['.config/mhc-full-installer','.local/share/mhc-full-installer','android-hosting-panel','apps','.config/mini-hosting-cluster','.local/share/mini-hosting-cluster','.nginx','.cloudflared'];
 function exists(p){return !!fs.lstatSync(p,{throwIfNoEntry:false});}
 function safe(p){let v=path.resolve(p);for(;;){if(fs.lstatSync(v,{throwIfNoEntry:false})?.isSymbolicLink())fail('N1_SYMLINK_REFUSED');const up=path.dirname(v);if(up===v)break;v=up;}return p;}
@@ -109,7 +110,9 @@ export class FreshInstaller{
   if(fs.readFileSync(safe(sqlRun),'utf8')!==sqlCommand){if(exists(backup))fail('N1_DATABASE_SERVICE_CHANGED');atomic(backup,fs.readFileSync(sqlRun));atomic(sqlRun,sqlCommand,0o700);}
   // Hosting runtimes are prerequisites only; no default website or public listener.
   for(const name of ['nginx','php-fpm'])if(exists(path.join(s,name,'run')))writeOnce(path.join(s,name,'down'),'');
-  this.command('bash',['-c','export SVDIR="$PREFIX/var/service"; . "$PREFIX/etc/profile.d/start-services.sh"; for name in mysqld amh-panel; do sv-enable "$name"; sv -w 15 up "$SVDIR/$name"; done'],{timeout:45000,stdio:'inherit',env:{...process.env,HOME:this.home,PREFIX:this.prefix,SVDIR:s}});
+  this.command('bash',['-c','. "$PREFIX/etc/profile.d/start-services.sh"'],{timeout:15000,stdio:'inherit',env:{...process.env,HOME:this.home,PREFIX:this.prefix,SVDIR:s}});
+  await waitForSupervisor(['mysqld','amh-panel','sshd'].map(name=>path.join(s,name,'supervise/ok')));
+  for(const name of ['mysqld','amh-panel']){this.command('sv-enable',[name],{env:{...process.env,SVDIR:s}});this.command('sv',['-w','15','up',path.join(s,name)],{timeout:18000});}
   this.command('sv-enable',['sshd'],{env:{...process.env,SVDIR:s}});
   let up=this.execute('sv',['-w','3','up',path.join(s,'sshd')],{encoding:'utf8',timeout:5000});
   await new Promise(r=>setTimeout(r,500));
