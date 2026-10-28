@@ -1,4 +1,5 @@
 // Manual ownership of one explicitly managed LAB WordPress site. Never fences root/shell.
+import {controlNodes,controlAdapter,verifyControlProof} from './control-nodes.mjs';
 import {p32Config} from './p32-lab.mjs';
 import {p3SwitchDns,p3SwitchPanelDns,p3InspectDns} from './p3-route.mjs';
 export const P33_SCOPE='MHC_MANAGED_WORDPRESS_LAB';
@@ -10,8 +11,9 @@ const sha=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256
 const nonce=()=>Array.from(crypto.getRandomValues(new Uint8Array(32))).map(v=>v.toString(16).padStart(2,'0')).join('');
 export const p33Enabled=e=>e.MHC_P33_ENABLED==='MANUAL_MANAGED_SITE';
 export function p33View(env,r,now=Date.now()){
+ const controlOnlyNodeIds=Object.keys(controlNodes(env)),siteNodeIds=Object.keys(JSON.parse(env.MHC_P32_PROOF_KEYS_JSON||'{}'));
  const lease=r?.lease&&r.lease.expiresAt>now?r.lease:null;
- return {enabled:p33Enabled(env),scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,controlRecoveryEnabled:p33Enabled(env)&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
+ return {enabled:p33Enabled(env),controlOnlyNodeIds,siteNodeIds,scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,controlRecoveryEnabled:p33Enabled(env)&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
 }
 export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
  const p=envelope?.proof;
@@ -29,13 +31,14 @@ export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
 const healthy=(s,id,now)=>{const h=s.heartbeats?.[id];return h&&now-h.receivedAt>=0&&now-h.receivedAt<=90000&&now-(h.metricsAt||0)>=0&&now-(h.metricsAt||0)<=90000&&h.telemetry?.services?.['amh-panel']==='running'&&h.telemetry?.services?.['mhc-panel-tunnel']==='running';};
 export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher=fetch,now=Date.now(),internal=false}){
  if(!p33Enabled(env))fail('P33_NOT_ENABLED',403);
- const c=p32Config(env),fingerprint=await sha(JSON.stringify({routes:c.routes,keys:c.keys}));
+ const c=p32Config(env),management=controlNodes(env,c.keys),adapter=controlAdapter(c,management),fingerprint=await sha(JSON.stringify({routes:c.routes,keys:c.keys}));
  const planned=await ctx.storage.transaction(async tx=>{
   const state=await tx.get('state');if(!state||state.schema!==1||!Number.isSafeInteger(state.revision)||!Number.isSafeInteger(state.epoch))fail('P33_STATE_INVALID',503);
   const role=internal?'scheduled':await authorize(state);if(!internal&&role!==(action==='p33-renew'?'agent':'panel'))fail('ROLE_DENIED',403);
   const s={...state,clusterId:env.MHC_CLUSTER_ID},routes=await tx.get('p32');if(!routes)fail('P33_ROUTE_BASELINE_REQUIRED');
   const r=await tx.get('p33')||{revision:0,epoch:state.epoch,phase:'IDLE',lease:null,primaryNodeId:null,operationId:null,targetNodeId:null,challenge:null};
   if(r.fingerprint&&r.fingerprint!==fingerprint)fail('P33_CONFIG_CHANGED');
+  if(action!=='p33-renew'&&r.journal?.controlProfileSha256&&(!management[r.journal.targetNodeId]||await sha(JSON.stringify(management[r.journal.targetNodeId]))!==r.journal.controlProfileSha256))fail('CONTROL_REGISTRY_CHANGED');
   if(internal){
    if(action!=='p33-recover-control'||env.MHC_P32_PANEL_RECOVERY_ENABLED!=='LAB_PANEL_ONLY')return {view:p33View(env,r,now)};
    if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase))return {view:p33View(env,r,now)};
@@ -70,11 +73,12 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    r.dataChoice='USE_EXISTING_TARGET_DATA_NO_AUTOMATIC_REPLICATION';
   }else if(action==='p33-control'){
    if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED')fail('P33_TRANSITION_PENDING');
-   if(!c.keys[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
+   if(!c.keys[body.targetNodeId]&&!management[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
    if(!hex.test(body.nonce||''))fail('P33_CONTROL_CHALLENGE_REQUIRED');
-   const p=await p33Proof(body.envelope,c,s,{...r,challenge:body.nonce},{nodeId:body.targetNodeId,now});if(!['READY','ACTIVE','FENCED'].includes(p.kind))fail('P33_CONTROL_PROOF_INVALID');
+   if(management[body.targetNodeId])await verifyControlProof(body.envelope,management[body.targetNodeId],s,r,{nodeId:body.targetNodeId,nonce:body.nonce,kind:'READY',now});
+   else {const p=await p33Proof(body.envelope,c,s,{...r,challenge:body.nonce},{nodeId:body.targetNodeId,now});if(!['READY','ACTIVE','FENCED'].includes(p.kind))fail('P33_CONTROL_PROOF_INVALID');}
    r.fingerprint=fingerprint;
-   r.journal={operationId:body.requestId,targetNodeId:body.targetNodeId,kind:'panel',status:'DNS_REQUESTED',from:{siteNodeId:routes.siteNodeId,panelNodeId:routes.panelNodeId},challenge:nonce(),attemptId:crypto.randomUUID()};
+   r.journal={...(management[body.targetNodeId]?{controlProfileSha256:await sha(JSON.stringify(management[body.targetNodeId]))}:{}),operationId:body.requestId,targetNodeId:body.targetNodeId,kind:'panel',status:'DNS_REQUESTED',from:{siteNodeId:routes.siteNodeId,panelNodeId:routes.panelNodeId},challenge:nonce(),attemptId:crypto.randomUUID()};
   }else{
    if(body.operationId!==r.operationId)fail('P33_OPERATION_MISMATCH');
    if(action==='p33-fenced'||action==='p33-cancel'){
@@ -109,7 +113,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    }else if(action==='p33-confirm'){
     const j=r.journal;if(j?.status!=='AWAITING_PUBLIC')fail('P33_NO_PUBLIC_CHECK_PENDING');
     const challengeState={...r,challenge:j.challenge};
-    const p=await p33Proof(body.panelEnvelope,c,s,challengeState,{nodeId:j.targetNodeId,kind:'PUBLIC_PANEL',now});
+    const p=j.kind==='panel'&&management[j.targetNodeId]?await verifyControlProof(body.panelEnvelope,management[j.targetNodeId],s,r,{nodeId:j.targetNodeId,nonce:j.challenge,kind:'PUBLIC_PANEL',now}):await p33Proof(body.panelEnvelope,c,s,challengeState,{nodeId:j.targetNodeId,kind:'PUBLIC_PANEL',now});
     if(p.accessVerified!==true||p.host!=='panel-lab.giaouoc.com')fail('P33_PUBLIC_ACCESS_REQUIRED');
     if(j.kind==='both'){
      if(!r.lease||r.lease.expiresAt<=now)fail('P33_ACTIVE_LEASE_REQUIRED');
@@ -129,12 +133,12 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
  if(planned.view)return planned.view;
  const j=planned.journal,from=j.from,target=j.targetNodeId;
  if(j.kind==='panel'){
-  if(from.panelNodeId===target)await p3InspectDns(c.adapter,{panel:target},fetcher,true);
-  else await p3SwitchPanelDns(c.adapter,{fromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
+  if(from.panelNodeId===target)await p3InspectDns(adapter,{panel:target},fetcher,true);
+  else await p3SwitchPanelDns(adapter,{fromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
  }else if(from.siteNodeId===target){
-  await p3InspectDns(c.adapter,{site:target,panel:from.panelNodeId},fetcher);
-  if(from.panelNodeId!==target)await p3SwitchPanelDns(c.adapter,{fromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
- }else await p3SwitchDns(c.adapter,{fromNodeId:from.siteNodeId,panelFromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
+  await p3InspectDns(adapter,{site:target,panel:from.panelNodeId},fetcher);
+  if(from.panelNodeId!==target)await p3SwitchPanelDns(adapter,{fromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
+ }else await p3SwitchDns(adapter,{fromNodeId:from.siteNodeId,panelFromNodeId:from.panelNodeId,targetNodeId:target},fetcher);
  return ctx.storage.transaction(async tx=>{
   const r=await tx.get('p33'),s=await tx.get('state'),routes=await tx.get('p32');if(r?.journal?.attemptId!==j.attemptId||r.journal.status!=='DNS_REQUESTED')fail('P33_JOURNAL_CONFLICT');
   r.journal={...r.journal,status:'AWAITING_PUBLIC',dnsVerifiedAt:new Date(now).toISOString()};if(j.kind==='both')r.phase='AWAITING_PUBLIC';r.revision++;s.revision++;

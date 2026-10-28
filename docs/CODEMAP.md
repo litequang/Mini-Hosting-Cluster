@@ -55,3 +55,5 @@ Có 49 runner Node `.mjs` và 6 Shell `.sh` tại tests root; số file không p
 - `docs/HANDOFF-*`, `PROJECT-STATUS-2026-10-26.md`: hồ sơ lịch sử; `CONTINUE-MHC.md`: kết nối/recovery. Code clock-health riêng ở workspace cha chưa nhập Git, phải đối chiếu trước khi gộp.
 
 N1 onboarding: bin/join-input.mjs đọc mã ẩn/--stdin có timeout/bounds; bin/node-onboarding.mjs chỉ xuất allowlisted observations, không cấp eligibility. Node Monitor + Worker sanitize báo cáo này cho original Cluster UI; /api/mhc/onboarding yêu cầu session. Source upgrader nhận --node-id cho N1 đã cài/đã ghép, kiểm membership thật; chỉ management-only không có managed site được nâng khi node khác giữ lease. tests/new-node-onboarding.mjs và tests/new-node-install.mjs nằm trong self-test.
+
+Control-only N1: bin/control-node.mjs ký management/public-origin proof không đụng DB; control-peer.mjs tái sử dụng forced-command SSH qua public pins N-node; control-configure.mjs prepare/configure có UUID/confirmation/membership/backup. reference/cluster-authority/control-nodes.mjs chỉ mở rộng Panel route. Site participants giữ cơ chế fence P33 riêng; tests/control-node.mjs và p33-manual.mjs kiểm ranh giới.

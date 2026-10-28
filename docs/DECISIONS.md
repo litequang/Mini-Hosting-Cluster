@@ -91,3 +91,5 @@
 17. Nhiệm vụ tiếp theo 27/10 đã cho phép build/test package source-only và rollout XZ3 trước, Vsmart sau khi canary đạt. Package offline, một commit/manifest cho cả hai, không cài mới Termux, không đổi Cloudflare/Primary/production; không tự reboot. Checkpoint 9d14f34 là audit lịch sử, LIVE-PROGRESS giữ kết quả rollout mới.
 
 28/10/2026 — N1.2: bỏ mã ghép khỏi lệnh copy/argv; dùng ~/mhc-full join và lời nhắc ẩn (automation --stdin). Tiến độ cài/ghép/quản trị/Tunnel là số đo, không grant Control/Primary. Source upgrade cho N1 thêm UUID cụ thể và live membership, không mở allowlist toàn bộ thiết bị. Ngoại lệ lease đang ở node khác chỉ dành N1 management-only chưa có cấu hình/dataset managed site; không nới guard nâng writer đang chạy.
+
+28/10/2026 — Control management-only tách khỏi dataset: operator-pin public proof key và Tunnel riêng trong MHC_CONTROL_NODES_JSON; node thuộc registry này không vào site/writer set. Fingerprint site lease cũ giữ nguyên; Control journal gắn hash registry target. Không dùng telemetry booleans làm proof. Peer keys/known_hosts phải có approval, không TOFU hoặc private-key copy.

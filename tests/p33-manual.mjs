@@ -52,6 +52,20 @@ try{
  const before={epoch:state().epoch,lease:structuredClone(r().lease),primary:structuredClone(state().declaredPrimary),site:records.get(site).content};
  const challenge=crypto.randomBytes(32).toString('hex');await call('p33-control',body({targetNodeId:a,nonce:challenge,envelope:sign(a,'READY',{nonce:challenge})}));assert.equal(records.get(panel).content,ta);assert.equal(records.get(site).content,before.site);assert.deepEqual(r().lease,before.lease);assert.equal(state().epoch,before.epoch);
  await call('p33-confirm',body({panelEnvelope:publicProof(a,'PUBLIC_PANEL')}));assert.deepEqual(state().declaredPrimary,before.primary);assert.equal(r().phase,'COMMITTED');
+ // A third joined Android may serve Control without a dataset; it cannot receive a site lease.
+ const managementId=crypto.randomUUID(),managementKeys=crypto.generateKeyPairSync('ed25519'),managementTunnel=crypto.randomUUID()+'.cfargotunnel.com';
+ const managementEntry={publicKey:managementKeys.publicKey.export({type:'spki',format:'pem'}),tunnelId:managementTunnel.split('.')[0]};
+ env.MHC_CONTROL_NODES_JSON=JSON.stringify({[managementId]:managementEntry});state().dynamicMembers=[{nodeId:managementId,label:'New management node',agentDigest:'a'.repeat(64),panelDigest:'b'.repeat(64)}];state().heartbeats[managementId]=healthy();
+ function managementSign(kind,nonce){const proof={schema:1,scope:'MHC_CONTROL_ONLY',nodeId:managementId,clusterId:cluster,epoch:r().epoch,revision:r().revision,operationId:r().operationId,nonce,kind,checkedAt:time,expiresAt:time+15000,management:{panel:true,agent:true,tunnel:true},writerGranted:false,siteReady:false,...(kind==='PUBLIC_PANEL'?{host:'panel-lab.giaouoc.com',accessVerified:true}:{})};return {proof,signature:crypto.sign(null,Buffer.from(JSON.stringify(proof)),managementKeys.privateKey).toString('base64url')};}
+ await assert.rejects(call('p33-begin',body({targetNodeId:managementId,acceptTargetData:true})),/TARGET_NOT_READY/);
+ const controlBefore={epoch:state().epoch,primary:structuredClone(state().declaredPrimary),lease:structuredClone(r().lease),site:records.get(site).content};
+ const managementNonce=crypto.randomBytes(32).toString('hex'),badManagement=managementSign('READY',managementNonce);badManagement.signature='x'.repeat(86);
+ await assert.rejects(call('p33-control',body({targetNodeId:managementId,nonce:managementNonce,envelope:badManagement})),/SIGNATURE_INVALID/);
+ await call('p33-control',body({targetNodeId:managementId,nonce:managementNonce,envelope:managementSign('READY',managementNonce)}));assert.equal(records.get(panel).content,managementTunnel);assert.equal(records.get(site).content,controlBefore.site);assert.deepEqual(r().lease,controlBefore.lease);assert.equal(state().epoch,controlBefore.epoch);
+ await assert.rejects(call('p33-control',body({targetNodeId:a,nonce:managementNonce,envelope:sign(a,'READY',{nonce:managementNonce})})),/TRANSITION_PENDING/);
+ env.MHC_CONTROL_NODES_JSON=JSON.stringify({[managementId]:{...managementEntry,tunnelId:crypto.randomUUID()}});await assert.rejects(call('p33-confirm',body({panelEnvelope:managementSign('PUBLIC_PANEL',r().journal.challenge)})),/REGISTRY_CHANGED/);env.MHC_CONTROL_NODES_JSON=JSON.stringify({[managementId]:managementEntry});
+ await call('p33-confirm',body({panelEnvelope:managementSign('PUBLIC_PANEL',r().journal.challenge)}));assert.deepEqual(state().declaredPrimary,controlBefore.primary);assert.equal(r().phase,'COMMITTED');
+ const returnNonce=crypto.randomBytes(32).toString('hex');await call('p33-control',body({targetNodeId:a,nonce:returnNonce,envelope:sign(a,'READY',{nonce:returnNonce})}));await call('p33-confirm',body({panelEnvelope:publicProof(a,'PUBLIC_PANEL')}));assert.equal(records.get(panel).content,ta);assert.deepEqual(r().lease,controlBefore.lease);
  // Preserve the already-authorized Control recovery without enabling automatic writer promotion.
  time+=360001;state().heartbeats[a]={...healthy(),receivedAt:time-360001};state().heartbeats[b]=healthy();env.MHC_P32_PANEL_RECOVERY_ENABLED='LAB_PANEL_ONLY';
  const recoverBefore={epoch:state().epoch,primary:structuredClone(state().declaredPrimary),lease:structuredClone(r().lease),site:records.get(site).content};
@@ -63,5 +77,5 @@ try{
  await call('p33-cancel',body({envelopes:fences()}));assert.equal(r().phase,'CANCELLED');assert.equal(state().declaredPrimary,null);assert.equal((await call('status')).writeLeaseGranted,false);
  storage.fail=true;const count=patches.length;await assert.rejects(call('p33-begin',body({targetNodeId:a,acceptTargetData:true})),/STORAGE_UNAVAILABLE/);storage.fail=false;assert.equal(patches.length,count);
  const result=await call('status');assert(!JSON.stringify(result).includes(env.MHC_P32_CF_TOKEN));assert(!JSON.stringify(result).includes(entries[0].agentKey));
- console.log('PASS P33 authority: panel/agent auth, CAS, mandatory data choice, signed all-node fencing, scoped lease/renewal, app activation proof, partial DNS/crash/resume, public signatures, independent Control, rejoin/no takeover, cancel and storage fail-closed (fixtures only).');
+ console.log('PASS P33 authority: panel/agent auth, CAS, mandatory data choice, signed all-node fencing, scoped lease/renewal, app activation proof, partial DNS/crash/resume, public signatures, independent Control including management-only third member/registry-pin changes/return, rejoin/no takeover, cancel and storage fail-closed (fixtures only).');
 }finally{globalThis.fetch=originalFetch;Date.now=originalNow;}

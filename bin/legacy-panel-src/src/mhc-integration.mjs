@@ -13,13 +13,14 @@ const BIN=path.join(HOME,'.local/share/mhc-full-installer/bin');
 const BOOT=path.join(HOME,'.config/mhc-full-installer/installed');
 function sharedConfigured(){try{fs.lstatSync(path.join(HOME,'.config/mhc-full-installer/authority.json'));return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
 async function sharedClient(){return import(pathToFileURL(path.join(BIN,'cluster-authority.mjs')).href);}
+function controlPeerConfigured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/control-node.json'));}
 function p31Configured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/p31/config.json'));}
 async function p31Client(){return import(pathToFileURL(path.join(BIN,'p31-control.mjs')).href);}
-async function sharedView(){try{return {...await (await sharedClient()).sharedStatus(),...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
+async function sharedView(){try{return {...await (await sharedClient()).sharedStatus(),n1Control:{controllerReady:controlPeerConfigured()},...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
 async function p33Client(){return import(pathToFileURL(path.join(BIN,'p33-control.mjs')).href);}
 export async function mhcP33Action(body,context){return (await p33Client()).p33Action(body,context);}
 export async function mhcP33Readiness(){return (await p33Client()).p33Readiness();}
-export async function mhcP33OriginProof(nonce,context){const {ManagedNode}=await import(pathToFileURL(path.join(BIN,'p33-node.mjs')).href);return new ManagedNode().proof(nonce,'PUBLIC_PANEL',context);}
+export async function mhcP33OriginProof(nonce,context){if(controlPeerConfigured()){const m=await import(pathToFileURL(path.join(BIN,'control-node.mjs')).href);if(m.controlConfig(HOME).keyFlavor==='N1')return new m.ControlNode().proof(nonce,'PUBLIC_PANEL',context);}const {ManagedNode}=await import(pathToFileURL(path.join(BIN,'p33-node.mjs')).href);return new ManagedNode().proof(nonce,'PUBLIC_PANEL',context);}
 export async function mhcP31Readiness(){if(!p31Configured())return {enabled:false,canPromote:false};return (await p31Client()).p31Readiness();}
 export async function mhcP32OriginProof(nonce,context){if(!p31Configured())throw Error('P31_NOT_CONFIGURED');return (await p31Client()).p31OriginProof(nonce,context);}
 export async function mhcP32Action(body,context={}){
