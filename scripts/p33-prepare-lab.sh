@@ -13,7 +13,7 @@ archive="$HOME/.local/state/mhc-p31-lab/transfer-code-media-static.tar"
 expected=$(node -p 'JSON.parse(require("fs").readFileSync(process.env.HOME+"/.local/share/mhc-p31-lab/dataset.json")).sourceArchiveSha256')
 [[ "$expected" =~ ^[a-f0-9]{64}$ && "$(sha256sum "$archive" | cut -d' ' -f1)" == "$expected" ]] || { echo P33_ARCHIVE_HASH_INVALID;exit 1; }
 public_grants=$(mariadb --no-defaults -u root -N -B --raw -e 'SHOW GRANTS FOR PUBLIC')
-[[ "$public_grants" == 'GRANT USAGE ON *.* TO PUBLIC' || "$public_grants" == 'GRANT USAGE ON *.* TO `PUBLIC`' ]] || { echo P33_PUBLIC_PRIVILEGES_UNSAFE;exit 1; }
+[[ -z "$public_grants" || "$public_grants" == 'GRANT USAGE ON *.* TO PUBLIC' || "$public_grants" == 'GRANT USAGE ON *.* TO `PUBLIC`' ]] || { echo P33_PUBLIC_PRIVILEGES_UNSAFE;exit 1; }
 [[ "$(mariadb --no-defaults -u root -N -B -e "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name IN ('mhc_p33_lab','mhc_p33_restore_probe')")" == 0 ]] || { echo P33_SCHEMA_EXISTS;exit 1; }
 [[ "$(mariadb --no-defaults -u root -N -B -e "SELECT COUNT(*) FROM mysql.user WHERE User='mhc_p33_web'")" == 0 ]] || { echo P33_USER_EXISTS;exit 1; }
 mkdir -m 700 "$base"
