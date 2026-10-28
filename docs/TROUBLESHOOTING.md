@@ -1,5 +1,9 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## P3.3 Manual LAB: còn AWAITING_PUBLIC
+
+P33_TRANSITION_PENDING nghĩa là chưa được bắt đầu một lượt chuyển khác. Đọc phase/journal và target thực: DNS/site/Control có thể đã đổi, lease có hiệu lực nhưng Primary chưa COMMITTED vì đang chờ signed Internet proof. Tải lại panel-lab.giaouoc.com rồi chỉ bấm **Hoàn tất kiểm tra Internet**; dropdown không quyết định target khi confirm. Khi COMMITTED/journal VERIFIED mới bắt đầu chuyển tiếp. Không xóa pending/lock, fake proof hoặc dùng localhost thay Access. Thông báo lỗi của lượt bấm begin lần hai không có nghĩa lượt chuyển đang chờ đã thất bại.
+
 ## P3.2 read-only LAB
 
 - P32_WORKER_NOT_CONFIGURED/P32_NOT_ENABLED: kiểm Worker hiện hữu đã có source P3.2 và đúng vars/secret; không bật MHC_P3_LAB_ENABLED để lách guard P3.1. Có OAuth Wrangler không đồng nghĩa có DNS/Access permission.
