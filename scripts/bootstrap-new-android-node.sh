@@ -1,89 +1,51 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Fresh Android Termux only. No production or existing nodes.
+# Build-new-node-release embeds the immutable source and complete SHA-256 manifest above this body.
 set -Eeuo pipefail
 umask 077
-fail(){ echo "STOP: $*" >&2;exit 1; }
-[[ "${PREFIX:-}" == /data/data/com.termux/files/usr ]] || fail 'Standard Termux required'
-[[ "$(uname -m)" == aarch64 ]] || fail 'MHC full hosting installer currently supports aarch64 only'
-[[ "${1:-}" == --install && "$#" == 1 ]] || fail 'Usage: bash bootstrap-new-android-node.sh --install'
-for p in "$HOME/.config/mhc-full-installer/installed" "$HOME/.config/mhc-full-installer/install-incomplete" \
- "$HOME/android-hosting-panel/src/server.mjs" "$HOME/apps/thophuongpro/.env" \
- "$HOME/.config/mini-hosting-cluster/node.json" "$HOME/.config/mini-hosting-cluster/ha.json";do
- [[ ! -e "$p" && ! -L "$p" ]] || fail "Existing MHC/hosting state: $p. Never install over an existing node"
-done
-command -v pkg >/dev/null || fail 'Termux package manager missing'
-echo '[1/5] Preparing Termux packages + API CLI companion'
-pkg update -y || fail 'No package mirror. Configure termux-change-repo; do not reset data'
-pkg install -y git curl openssh termux-api coreutils || fail 'Termux package installation failed'
-[[ -x "$PREFIX/bin/termux-battery-status" ]] || fail 'Termux:API CLI missing'
-src="$HOME/.local/share/mhc-bootstrap/source"
-[[ ! -e "$src" ]] || fail 'Partial bootstrap source exists; inspect before retry'
-mkdir -p "$(dirname "$src")"
-echo '[2/5] Fetching the canonical complete MHC source'
-git clone --depth 1 --single-branch --branch codex/m1-m2-foundation \
- https://github.com/litequang/Mini-Hosting-Cluster.git "$src" || fail 'Git clone failed; inspect network'
-# Keep all new phones on exactly the same released source revision.
-release='2f14deb8d6fc31118a4bbc6b0a67e38bc2049767'
-git -C "$src" fetch --depth 1 origin "$release" || fail 'Pinned MHC release fetch failed'
-git -C "$src" checkout --detach FETCH_HEAD >/dev/null || fail 'Pinned MHC release checkout failed'
-[[ "$(git -C "$src" rev-parse HEAD)" == "$release" ]] || fail 'Released source revision mismatch'
-[[ -f "$src/install.sh" && -f "$src/bin/node-monitor.mjs" &&
-   -f "$src/bin/legacy-panel-src/src/mhc-remote-access.mjs" ]] || fail 'Partial source checkout'
-echo '[3/5] Running supported original full installer, fresh node only'
-bash "$src/install.sh" --plan
-printf 'TEST_NEW_DEVICE_INSTALL\n' | bash "$src/install.sh" --install ||
- fail 'Full install failed: inspect install-incomplete; do not blindly reset/retry'
-[[ -x "$HOME/mhc-full" ]] || fail 'MHC CLI missing after install'
-echo '[4/5] Integrating original Panel 9090 and boot+service supervisor'
-printf 'UPGRADE_ORIGINAL_PANEL_LAB\n' | "$HOME/mhc-full" hosting-panel apply ||
- fail 'Panel upgrade refused/failed: inspect its rollback'
+fail(){ printf 'STOP: %s\n' "$1" >&2; exit 1; }
+[[ "${PREFIX:-}" == /data/data/com.termux/files/usr && "$(uname -m)" == aarch64 ]] || fail N1_STANDARD_ARM64_TERMUX_REQUIRED
+[[ "${1:-}" == --install && "$#" == 1 ]] || fail 'Usage: pinned-bootstrap.sh --install'
+[[ "${N1_RELEASE_SOURCE:-}" =~ ^[a-f0-9]{40}$ && "${N1_MANIFEST_SHA:-}" =~ ^[a-f0-9]{64}$ && -n "${N1_MANIFEST_BASE64:-}" ]] || fail N1_USE_PUBLISHED_PINNED_BOOTSTRAP
+state="$HOME/.local/state/mhc-new-node-install"
+for p in "$HOME/.local" "$HOME/.local/state" "$state";do [[ ! -L "$p" ]] || fail N1_SYMLINK_REFUSED;done
+[[ ! -e "$HOME/apps/thophuongpro/.env" && ! -e "$HOME/.config/mini-hosting-cluster/node.json" && ! -e "$HOME/.config/mini-hosting-cluster/ha.json" ]] || fail N1_PRODUCTION_OR_LEGACY_CLUSTER_REFUSED
+if [[ ! -f "$state/progress.json" ]];then
+ for p in .config/mhc-full-installer .local/share/mhc-full-installer android-hosting-panel apps .config/mini-hosting-cluster .local/share/mini-hosting-cluster .nginx .cloudflared;do
+  [[ ! -e "$HOME/$p" && ! -L "$HOME/$p" ]] || fail N1_EXISTING_INSTALLATION_REFUSED
+ done
+ if [[ -d "$HOME/.termux/boot" ]] && [[ -n "$(find "$HOME/.termux/boot" -mindepth 1 -maxdepth 1 -print -quit)" ]];then fail N1_EXISTING_BOOT_REFUSED;fi
+fi
+command -v pkg >/dev/null || fail N1_TERMUX_PACKAGE_MANAGER_MISSING
+mkdir -p "$state"; chmod 700 "$state"
+printf '[N1] Preparing bootstrap dependencies; existing SSH keys remain intact\n'
+pkg update -y || fail N1_PACKAGE_INDEX_FAILED_RETRY_SAME_COMMAND
+pkg install -y nodejs git curl coreutils util-linux || fail N1_BOOTSTRAP_PACKAGES_FAILED_RETRY_SAME_COMMAND
+manifest="$state/release-$N1_RELEASE_SOURCE.json"
+printf '%s' "$N1_MANIFEST_BASE64" | base64 -d > "$manifest.tmp"
+printf '%s  %s\n' "$N1_MANIFEST_SHA" "$manifest.tmp" | sha256sum -c --status || fail N1_MANIFEST_CHECKSUM_FAILED
+if [[ -e "$manifest" ]];then cmp -s "$manifest.tmp" "$manifest" || fail N1_EXISTING_MANIFEST_DIFFERS;fi
+mv "$manifest.tmp" "$manifest";chmod 600 "$manifest"
+source_dir="$state/source-$N1_RELEASE_SOURCE"
+[[ ! -L "$source_dir" && ! -L "$source_dir/.git" ]] || fail N1_SYMLINK_REFUSED
+if [[ ! -d "$source_dir/.git" ]];then
+ [[ ! -e "$source_dir" || -z "$(find "$source_dir" -mindepth 1 -maxdepth 1 -print -quit)" ]] || fail N1_ACQUISITION_DIRECTORY_UNKNOWN
+ git init -q "$source_dir"
+ git -C "$source_dir" remote add origin https://github.com/litequang/Mini-Hosting-Cluster.git
+fi
+[[ "$(git -C "$source_dir" remote get-url origin)" == https://github.com/litequang/Mini-Hosting-Cluster.git ]] || fail N1_SOURCE_ORIGIN_CHANGED
+if ! git -C "$source_dir" cat-file -e "$N1_RELEASE_SOURCE^{commit}" 2>/dev/null;then git -C "$source_dir" fetch --depth 1 origin "$N1_RELEASE_SOURCE" || fail N1_FETCH_FAILED_RETRY_SAME_COMMAND;fi
+git -C "$source_dir" -c advice.detachedHead=false checkout --detach "$N1_RELEASE_SOURCE" || fail N1_SOURCE_CHECKOUT_FAILED
+[[ "$(git -C "$source_dir" rev-parse HEAD)" == "$N1_RELEASE_SOURCE" ]] || fail N1_SOURCE_COMMIT_MISMATCH
+# Validate every source file before executing any repository JavaScript.
+node - "$manifest" "$source_dir" <<'NODE'
+const fs=require('fs'),path=require('path'),crypto=require('crypto');
+const [file,root]=process.argv.slice(2),m=JSON.parse(fs.readFileSync(file));
+if(m.format!=='mhc-new-node-v1'||!Array.isArray(m.files)||m.files.length>2000)throw Error('N1_RELEASE_INVALID');
+for(const f of m.files){if(!/^[A-Za-z0-9_./-]+$/.test(f.path)||f.path.split('/').some(p=>!p||p==='.'||p==='..'))throw Error('N1_MANIFEST_PATH_INVALID');const full=path.join(root,f.path);let p=full;while(p!==path.dirname(root)){if(fs.lstatSync(p).isSymbolicLink())throw Error('N1_SYMLINK_REFUSED');p=path.dirname(p);}if(crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')!==f.sha256)throw Error('N1_SOURCE_CHECKSUM_FAILED');}
+NODE
 export SVDIR="$PREFIX/var/service"
-if [[ -f "$PREFIX/etc/profile.d/start-services.sh" ]];then
- . "$PREFIX/etc/profile.d/start-services.sh"
-fi
-for name in sshd mysqld nginx amh-panel;do
- if [[ -d "$PREFIX/var/service/$name" ]];then
-  sv-enable "$name" || true
-  sv up "$PREFIX/var/service/$name" || true
- fi
-done
-sv restart "$PREFIX/var/service/amh-panel" || fail 'Original Panel restart failed'
-boot="$HOME/.termux/boot/10-start-hosting"
-[[ -f "$boot" && ! -L "$boot" ]] || fail 'Boot script missing'
-grep -Fq 'start-services.sh' "$boot" || fail 'Boot script missing runit supervisor'
-grep -Fq 'termux-wake-lock' "$boot" || fail 'Boot script missing wake lock'
-# Transition from the upstream bootstrap stub to the managed recovery script.
-if [[ -f "$HOME/.local/share/mhc-full-installer/bin/node-boot.sh" &&
-      -f "$HOME/.local/share/mhc-full-installer/bin/node-doctor.sh" ]];then
- bash "$HOME/.local/share/mhc-full-installer/bin/node-doctor.sh" --repair ||
- echo 'WARN: Android permissions/API may need manual attention; boot repair attempted'
-else
- fail 'Installed MHC release missing integrated boot and doctor; refuse partial setup'
-fi
-if command -v termux-wake-lock >/dev/null;then
- termux-wake-lock >/dev/null 2>&1 || echo 'WARN: Wake lock not granted by Android'
-fi
-echo '[5/5] Checking local HTTP and Termux:API telemetry'
-ok=0
-for i in 1 2 3 4 5 6 7 8 9 10;do
- if [[ "$(curl -sS --max-time 3 -o /dev/null -w '%{http_code}' http://127.0.0.1:9090/ 2>/dev/null||true)" == 200 ]];then ok=1;break;fi
- sleep 1
-done
-[[ "$ok" == 1 ]] || fail 'Panel :9090 HTTP failed; inspect amh-panel log'
-api='unavailable'
-if timeout 8 termux-battery-status 2>/dev/null | node -e \
- 'let x="";process.stdin.on("data",d=>x+=d);process.stdin.on("end",()=>{try{const b=JSON.parse(x);process.exit(Number.isFinite(b.percentage)?0:1)}catch{process.exit(1)}})';then api=ok;fi
-mkdir -p "$HOME/.local/state/mhc-node-setup"
-chmod 700 "$HOME/.local/state/mhc-node-setup"
-printf 'bootstrap_panel=ok\nbattery_api=%s\nnode_joined=no\n' "$api" > "$HOME/.local/state/mhc-node-setup/status"
-chmod 600 "$HOME/.local/state/mhc-node-setup/status"
-echo 'MHC_BOOTSTRAP_OK: original local Panel 9090 + services installed'
-echo "Battery API: $api"
-if [[ "$api" != ok ]];then
- echo 'ACTION_REQUIRED: Open Termux:API app; ensure Termux/Termux:API have matching install signatures; allow Android unrestricted battery.'
- echo 'ACTION_REQUIRED: Retry ~/mhc-full node-doctor after re-opening the API Android app.'
-fi
-echo 'ACTION_REQUIRED: Open Termux:Boot Android app ONCE, disable battery optimizations for Termux and API; disable STAMINA if present.'
-echo 'ACTION_REQUIRED: Test screen-off for 15 minutes and reboot once to verify auto-start.'
-echo 'Next: open protected Panel > Cluster > Tạo mã ghép 10 phút, then run the copied ~/mhc-full join code.'
-echo 'No primary role, data restore, public Tunnel or website writer activated.'
+flock --nonblock --close "$state/install.lock" "$PREFIX/bin/node" "$source_dir/bin/new-node-install.mjs" --install "$manifest" "$N1_MANIFEST_SHA" || fail N1_INSTALL_INTERRUPTED_RETRY_SAME_COMMAND
+printf '\nN1_INSTALL_COMPLETE: local Panel http://127.0.0.1:9090; Standby, no writer or public route.\n'
+printf 'Panel admin password is stored locally: ~/.config/mhc-full-installer/panel-login-once (do not send to chat).\n'
+printf 'Open Termux:Boot once and allow unrestricted battery for Termux/Boot/API. Reboot/Doze still require verification.\n'
+printf 'Next: create a 10-minute pairing code in an existing Panel; pairing and site eligibility are separate steps.\n'

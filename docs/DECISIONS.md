@@ -1,5 +1,11 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 28/10/2026 — N1.1 cài mới có resume
+
+- Giữ fresh installer tách khỏi source upgrade trên node hiện có; dùng full manifest cùng Git commit. Không chạy legacy non-transactional installer rồi vá nhiều bản.
+- Retry kiểm private journal/receipts và source pin, không xóa state/schema, không rotate keys/admin. SSH có thể đã mở thủ công trước bootstrap; chuyển riêng daemon listener đã xác minh sang runit, giữ authenticated session và có rescue listener nếu supervisor thất bại.
+- Cài detached trên Android và giữ log/exit/journal để PC mất kết nối không làm mất mốc. Không gửi log thô/password/token vào Git/chat. N1.1 chỉ software/management, không tự join/trust/site/writer.
+
 ## 28/10/2026 — Bổ sung N1 Unified New Node Installer giữa P3.3 và P4 Lite
 
 - Sau khi nghiệm thu **P3.3 Manual Primary/Control** hai Android, ưu tiên **N1 Unified New Node Installer** rồi **P4 Lite Auto Primary/Control**, sau đó HP1–HP3. Đây là quyết định mới nhất và thay thế thứ tự P3.3 → P4 trước đó.
