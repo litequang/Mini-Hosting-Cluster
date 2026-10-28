@@ -1,74 +1,39 @@
-# MHC — one-command Termux node rollout and XZ3 reboot recovery
+# Thêm điện thoại Android mới bằng một release MHC
 
-Date: 2026-10-26. Release source pinned to `2f14deb8d6fc31118a4bbc6b0a67e38bc2049767` on `codex/m1-m2-foundation`. These are source deliverables, **not** acceptance evidence from the two actual phones. MHC remains `SHARED_AUTHORITY_PREPARE_ONLY`; no writer or route failover.
+Runbook cài đặt; trạng thái triển khai và PASS/FAIL/NOT RUN chỉ tại [LIVE-PROGRESS.md](LIVE-PROGRESS.md). Spec/DoD: [UNIFIED-NEW-NODE-INSTALLER.md](UNIFIED-NEW-NODE-INSTALLER.md).
 
-## Fresh unprovisioned aarch64 Termux phone
+## Điện thoại Termux sạch
 
-Prerequisites Android apps installed from compatible signing source: **Termux**, **Termux:Boot**, **Termux:API**. Open Termux:Boot once after installation. On device Settings set unrestricted battery for all three; on Sony disable STAMINA. Non-root Android cannot grant these permissions from Shell, so end-user action is still required. Use charger+ventilation and monitor battery temperature.
+Chuẩn bị Termux, Termux:Boot và Termux:API có chữ ký tương thích. Mở Termux:Boot một lần; cho ba ứng dụng chạy nền/battery unrestricted và bật tự khởi động nếu Android yêu cầu. Installer không thể tự cấp các quyền Android này bằng shell.
 
-One pasted command INSIDE Termux (or an authenticated SSH terminal session):
-
-```sh
-curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/e4bd8cfbdebfa0aa8a3b2c1956cb04f44ee92f34/scripts/bootstrap-new-android-node.sh -o ~/mhc-bootstrap.sh && bash ~/mhc-bootstrap.sh --install
-```
-
-The bootstrap refuses existing MHC/website/HA files, installs Termux CLI packages including `termux-api`, fetches immutable source, invokes existing clean full installer, installs original Panel+new Monitor CSS and frontend, requests wake lock, starts runit/SSH/Panel/MariaDB/Nginx as defined by baseline, writes managed Termux:Boot script, checks localhost 9090 and battery API. The standard Panel's initial local admin password is generated and printed once by its setup. Do not share it. A node's site writer, Cloudflare external Tunnel, production DB restore or Primary role are **not** activated by this bootstrap.
-
-The bootstrap is deliberately **fresh-only**. Do not run it on Vsmart/XZ3/M51/any initialized device.
-
-## Single-code pairing
-
-Once the **existing Cloudflare Worker** has been upgraded with this release's `reference/cluster-authority/worker.mjs`, and the Vsmart Panel code has been updated with the matching one-command existing-node release:
-
-1. Sign in to `https://panel.giaouoc.com` using Cloudflare Access authorized email.
-2. Open **Cluster → Thêm điện thoại mới → Tạo mã ghép 10 phút**.
-3. Copy the *single* generated command and paste into the **newly bootstrapped** Termux. It is `~/mhc-full join "MHC1...."`; it includes the public authority URL, cluster UUID and a 192-bit one-time secret. It is sensitive; do not put it in screenshots/chats/logs.
-4. Node locally creates identity and 2 unique credentials, calls HTTPS Cloudflare Worker, obtains durable enrollment, stores private files (0600/0700) and starts management-only `mhc-authority-agent`. Panel Monitor auto-shows the node after fresh heartbeat and metric readouts.
-5. It joins **Standby** only. Backup/restore, website app deployment, replicated data and Primary selection remain operator activities not automatically executed.
-
-Worker join uses Durable Object transactions, only a matching unused code less than 10 min old, dynamic SHA-256 credential digests, role separation (agent cannot create invites), replay rejection, static Vsmart/XZ3 member preservation. Do not re-run `prepare-secrets`, delete Durable Object, change Worker name, or remove the existing `MHC_MEMBERS_JSON` secret.
-
-## Upgrade existing LAB Vsmart/XZ3 without a fresh reinstall
-
-Inside the existing Termux:
+Release **MHC-N1-20261028-02** dùng đúng source **90001f223028cfcf3cb8cf2fb381bbb0cd861b62**,179file. Manifest SHA256: ebce273bc816adc0a69f9f942f53212c715607b0c668259f906ef53da27e7b22. Lệnh dưới kiểm hash bootstrap trước khi thực thi, kể cả khi URL nhánh thay đổi; bootstrap ghim source và kiểm toàn bộ manifest. Không bỏ bước hash.
 
 ```sh
-curl -fLsS https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/33480440f9b5e7652467ff59d31a67332c231dc0/scripts/update-existing-android-node.sh -o ~/mhc-update.sh && bash ~/mhc-update.sh --apply
+curl -fLsS 'https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/codex/m1-m2-foundation/releases/new-node/MHC-N1-20261028-02/bootstrap.sh' -o "$HOME/mhc-bootstrap-N1-02.sh" && printf '%s  %s\n' '370ea05c6e095b17c31e06e59235bfc9aff5aad8d5d8f7ba24a44e3786686f44' "$HOME/mhc-bootstrap-N1-02.sh" | sha256sum -c - && bash "$HOME/mhc-bootstrap-N1-02.sh" --install
 ```
 
-This checks known MHC LAB source marker and existing JWT signature validator, then downloads the **13** exact immutable source blobs (nine live runtime assets plus four retained managed Panel source files) (Panel server/integration/Monitor JS/CSS, Node collector, authority client, CLI, boot manager, doctor). It backs up everything, leaves Cloudflare Access config, admin data, database, websites and remote Tunnel alone, restarts only `amh-panel`/existing `mhc-authority-agent`, verifies served JS SHA and attempts managed boot repair. Rollback automatically restores files on HTTP/restart failure. On a different/production node the installer refuses.
+Chỉ dùng cho ARM64 Termux sạch. Không chạy trên Vsmart/XZ3/11T đã cài, node production hoặc node có dữ liệu. Nếu đã có MHC/website/database khác, bộ cài từ chối thay vì xóa. Cài source cùng release, phần mềm nền, original Panel9090, identity/key/credentials riêng, runit SSH/Panel/SQL và Boot. PHP/Nginx là nền hosting; chưa có website thì không tự tạo site/writer. Cloudflared được cài, nhưng cài binary chưa có nghĩa Tunnel hoặc Control đã sẵn sàng.
 
-After update run:
+Mở **http://127.0.0.1:9090** trên chính điện thoại. Admin password nằm riêng tại ~/.config/mhc-full-installer/panel-login-once; xem trực tiếp trên Termux khi cần, không gửi vào chat/log. Mật khẩu của node khác không được sao chép.
 
-```sh
-~/mhc-full node-doctor --check
-bash ~/.local/share/mhc-full-installer/bin/node-boot.sh --status
-```
+## Ghép Cluster bằng mã 10 phút
 
-If XZ3 rebooted and shows no services, check `boot-last.log` recorded after reboot. If missing, the Android Termux:Boot app was not invoked by the OS; reopen it, enable auto-start and battery unrestricted and disable STAMINA. If present but `RUNSVDIR_MISSING`, relaunch `~/mhc-full node-doctor --repair`, check `$PREFIX/etc/profile.d/start-services.sh` and runit logs. If Agent is running but Panel shows no remote metrics, `node-doctor` differentiates `WORKER_NEEDS_MONITOR_DEPLOY` vs `MONITOR_SCHEMA_V2`, recent heartbeat and telemetry count. A configured Agent that cannot send due to network/Cloudflare remains an issue. Do not treat stale telemetry as current.
+1. Trên Panel MHC đang hoạt động, vào Cluster → Thêm điện thoại mới → Tạo mã ghép10phút. Không đăng mã công khai.
+2. Trên Termux mới chạy `~/mhc-full join`, rồi dán mã vào lời nhắc ẩn. Không dán mã vào argv/lịch sử shell. Automation có thể dùng stdin với `~/mhc-full join --stdin`.
+3. Agent khởi chạy và gửi heartbeat/Monitor bằng credentials riêng; node tham gia Standby, không tự nhận writer lease. Mã hết hạn/replay bị từ chối; lỗi mạng giữ identity để retry.
 
-## Cloudflare deploy (authorized Windows terminal)
+Panel phân biệt cài hệ thống, ghép, Panel/Agent, Tunnel và thiếu website/database. Fresh install/join không phải bằng chứng Control hoặc Primary.
 
-From the same pinned git source checkout (not an outdated ZIP):
+## Tunnel, Control và dữ liệu
 
-```powershell
-cd reference\cluster-authority
-npx wrangler@4 whoami
-npx wrangler@4 deploy --config wrangler.toml
-```
+Mỗi node phải có Tunnel token riêng0600, đúng Access/AUD/hostname và origin JWT; không copy token giữa các node, không đặt account API token trên phone. Control cần public-key/Tunnel registry được operator chấp nhận và proof quản trị mới. Peer SSH dùng forced-command và host/proof pins; thiếu đường peer thì báo unavailable, không mở SSH Internet.
 
-Check Worker name `mhc-cluster-authority-lab` before deploying. This upgrades the **existing** Worker/DO; do not create a separate authority or rotate secrets. Existing Worker cannot support newly issued invite or all-node telemetry until upgraded. Remote panel login continues through Cloudflare Access.
+Luồng tự động cấp Tunnel/peer sau join đang được hoàn thiện; pilot dùng CLI/API có kiểm tra và backup. `control-configure.mjs` prepare/configure xử lý public pins theo N-node, yêu cầu UUID và confirmation rõ; không cấp writer hoặc tự đổi DNS. Operator dùng cùng Worker/DO hiện có, không tạo authority khác hoặc reset cluster.
 
-## Scope / test evidence
+Node chưa có bản website/DB đã restore và kiểm guard không được làm Primary. Việc chuẩn bị dữ liệu là backup/restore có checksum/probe được chỉ định riêng; dữ liệu có thể cũ, không yêu cầu GTID hay đồng bộ100%.
 
-- Source pinned and nine blob IDs reviewed, and an isolated JavaScript Durable Object fixture validated invite→join→dynamic heartbeat, replay denial, wrong-role denial, with `declaredPrimary:null` and `writeLeaseGranted:false`. The original Node test `tests/cluster-pairing.mjs` was committed, but **not executed** in a Node test runner here.
-- **NOT RUN on Android**: clean Termux install, API permission prompts, cold boot of XZ3, real SSH after reboot, actual Worker deployment and physical new phone pairing. The Android steps must be verified before claiming 24/7 operation.
-- Future Panel-managed provisioning/remote app/site deployment requires authenticated node job execution and approval/rollback. **Not implemented by this milestone**. Pairing+Monitor/Agent are currently usable from the Panel once deployed; arbitrary remote shell commands are intentionally not exposed.
+## Gián đoạn và nâng cấp
 
-### Monitor expanded all-node UI patch (26 October 2026)
+Đọc progress.json/installer.pid/installer.exit và kiểm lock trước retry. Nếu installer còn chạy, theo dõi; không chạy bản thứ hai. Nếu dừng, retry đúng lệnh **release ban đầu**; không đổi manifest/source, xóa journal hoặc rotate keys để vượt guard. Một node đã cài release01 không resume bằng02.
 
-The current unified existing-node installer is pinned at commit `33480440f9b5e7652467ff59d31a67332c231dc0`. It updates 13 live/managed Panel+Agent+Boot files from immutable source commit `30e64673f84f035394e1c2a8069f68198acc5e5f`. The installer checks local Panel HTTP 200 before changes, performs ESM syntax verification via `node --check --input-type=module` from stdin, backs up all 13 files, verifies the served app.js SHA, and rolls back on HTTP verification failure including explicit exit. Run it on each existing LAB Vsmart/XZ3 node. `panel.giaouoc.com` is still bound to Vsmart until genuine Primary routing exists.
-
-The Monitor page renders **every registered node expanded immediately**, with local Panel/healthy nodes first. Includes pin status/temperature, RAM, storage, Wi-Fi RSSI, network rates, uptime, 12 service statuses, Node.js RSS, snapshot metadata, sync-unverified warning, role, heartbeat/metrics age, per-node 12h history charts (fetched asynchronously), 15s auto-refresh, no CPU. Distinguishes missing v2 telemetry from old data and lost heartbeat. Node's telemetry requires updated `mhc-authority-agent` on that node **AND** compatible Cloudflare Worker. Absence of telemetry does not prove Android offline.
-
-**Verification only (this session):** JavaScript syntax parsed, UI content checks PASSED, all 13 installer SHA pins matched pinned GitHub source. Actual two-Android deployment, Worker deployment and browser visual acceptance NOT RUN. Never claim installed until a device prints `APPLIED_OK` and browser is checked.
+Node hiện hữu dùng [source-only package updater](NODE-SOURCE-UPGRADE.md), có backup/verify/rollback và guard writer/transition. Không dùng fresh installer để sửa SSH hoặc nâng Panel; không dùng lại lệnh13patch cũ26/10. Reboot/Doze cần nghiệm thu thực tế, Boot entry chạy được chưa thay cho kiểm đó.
