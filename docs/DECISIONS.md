@@ -1,5 +1,14 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 28/10/2026 — Bổ sung N1 Unified New Node Installer giữa P3.3 và P4 Lite
+
+- Sau khi nghiệm thu **P3.3 Manual Primary/Control** hai Android, ưu tiên **N1 Unified New Node Installer** rồi **P4 Lite Auto Primary/Control**, sau đó HP1–HP3. Đây là quyết định mới nhất và thay thế thứ tự P3.3 → P4 trước đó.
+- N1 phải có một bootstrap release-pin/hash cho Termux sạch; tự phát hiện cấu hình/thiếu quyền; cài Panel9090, Agent, hosting prerequisites, boot, đưa node vào shared authority bằng mã ghép 10 phút, mặc định Standby. Không copy token/node identity/SQL/password/Cloudflare secrets giữa nodes.
+- Bỏ hardcode hai node tại onboarding/eligibility/updater/peer/route bằng đăng ký và allowlist được admin xác nhận + public proof keys; chỉ enrolled không có nghĩa eligible Primary. Node không có site/DB/Tunnel/lease gates thì không được route writer.
+- N1 không tự chuyển Primary, không yêu cầu replication hoặc dữ liệu giống nhau 100%; P4 Lite tái dùng pipeline P3.3 sau khi dữ liệu đích sẵn sàng và writer self-fencing đã nghiệm thu.
+- Codex đang chạy P3.3 tiếp tục hoàn tất; không ngắt/dừng/reset/rebase/overwrite worktree. Đọc docs/UNIFIED-NEW-NODE-INSTALLER.md khi nhận mốc N1; không claim đã nghiệm thu Android thứ ba nếu chưa có thiết bị thật.
+
+
 ## 28/10/2026 — Đơn giản hóa chuyển node, ưu tiên Auto Primary Lite ngay sau Manual
 
 - **User đổi thứ tự ưu tiên:** Codex đang làm **P3.3 Manual Primary + Control** cứ tiếp tục, không ngắt; tiếp theo **P4 Lite Auto Primary + Control (LAB MHC-managed site) → HP1 Hosting Core → HP2 Domain & Automation → HP3 Backup/Advanced → P5 production theo phê duyệt riêng**. Quyết định này thay thế lựa chọn trước đó để Auto sau HP3. Xem docs/HOSTING-PANEL-ROADMAP.md.
