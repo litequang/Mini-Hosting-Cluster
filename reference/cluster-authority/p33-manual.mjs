@@ -11,7 +11,7 @@ const nonce=()=>Array.from(crypto.getRandomValues(new Uint8Array(32))).map(v=>v.
 export const p33Enabled=e=>e.MHC_P33_ENABLED==='MANUAL_MANAGED_SITE';
 export function p33View(env,r,now=Date.now()){
  const lease=r?.lease&&r.lease.expiresAt>now?r.lease:null;
- return {enabled:p33Enabled(env),scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
+ return {enabled:p33Enabled(env),scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,controlRecoveryEnabled:p33Enabled(env)&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
 }
 export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
  const p=envelope?.proof;
@@ -27,15 +27,32 @@ export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
  return p;
 }
 const healthy=(s,id,now)=>{const h=s.heartbeats?.[id];return h&&now-h.receivedAt>=0&&now-h.receivedAt<=90000&&now-(h.metricsAt||0)>=0&&now-(h.metricsAt||0)<=90000&&h.telemetry?.services?.['amh-panel']==='running'&&h.telemetry?.services?.['mhc-panel-tunnel']==='running';};
-export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher=fetch,now=Date.now()}){
+export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher=fetch,now=Date.now(),internal=false}){
  if(!p33Enabled(env))fail('P33_NOT_ENABLED',403);
  const c=p32Config(env),fingerprint=await sha(JSON.stringify({routes:c.routes,keys:c.keys}));
  const planned=await ctx.storage.transaction(async tx=>{
   const state=await tx.get('state');if(!state||state.schema!==1||!Number.isSafeInteger(state.revision)||!Number.isSafeInteger(state.epoch))fail('P33_STATE_INVALID',503);
-  const role=await authorize(state);if(role!==(action==='p33-renew'?'agent':'panel'))fail('ROLE_DENIED',403);
+  const role=internal?'scheduled':await authorize(state);if(!internal&&role!==(action==='p33-renew'?'agent':'panel'))fail('ROLE_DENIED',403);
   const s={...state,clusterId:env.MHC_CLUSTER_ID},routes=await tx.get('p32');if(!routes)fail('P33_ROUTE_BASELINE_REQUIRED');
   const r=await tx.get('p33')||{revision:0,epoch:state.epoch,phase:'IDLE',lease:null,primaryNodeId:null,operationId:null,targetNodeId:null,challenge:null};
   if(r.fingerprint&&r.fingerprint!==fingerprint)fail('P33_CONFIG_CHANGED');
+  if(internal){
+   if(action!=='p33-recover-control'||env.MHC_P32_PANEL_RECOVERY_ENABLED!=='LAB_PANEL_ONLY')return {view:p33View(env,r,now)};
+   if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase))return {view:p33View(env,r,now)};
+   const old=r.journal;let target;
+   if(old?.status==='DNS_REQUESTED'){
+    if(old.cause!=='RECOVERY'||now-(old.lastTryAt||0)<90000||!healthy(s,old.targetNodeId,now))return {view:p33View(env,r,now)};target=old.targetNodeId;
+   }else{
+    if(old&&old.status!=='VERIFIED')return {view:p33View(env,r,now)};
+    const h=s.heartbeats?.[routes.panelNodeId],age=now-h?.receivedAt;if(!h||!Number.isFinite(age)||age<300000||age>2592000000)return {view:p33View(env,r,now)};
+    target=Object.keys(c.keys).filter(id=>id!==routes.panelNodeId&&healthy(s,id,now)).sort((a,b)=>s.heartbeats[b].receivedAt-s.heartbeats[a].receivedAt||a.localeCompare(b))[0];
+    if(!target)return {view:p33View(env,r,now)};
+   }
+   r.fingerprint=fingerprint;r.journal={operationId:old?.status==='DNS_REQUESTED'?old.operationId:crypto.randomUUID(),kind:'panel',cause:'RECOVERY',targetNodeId:target,status:'DNS_REQUESTED',from:old?.status==='DNS_REQUESTED'?old.from:{siteNodeId:routes.siteNodeId,panelNodeId:routes.panelNodeId},challenge:nonce(),attemptId:crypto.randomUUID(),lastTryAt:now};
+   r.revision++;state.revision++;await tx.put('p33',r);await tx.put('state',state);
+   await tx.put('p33-audit:'+String(r.revision).padStart(16,'0'),{action,at:new Date(now).toISOString(),targetNodeId:target,kind:'panel',writerLeaseChanged:false});
+   return {journal:r.journal};
+  }
   if(action==='p33-renew'){
    if(r.targetNodeId!==nodeId||!['ACTIVATING','ACTIVE','DNS_REQUESTED','AWAITING_PUBLIC','COMMITTED'].includes(r.phase)||!r.lease||r.lease.nodeId!==nodeId||r.lease.epoch!==body.epoch||r.operationId!==body.operationId||r.lease.expiresAt<=now||!healthy(s,nodeId,now))fail('P33_LEASE_NOT_RENEWABLE');
    r.lease={...r.lease,expiresAt:now+90000};await tx.put('p33',r);return {view:p33View(env,r,now)};

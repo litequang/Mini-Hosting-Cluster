@@ -16,7 +16,7 @@ Website thử: https://preview-lab.giaouoc.com. WordPress có form bình luận 
 
 ## Pipeline và ranh giới bảo đảm
 
-Authority opt-in MHC_P33_ENABLED=MANUAL_MANAGED_SITE trong **Worker/DO hiện hữu**. Giữ cluster/membership/keys/secrets/namespace. P3.2/legacy DNS mutation và Cron cũ bị khóa khi opt-in; không có auto election. Không cho cả hai executor đổi cùng record.
+Authority opt-in MHC_P33_ENABLED=MANUAL_MANAGED_SITE trong **Worker/DO hiện hữu**. Giữ cluster/membership/keys/secrets/namespace. P3.2/legacy mutation và executor Cron cũ bị khóa khi opt-in; khả năng Control recovery P3.2 được giữ qua cùng journal P33 (ngưỡng5phút, chỉ Panel, không lease/site/epoch, chờ public proof, không failback). Không có Auto Primary. Không cho cả hai executor đổi cùng record.
 
 FENCING → ACTIVATING → ACTIVE → DNS_REQUESTED → AWAITING_PUBLIC → COMMITTED. Authority dùng revision/epoch, request receipts và audit; grant90s, Agent đúng node/epoch/operation mới renew được khi lease còn hạn. Signed Ed25519 proofs gắn nonce/epoch/operation/revision/TTL15s; dùng public keys đã pin, không chuyển private key giữa phones.
 

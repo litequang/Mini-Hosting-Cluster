@@ -77,7 +77,9 @@ async function json(req,max=4096){
 export default {
  async scheduled(event,env,ctx){
   // P3.3 is manual only; do not race the legacy LAB DNS recovery journal.
-  if(p33Enabled(env))return;
+  if(p33Enabled(env)){
+   if(env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'&&UUID.test(env.MHC_CLUSTER_ID||'')){const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));ctx.waitUntil(stub.fetch(new Request('https://authority.internal/p33-maintenance',{method:'POST'})));}return;
+  }
   // Cron survives Android outages and must never grant writer privileges.
   if(env.MHC_P32_LAB_ENABLED==='READ_ONLY_ROUTING'&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'&&UUID.test(env.MHC_CLUSTER_ID||'')){
    const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));ctx.waitUntil(stub.fetch(new Request('https://authority.internal/p32-maintenance',{method:'POST'})));return;
@@ -111,6 +113,9 @@ export default {
 export class ClusterAuthority {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(req){
+  if(new URL(req.url).pathname==='/p33-maintenance'&&req.method==='POST'){
+   try{return reply({p33:await p33Action({ctx:this.ctx,env:this.env,action:'p33-recover-control',internal:true})});}catch(e){return reply({error:e.status?e.message:'P33_CONTROL_RECOVERY_UNAVAILABLE'},e.status||503);}
+  }
   if(new URL(req.url).pathname==='/maintenance'&&req.method==='POST')return this.recoverPanel();
   if(new URL(req.url).pathname==='/p32-maintenance'&&req.method==='POST'){
    try{return reply({p32:await p32Action({ctx:this.ctx,env:this.env,action:'p32-recover',internal:true})});}catch(e){return reply({error:e.status?e.message:'P32_RECOVERY_UNAVAILABLE'},e.status||503);}

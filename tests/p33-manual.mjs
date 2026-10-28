@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';import crypto from 'node:crypto';
 import worker,{ClusterAuthority} from '../reference/cluster-authority/worker.mjs';
 import {authorityRequest} from '../bin/cluster-authority.mjs';
 import {LAB_NODES} from '../reference/cluster-authority/p32-lab.mjs';
-import {P33_SCOPE} from '../reference/cluster-authority/p33-manual.mjs';
+import {P33_SCOPE,p33Action} from '../reference/cluster-authority/p33-manual.mjs';
 class Storage{data=new Map();tail=Promise.resolve();fail=false;transaction(fn){const job=this.tail.then(async()=>{const m=new Map(structuredClone([...this.data]));const result=await fn({get:async k=>structuredClone(m.get(k)),put:async(k,v)=>{if(this.fail)throw Error('storage failure');m.set(k,structuredClone(v));}});this.data=m;return result;});this.tail=job.catch(()=>{});return job;}}
 const [a,b]=LAB_NODES,cluster='2c1ea7c0-1d1f-4802-8336-0925a529c431',zone='a'.repeat(32),site='b'.repeat(32),panel='c'.repeat(32),ta='d8b3fbc5-1a5e-4d6a-958c-21ebc8c6dabb.cfargotunnel.com',tb='dc1650f8-911c-4e82-af3b-d9f61e50b2ee.cfargotunnel.com';
 const pairs=Object.fromEntries(LAB_NODES.map(id=>[id,crypto.generateKeyPairSync('ed25519')])),entries=LAB_NODES.map((nodeId,i)=>({nodeId,label:i?'XZ3':'Vsmart',agentKey:String(i+1).repeat(43),panelKey:String(i+3).repeat(43)}));
@@ -52,6 +52,12 @@ try{
  const before={epoch:state().epoch,lease:structuredClone(r().lease),primary:structuredClone(state().declaredPrimary),site:records.get(site).content};
  const challenge=crypto.randomBytes(32).toString('hex');await call('p33-control',body({targetNodeId:a,nonce:challenge,envelope:sign(a,'READY',{nonce:challenge})}));assert.equal(records.get(panel).content,ta);assert.equal(records.get(site).content,before.site);assert.deepEqual(r().lease,before.lease);assert.equal(state().epoch,before.epoch);
  await call('p33-confirm',body({panelEnvelope:publicProof(a,'PUBLIC_PANEL')}));assert.deepEqual(state().declaredPrimary,before.primary);assert.equal(r().phase,'COMMITTED');
+ // Preserve the already-authorized Control recovery without enabling automatic writer promotion.
+ time+=360001;state().heartbeats[a]={...healthy(),receivedAt:time-360001};state().heartbeats[b]=healthy();env.MHC_P32_PANEL_RECOVERY_ENABLED='LAB_PANEL_ONLY';
+ const recoverBefore={epoch:state().epoch,primary:structuredClone(state().declaredPrimary),lease:structuredClone(r().lease),site:records.get(site).content};
+ await p33Action({ctx,env,action:'p33-recover-control',internal:true,now:time,fetcher:fakeCF});assert.equal(r().journal.cause,'RECOVERY');assert.equal(records.get(panel).content,tb);assert.equal(records.get(site).content,recoverBefore.site);assert.equal(state().epoch,recoverBefore.epoch);assert.deepEqual(r().lease,recoverBefore.lease);assert.deepEqual(state().declaredPrimary,recoverBefore.primary);
+ await call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL')}));state().heartbeats[a]=healthy();const afterRecovery=patches.length;
+ await p33Action({ctx,env,action:'p33-recover-control',internal:true,now:time,fetcher:fakeCF});assert.equal(patches.length,afterRecovery,'old Control rejoin never steals route');
  const next=body({targetNodeId:a,acceptTargetData:true});await call('p33-begin',next);assert.equal(r().lease,null,'new intent revokes old lease before fencing');await call('p33-begin',next);await assert.rejects(call('p33-begin',{...next,targetNodeId:b}),/IDEMPOTENCY_CONFLICT/);
  await assert.rejects(call('p33-fenced',body({envelopes:[]})),/ALL_NODES_FENCE/);assert.equal(r().lease,null,'offline/missing node proof never grants writer');
  await call('p33-cancel',body({envelopes:fences()}));assert.equal(r().phase,'CANCELLED');assert.equal(state().declaredPrimary,null);assert.equal((await call('status')).writeLeaseGranted,false);

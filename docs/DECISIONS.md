@@ -5,7 +5,7 @@
 - User yêu cầu chuyển node thủ công trước, Auto khi lỗi/offline làm sau. Triển khai scoped writer lease cho website WordPress LAB mới, giữ site/Panel production nguyên vẹn; không để replication nâng cao chặn mốc usable.
 - Chuyển Primary + Control dùng DB hiện có ở node đích với cảnh báo dữ liệu/RPO. Phải quiesce có bằng chứng cả hai managed writers trước grant; node cũ không liên lạc được thì fail-closed, không checkbox bỏ fencing.
 - Phạm vi MHC_MANAGED_WORDPRESS_LAB gồm HTTP gate/PHP/Nginx và SQL app account; root/SQL đặc quyền/shell/same-UID ngoài MHC không là đã fence. Không gọi đây là độc quyền ghi toàn điện thoại hoặc production-safe failover.
-- Control có thể chuyển riêng, không sửa site/lease/epoch. Khi P33 opt-in, legacy/P32 mutation và Cron cũ không được race cùng DNS. Auto giữ tắt đến nhiệm vụ sau.
+- Control có thể chuyển riêng, không sửa site/lease/epoch. Khi P33 opt-in, legacy/P32 mutation và executor Cron cũ không được race cùng DNS. Giữ khả năng Control recovery P3.2 qua cùng journal P33; không tự chuyển site hoặc cấp writer. Auto Primary giữ tắt đến nhiệm vụ sau.
 - Lease hết hạn không tự resurrect: resume tạo epoch mới và fence lại; sau khi có ghi, đảo chiều là transition mới có lựa chọn dữ liệu, không tự restore hoặc rollback DB cũ. Contract/cứu hộ ở P33-MANUAL-PRIMARY.md, runtime chỉ ở LIVE-PROGRESS.
 
 ## 27/10/2026 — P3.2 dùng tuyến LAB riêng, không mở writer gate
