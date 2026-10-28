@@ -1,0 +1,32 @@
+// Android LAB acceptance only: local Panel credentials stay in memory, no exported Access JWT.
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import crypto from 'node:crypto';import http from 'node:http';import assert from 'node:assert/strict';import {execFileSync} from 'node:child_process';import {pathToFileURL} from 'node:url';
+const [action,id,confirmation]=process.argv.slice(2),home=os.homedir(),origin='http://127.0.0.1:9090',ids=['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24'];let cookie='',csrf='';
+const safe=s=>({revision:s.revision,epoch:s.epoch,primary:s.declaredPrimary,writer:s.writeLeaseGranted,p33:s.p33,panelNodeId:s.p32?.panelNodeId,siteNodeId:s.p32?.siteNodeId});
+async function call(route,body,auth=true,useCsrf=true){const r=await fetch(origin+route,{method:body?'POST':'GET',headers:{...(auth&&cookie?{cookie}:{}),...(body?{'content-type':'application/json',origin,...(auth&&useCsrf?{'x-csrf-token':csrf}:{})}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:AbortSignal.timeout(120000)});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')};}
+async function originCheck(){const get=(route,headers={})=>new Promise((resolve,reject)=>{const q=http.get({host:'127.0.0.1',port:9090,path:route,headers,timeout:5000},r=>{r.resume();r.on('end',()=>resolve(r.statusCode));});q.on('error',reject);q.on('timeout',()=>q.destroy(Error('timeout')));});assert.equal(await get('/api/mhc/p33-origin-proof?nonce='+'a'.repeat(64),{host:'panel-lab.giaouoc.com'}),403);assert.equal(await get('/api/mhc/p33-origin-proof?nonce='+'a'.repeat(64),{host:'panel-lab.giaouoc.com','cf-access-jwt-assertion':'invalid.invalid.invalid'}),403);assert.equal(await get('/api/mhc/p33-origin-proof?nonce='+'a'.repeat(64)),401);assert.equal((await call('/api/mhc/p33-action',{action:'switch'},false)).status,401);return {action,checks:4,result:'PASS',publicAccessPositiveVerified:false};}
+try{
+ if(process.env.PREFIX!=='/data/data/com.termux/files/usr'||!['status','readiness','switch','control','resume','cancel','auth-check','origin-check','wordpress-write'].includes(action))throw Error('P33_APPROVED_ANDROID_LAB_REQUIRED');
+ for(const f of ['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'])if(fs.existsSync(home+'/'+f))throw Error('P33_PRODUCTION_DENIED');
+ const own=JSON.parse(fs.readFileSync(home+'/.config/mhc-full-installer/node-identity.json')).nodeId;if(!ids.includes(own)||id&&!ids.includes(id))throw Error('P33_NODE_NOT_APPROVED');
+ if(action==='origin-check'){console.log(JSON.stringify(await originCheck()));process.exit(0);}
+ if(action==='wordpress-write'){
+  if(confirmation!=='--write-synthetic-comment')throw Error('P33_EXPLICIT_WORDPRESS_CANARY_REQUIRED');
+  const {ManagedNode,validManagedLease}=await import(pathToFileURL(path.join(home,'.local/share/mhc-full-installer/bin/p33-node.mjs'))),node=new ManagedNode();const s=await node.authorityState();if(!validManagedLease(s,own))throw Error('P33_CANARY_REQUIRES_CURRENT_PRIMARY');node.dataset();
+  const query=q=>execFileSync('mariadb',['--defaults-file='+path.join(node.base,'db-client.cnf'),'-N','-B','-e',q],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:5000}).trim();
+  const post=query("SELECT ID FROM wp_posts WHERE post_title='MHC Manual Primary LAB'");if(!/^\d+$/.test(post))throw Error('P33_CANARY_POST_INVALID');
+  const marker='MHC P33 HTTP write '+crypto.randomUUID();
+  const r=await fetch('http://127.0.0.1:18131/wp-comments-post.php',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({comment_post_ID:post,comment:marker,author:'MHC LAB',email:crypto.randomUUID()+'@example.invalid',comment_parent:'0'}),redirect:'manual',signal:AbortSignal.timeout(10000)});await r.arrayBuffer();
+  if(![302,303].includes(r.status)||query("SELECT COUNT(*) FROM wp_comments WHERE comment_content='"+marker+"'")!=='1')throw Error('P33_WORDPRESS_HTTP_DB_WRITE_FAILED');
+  const page=await fetch('http://127.0.0.1:18131/',{signal:AbortSignal.timeout(5000)});if(page.status!==200||!((await page.text()).includes(marker)))throw Error('P33_WORDPRESS_COMMENT_NOT_VISIBLE');
+  console.log(JSON.stringify({action,nodeId:own,epoch:s.p33.epoch,httpPostStatus:r.status,wordpressSqlRowVerified:true,commentVisibleOnPage:true,scope:s.p33.scope}));process.exit(0);
+ }
+ const file=[home+'/.config/mhc-full-installer/panel-login-once',home+'/.local/state/mhc-p31-lab/panel-test-password'].find(p=>fs.existsSync(p));if(!file)throw Error('P33_PANEL_PASSWORD_FILE_UNAVAILABLE');const st=fs.lstatSync(file);if(st.isSymbolicLink()||!st.isFile()||(st.mode&0o077)||st.size>1000)throw Error('P33_PANEL_PASSWORD_FILE_UNSAFE');
+ const login=await call('/api/login',{username:'admin',password:fs.readFileSync(file,'utf8').trim()},false);if(login.status!==200)throw Error('P33_PANEL_LOGIN_FAILED');cookie=login.cookie.split(';')[0];csrf=login.data.csrf;
+ const state=(await call('/api/mhc/primary-selection')).data;if(action==='status'){console.log(JSON.stringify(safe(state)));process.exit(0);}
+ if(action==='readiness'){const r=await call('/api/mhc/p33-readiness');if(r.status!==200)throw Error('P33_READINESS_REJECTED');console.log(JSON.stringify(r.data));process.exit(0);}
+ if(action==='auth-check'){assert.equal((await call('/api/mhc/p33-action',{action:'switch'},true,false)).status,403);const r=await call('/api/mhc/p33-action',{action:'confirm',expectedRevision:state.revision,expectedP33Revision:state.p33.revision});assert.notEqual(r.status,200);assert.match(r.data.error||'',/P33_CONFIRM_FROM_PUBLIC_ACCESS_PANEL_REQUIRED/);console.log(JSON.stringify({action,csrfRequired:true,localCannotConfirmPublicRoute:true,result:'PASS'}));process.exit(0);}
+ if(action==='switch'&&confirmation!=='--accept-target-data')throw Error('P33_EXPLICIT_TARGET_DATA_ACCEPTANCE_REQUIRED');
+ const result=await call('/api/mhc/p33-action',{action,id,acceptTargetData:action==='switch',requestId:crypto.randomUUID(),expectedRevision:state.revision,expectedP33Revision:state.p33.revision});
+ if(result.status!==200){console.log(JSON.stringify({action,httpStatus:result.status,errorCode:/(?:AUTHORITY_)?P33_[A-Z0-9_]+/.exec(result.data.error||'')?.[0]||'P33_PANEL_ACTION_REJECTED'}));throw Error('P33_PANEL_ACTION_REJECTED');}
+ console.log(JSON.stringify({action,state:safe(result.data)}));
+}catch(e){console.error(/^P33_[A-Z0-9_]+$/.test(e.message)?e.message:'P33_LIVE_TEST_FAILED');process.exitCode=1;}

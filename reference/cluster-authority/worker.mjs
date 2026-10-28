@@ -88,7 +88,7 @@ export default {
  },
  async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback|p33-begin|p33-fenced|p33-active|p33-route|p33-confirm|p33-renew|p33-control|p33-cancel)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback|p33-begin|p33-fenced|p33-active|p33-route|p33-confirm|p33-renew|p33-control|p33-cancel|p33-refence)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
@@ -236,21 +236,21 @@ export class ClusterAuthority {
       await tx.put('audit:'+String(s.revision).padStart(16,'0'),{...receipt,nodeId,at:new Date(now).toISOString()});
      }
     }
+    const p33=p33View(this.env,await tx.get('p33')||{epoch:s.epoch},now);
     const nodes=list.map(n=>({nodeId:n.nodeId,label:n.label,
      heartbeatRecent:!!s.heartbeats[n.nodeId]&&now-s.heartbeats[n.nodeId].receivedAt>=0&&now-s.heartbeats[n.nodeId].receivedAt<=180000,
      lastSeenAt:s.heartbeats[n.nodeId]?new Date(s.heartbeats[n.nodeId].receivedAt).toISOString():null,
      telemetryRecent:!!s.heartbeats[n.nodeId]?.metricsAt&&now-s.heartbeats[n.nodeId].metricsAt>=0&&now-s.heartbeats[n.nodeId].metricsAt<=180000,
      metricsAt:s.heartbeats[n.nodeId]?.metricsAt?new Date(s.heartbeats[n.nodeId].metricsAt).toISOString():null,
-     telemetry:s.heartbeats[n.nodeId]?.telemetry||null,role:'STANDBY_NO_WRITER_GRANT'}));
+     telemetry:s.heartbeats[n.nodeId]?.telemetry||null,role:p33.enabled&&p33.lease?.nodeId===n.nodeId?'PRIMARY_MANAGED_SCOPE':'STANDBY_NO_WRITER_GRANT'}));
     const history=action==='history'?await tx.get('monitor-history:'+body.targetNodeId)||[]:null;
-    const p33=p33View(this.env,await tx.get('p33')||{epoch:s.epoch},now);
-    return {p33,mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
+    return {p33,mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:p33.enabled?'MHC-P33-MANUAL-20261028':P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
      declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],
      panelRecovery:s.panelRecovery||null,panelRecoveryEnabled:this.env.MHC_P3_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
      callerSequence:s.heartbeats[nodeId]?.sequence||0,receipt,canComplete:false,writeLeaseGranted:p33.enabled&&p33.writerLeaseGranted,
-     automaticFailover:false,livePrimaryVerified:false,notice:'M3 LAB supports operator-attested DNS routing; application validation and writer fencing are NOT independently proven, no writer lease is granted.'};
+     automaticFailover:false,livePrimaryVerified:p33.enabled&&p33.phase==='COMMITTED'&&p33.writerLeaseGranted,notice:p33.enabled?p33.notice:'M3 LAB supports operator-attested DNS routing; application validation and writer fencing are NOT independently proven, no writer lease is granted.'};
    });
    if(action==='route'||action==='route-resume'){
     // Journal was committed before any external API side effects. A failed/partial PATCH

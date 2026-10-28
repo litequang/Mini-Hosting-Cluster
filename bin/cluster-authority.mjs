@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
-const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel'];
+const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel','p33-refence'];
 const home=()=>process.env.HOME||os.homedir();
 const configPath=()=>path.join(home(),'.config/mhc-full-installer/authority.json');
 export function authorityConfigured(){try{fs.lstatSync(configPath());return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}

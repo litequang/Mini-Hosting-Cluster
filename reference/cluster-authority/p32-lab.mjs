@@ -24,7 +24,7 @@ export function p32Config(env){
  if(LAB_NODES.some(id=>routes.some(r=>r.nodeTargets[id]!==routes[0].nodeTargets[id])))fail('P32_INCONSISTENT_NODE_TUNNEL_MAP');
  return {adapter,routes,keys,initial:env.MHC_P32_INITIAL_NODE_ID};
 }
-export function p32View(env,r){return {enabled:env.MHC_P32_LAB_ENABLED==='READ_ONLY_ROUTING',mode:'READ_ONLY_LAB_ROUTES',build:P32_BUILD,routeRevision:r?.revision||0,siteNodeId:r?.siteNodeId||env.MHC_P32_INITIAL_NODE_ID||null,panelNodeId:r?.panelNodeId||env.MHC_P32_INITIAL_NODE_ID||null,journal:r?.journal||null,writerLeaseGranted:false,changesDeclaredPrimary:false,recoveryEnabled:env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'};}
+export function p32View(env,r){return {enabled:env.MHC_P32_LAB_ENABLED==='READ_ONLY_ROUTING',mode:'READ_ONLY_LAB_ROUTES',build:P32_BUILD,routeRevision:r?.revision||0,siteNodeId:r?.siteNodeId||env.MHC_P32_INITIAL_NODE_ID||null,panelNodeId:r?.panelNodeId||env.MHC_P32_INITIAL_NODE_ID||null,journal:r?.journal||null,writerLeaseGranted:false,changesDeclaredPrimary:false,recoveryEnabled:env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'&&env.MHC_P33_ENABLED!=='MANUAL_MANAGED_SITE'};}
 export function p32BlocksPreparation(r){return ['DNS_REQUESTED','DNS_AWAITING_HTTP'].includes(r?.journal?.status);}
 export async function verifyLabProof(envelope,c,state,{nodeId,nonce,origin=false,website=false,now=Date.now()}){
  const p=envelope?.proof;

@@ -31,7 +31,7 @@ mkdir -p "$base/site/wp-content/uploads/p33" "$base/site/wp-content/themes/p33la
 cp "$base/media/"* "$base/site/wp-content/uploads/p33/"
 printf '/*\nTheme Name: MHC Manual Primary LAB\nVersion: 1.0\n*/\n' > "$base/site/wp-content/themes/p33lab/style.css"
 cat > "$base/site/wp-content/themes/p33lab/index.php" <<'PHP'
-<!doctype html><html><head><meta charset="utf-8"><title>MHC Manual Primary LAB</title></head><body><h1>MHC Manual Primary LAB</h1><p>Website WordPress có quyền ghi trên node Primary do MHC quản lý. Dữ liệu mỗi node độc lập.</p><?php while(have_posts()){the_post();the_title('<h2>','</h2>');the_content();} ?><p><a href="/wp-admin/">Quản trị WordPress</a></p></body></html>
+<!doctype html><html><head><meta charset="utf-8"><title>MHC Manual Primary LAB</title></head><body><h1>MHC Manual Primary LAB</h1><p>Website WordPress có quyền ghi trên node Primary do MHC quản lý. Dữ liệu mỗi node độc lập.</p><?php while(have_posts()){the_post();the_title('<h2>','</h2>');the_content();foreach(get_comments(['post_id'=>get_the_ID(),'status'=>'approve']) as $comment)echo '<p>'.esc_html($comment->comment_content).'</p>';comment_form(['title_reply'=>'Ghi thử bình luận trên Primary']);} ?><p><a href="/wp-admin/">Quản trị WordPress</a></p></body></html>
 PHP
 socket=$(mariadb --no-defaults -u root -N -B -e 'SELECT @@socket')
 P33_BASE="$base" P33_SOCKET="$socket" php > "$base/logs/provision-private.log" 2>&1 <<'PHP'
@@ -50,9 +50,9 @@ file_put_contents($base.'/db-client.cnf',"[client]\nuser=mhc_p33_web\npassword=$
 define('WP_INSTALLING',true);require $base.'/site/wp-load.php';require ABSPATH.'wp-admin/includes/upgrade.php';
 $admin=bin2hex(random_bytes(20));wp_install('MHC Manual Primary LAB','p33lab','lab@example.invalid',false,'',$admin);
 file_put_contents($base.'/admin-password',$admin);chmod($base.'/admin-password',0600);
-switch_theme('p33lab');delete_option('theme_switched');update_option('blog_public',0);update_option('permalink_structure','');
+switch_theme('p33lab');delete_option('theme_switched');update_option('blog_public',0);update_option('permalink_structure','');update_option('comment_moderation',0);update_option('comment_previously_approved',0);
 $images=glob($base.'/site/wp-content/uploads/p33/*');$img=basename($images[0]);
-$id=wp_insert_post(['post_title'=>'MHC Manual Primary LAB','post_status'=>'publish','post_type'=>'page','post_content'=>'<p>Isolated WordPress LAB. Original Vsmart websites are unchanged.</p><img src="/wp-content/uploads/p33/'.esc_attr($img).'" alt="LAB media"/>']);
+$id=wp_insert_post(['post_title'=>'MHC Manual Primary LAB','post_status'=>'publish','post_type'=>'page','comment_status'=>'open','post_content'=>'<p>Isolated WordPress LAB. Original Vsmart websites are unchanged.</p><img src="/wp-content/uploads/p33/'.esc_attr($img).'" alt="LAB media"/>']);
 if(is_wp_error($id)||!$id)throw new Exception('P33_CONTENT_FAILED');update_option('show_on_front','page');update_option('page_on_front',$id);
 $db->query('CREATE TABLE mhc_p33_probe (id CHAR(36) PRIMARY KEY)');
 PHP

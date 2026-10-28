@@ -26,6 +26,8 @@ try{
  await assert.rejects(call('p33-renew',body()),/ROLE_DENIED/);
  await assert.rejects(call('begin',body({targetNodeId:a})),/P33_USE_MANAGED/);
  await assert.rejects(call('p32-route',body()),/P33_USE_MANAGED/);
+ const firstNonce=crypto.randomBytes(32).toString('hex');await call('p33-control',body({targetNodeId:a,nonce:firstNonce,envelope:sign(a,'READY',{nonce:firstNonce})}));
+ await call('p33-confirm',body({panelEnvelope:sign(a,'PUBLIC_PANEL',{nonce:r().journal.challenge})}));assert.equal(r().phase,'IDLE');assert.equal(r().lease,null,'Control works before first Primary without a writer');
  await assert.rejects(call('p33-begin',body({targetNodeId:b})),/DATA_ACCEPTANCE/);
  const race=await Promise.allSettled([call('p33-begin',body({targetNodeId:b,acceptTargetData:true})),call('p33-begin',body({targetNodeId:a,acceptTargetData:true}))]);assert.equal(race.filter(x=>x.status==='fulfilled').length,1);assert.equal(r().phase,'FENCING');assert.equal(r().lease,null);
  await assert.rejects(call('p33-fenced',body({envelopes:[sign(a,'FENCED')]})),/ALL_NODES_FENCE/);
@@ -38,6 +40,11 @@ try{
  await call('p33-active',body({envelope:sign(b,'ACTIVE')}));assert.equal(r().phase,'ACTIVE');
  failPanel=true;await assert.rejects(call('p33-route',body({envelope:sign(b,'ACTIVE')})),/NETWORK_FAILED/);assert.equal(r().phase,'DNS_REQUESTED');assert.equal(records.get(site).content,tb);assert.equal(records.get(panel).content,ta);
  object=new ClusterAuthority(ctx,env);await assert.rejects(call('p33-route',body()),/COOLDOWN/);time+=31000;state().heartbeats[a]=healthy();state().heartbeats[b]=healthy();failPanel=false;await call('p33-route',body());assert.deepEqual(patches,[site,panel]);assert.equal(r().phase,'AWAITING_PUBLIC');assert.equal(state().declaredPrimary,null);
+ time+=91001;state().heartbeats[a]=healthy();state().heartbeats[b]=healthy();assert.equal((await call('status')).writeLeaseGranted,false);
+ await assert.rejects(call('p33-renew',{epoch:r().epoch,operationId:r().operationId},'agent',b),/NOT_RENEWABLE/);
+ const expiredEpoch=r().epoch;await call('p33-refence',body());assert.equal(r().epoch,expiredEpoch+1);assert.equal(r().lease,null);
+ await assert.rejects(call('p33-active',body({envelope:sign(b,'ACTIVE')})),/PHASE_INVALID/);
+ await call('p33-fenced',body({envelopes:fences()}));await call('p33-active',body({envelope:sign(b,'ACTIVE')}));await call('p33-route',body({envelope:sign(b,'ACTIVE')}));assert.deepEqual(patches,[site,panel],'expired transition rechecks existing DNS without extra PATCH');
  const publicProof=(id,kind,extra={})=>sign(id,kind,{nonce:r().journal.challenge,...extra});
  await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL',{accessVerified:false}),siteEnvelope:publicProof(b,'PUBLIC_SITE')})),/PUBLIC_ACCESS/);
  await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL'),siteEnvelope:publicProof(a,'PUBLIC_SITE')})),/STALE_OR_MISMATCH/);

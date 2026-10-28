@@ -2,7 +2,7 @@
 import {p32Config} from './p32-lab.mjs';
 import {p3SwitchDns,p3SwitchPanelDns,p3InspectDns} from './p3-route.mjs';
 export const P33_SCOPE='MHC_MANAGED_WORDPRESS_LAB';
-export const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel'];
+export const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel','p33-refence'];
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const hex=/^[a-f0-9]{64}$/;
 const fail=(c,status=409)=>{throw Object.assign(Error(c),{status});};
@@ -34,7 +34,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
   const state=await tx.get('state');if(!state||state.schema!==1||!Number.isSafeInteger(state.revision)||!Number.isSafeInteger(state.epoch))fail('P33_STATE_INVALID',503);
   const role=await authorize(state);if(role!==(action==='p33-renew'?'agent':'panel'))fail('ROLE_DENIED',403);
   const s={...state,clusterId:env.MHC_CLUSTER_ID},routes=await tx.get('p32');if(!routes)fail('P33_ROUTE_BASELINE_REQUIRED');
-  const r=await tx.get('p33')||{revision:0,epoch:state.epoch,phase:'IDLE',lease:null,primaryNodeId:null};
+  const r=await tx.get('p33')||{revision:0,epoch:state.epoch,phase:'IDLE',lease:null,primaryNodeId:null,operationId:null,targetNodeId:null,challenge:null};
   if(r.fingerprint&&r.fingerprint!==fingerprint)fail('P33_CONFIG_CHANGED');
   if(action==='p33-renew'){
    if(r.targetNodeId!==nodeId||!['ACTIVATING','ACTIVE','DNS_REQUESTED','AWAITING_PUBLIC','COMMITTED'].includes(r.phase)||!r.lease||r.lease.nodeId!==nodeId||r.lease.epoch!==body.epoch||r.operationId!==body.operationId||r.lease.expiresAt<=now||!healthy(s,nodeId,now))fail('P33_LEASE_NOT_RENEWABLE');
@@ -69,6 +69,12 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
     }
     r.lease=action==='p33-fenced'?{nodeId:r.targetNodeId,epoch:r.epoch,operationId:r.operationId,expiresAt:now+90000,scope:P33_SCOPE}:null;r.phase=action==='p33-fenced'?'ACTIVATING':'CANCELLED';
     if(action==='p33-cancel'){r.primaryNodeId=null;state.declaredPrimary=null;}
+   }else if(action==='p33-refence'){
+    if(!['ACTIVATING','ACTIVE','DNS_REQUESTED','AWAITING_PUBLIC'].includes(r.phase)||r.journal?.kind==='panel')fail('P33_REFENCE_PHASE_INVALID');
+    if(r.lease&&r.lease.expiresAt>now)fail('P33_LEASE_STILL_ACTIVE');
+    // An expired transition cannot resurrect its lease. Re-quiesce every node at a new epoch.
+    state.epoch++;r.epoch=state.epoch;r.lease=null;r.phase='FENCING';r.challenge=nonce();
+    if(r.journal?.status==='DNS_REQUESTED')r.journal={...r.journal,attemptId:crypto.randomUUID()};
    }else if(action==='p33-active'){
     if(r.phase!=='ACTIVATING'||!r.lease||r.lease.expiresAt<=now)fail('P33_ACTIVATION_PHASE_INVALID');
     const p=await p33Proof(body.envelope,c,s,r,{nodeId:r.targetNodeId,kind:'ACTIVE',now});

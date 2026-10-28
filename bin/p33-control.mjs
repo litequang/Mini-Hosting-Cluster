@@ -29,6 +29,7 @@ export async function p33Confirm(context){
 }
 export async function p33Continue(context={}){
  let s=await sharedStatus(),r=view(s);
+ if(['ACTIVATING','ACTIVE','DNS_REQUESTED','AWAITING_PUBLIC'].includes(r.phase)&&(!r.lease||r.lease.expiresAt<=Date.now())){s=await sharedManagedRequest('p33-refence',requestBody(s));r=view(s);}
  if(r.phase==='FENCING'){
   const envelopes=await Promise.all((await p33Readiness()).nodes.map(n=>p33Request(n.nodeId,'p33-fence')));
   s=await sharedManagedRequest('p33-fenced',{...requestBody(await sharedStatus()),envelopes});r=view(s);
