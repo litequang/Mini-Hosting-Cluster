@@ -17,10 +17,12 @@ for(const expected of [
  'primary-abort',
  'PREPARED_NO_WRITER_GRANT'
 ])assert(ui.includes(expected),'Missing UI candidate selection safeguard: '+expected);
-for(const name of ["'begin'","'abort'","TARGET_HEARTBEAT_STALE","TRANSITION_PENDING","REVISION_CONFLICT","writeLeaseGranted:false","declaredPrimary:s.declaredPrimary||null","fencingVerified:false,writerLeaseGranted:false"])
+for(const name of ["'begin'","'abort'","TARGET_HEARTBEAT_STALE","TRANSITION_PENDING","REVISION_CONFLICT","writeLeaseGranted:p33.enabled&&p33.writerLeaseGranted","declaredPrimary:s.declaredPrimary||null","fencingVerified:false,writerLeaseGranted:false"])
  assert(worker.includes(name),'Missing shared-authority preflight: '+name);
-for(const name of ["'begin'","'abort'","AUTHORITY_UNREACHABLE","writeLeaseGranted!==false"])
+for(const name of ["'begin'","'abort'","AUTHORITY_UNREACHABLE","typeof v.writeLeaseGranted!=='boolean'", "v.p33.scope==='MHC_MANAGED_WORDPRESS_LAB'"])
  assert(client.includes(name),'Missing fail-closed client behavior: '+name);
+assert(ui.includes("const selection=shared&&!managed?"),'managed UI must hide legacy preparation controls');
+assert(worker.includes('P33_USE_MANAGED_MANUAL_PIPELINE'),'legacy cannot bypass managed lease');
 assert(!ui.includes("toast('Đã chuyển Primary thật"),'UI falsely advertises Primary cutover');
 console.log('PASS: M3 manual candidate UI source checks, common-state CAS and heartbeat preflight, no live Primary grant.');
 console.log('SCOPE: structural checks only. Cloudflare Internet/browser and two physical Android nodes NOT RUN.');

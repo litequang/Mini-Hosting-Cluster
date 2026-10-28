@@ -3,7 +3,7 @@ import fs from 'node:fs';import path from 'node:path';import os from 'node:os';i
 import {CandidateNode,verifyProof} from './p31-node.mjs';import {sharedStatus} from './cluster-authority.mjs';
 const home=()=>process.env.HOME||os.homedir(),cfg=()=>path.join(home(),'.config/mhc-full-installer/p31');
 export function p31Enabled(){return fs.existsSync(path.join(cfg(),'config.json'));}
-export function peerFailure(stderr){const code=String(stderr||'').trim();return Error(/^P31_[A-Z_]{1,90}$/.test(code)?code:'P31_PEER_UNAVAILABLE');}
+export function peerFailure(stderr){const code=String(stderr||'').trim();return Error(/^(?:P31|P33)_[A-Z0-9_]{1,90}$/.test(code)?code:'P31_PEER_UNAVAILABLE');}
 function config(){const n=new CandidateNode(),c=n.config();if(!Array.isArray(c.peers)||c.peers.length<2||c.peers.length>20||new Set(c.peers.map(p=>p.nodeId)).size!==c.peers.length)throw Error('P31_PEERS_INVALID');return c;}
 function peer(c,id){const p=c.peers.find(p=>p.nodeId===id);if(!p||!(/^[a-z0-9_]{1,32}$/.test(p.user))||!(/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(p.host))||p.port!==8022||typeof p.publicKey!=='string'||p.publicKey.length>500)throw Error('P31_PEER_NOT_APPROVED');return p;}
 function remote(p,request){return new Promise((resolve,reject)=>{
@@ -27,4 +27,10 @@ export async function p31Readiness(){
  if(!p31Enabled())return {enabled:false,canPromote:false};const c=config();
  const nodes=await Promise.all(c.peers.map(async p=>{try{return {...await p31Request(p.nodeId,'probe'),verified:true};}catch(e){return {nodeId:p.nodeId,verified:false,previewReady:false,websiteServing:false,writerGranted:false,fencingVerified:false,problem:/^P31_[A-Z_]+$/.test(e.message)?e.message:'P31_AUTHORITY_UNAVAILABLE'};}}));
  return {enabled:true,mode:'P31_READ_ONLY_REHEARSAL',canPromote:false,canChangeRoute:false,blocker:'P31_PRIVILEGED_AND_SAME_UID_WRITERS_NOT_FENCED',nodes};
+}
+
+export async function p31PeerEnvelope(nodeId,request){
+ const c=config(),p=peer(c,nodeId);if(request.nodeId!==nodeId||!['p33-ready','p33-fence','p33-activate','p33-active'].includes(request.action))throw Error('P33_PEER_ACTION_INVALID');
+ const envelope=nodeId===c.nodeId?await new (await import('./p33-node.mjs')).ManagedNode().accept(request):await remote(p,request);
+ return {envelope,publicKey:p.publicKey,clusterId:c.clusterId};
 }

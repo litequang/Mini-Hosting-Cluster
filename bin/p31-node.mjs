@@ -136,6 +136,6 @@ export class CandidateNode{
  }
 }
 export async function main(args){const n=new CandidateNode();if(args[0]==='watch')return n.watch();if(args[0]==='accept'){
- if(process.env.SSH_ORIGINAL_COMMAND&&process.env.SSH_ORIGINAL_COMMAND!=='mhc-p31')fail('P31_SSH_COMMAND_DENIED');let data='';for await(const b of process.stdin){data+=b;if(data.length>8192)fail('P31_REQUEST_TOO_LARGE');}return n.accept(JSON.parse(data));
+ if(process.env.SSH_ORIGINAL_COMMAND&&process.env.SSH_ORIGINAL_COMMAND!=='mhc-p31')fail('P31_SSH_COMMAND_DENIED');let data='';for await(const b of process.stdin){data+=b;if(data.length>8192)fail('P31_REQUEST_TOO_LARGE');}const request=JSON.parse(data);if(request.action?.startsWith('p33-'))return new (await import('./p33-node.mjs')).ManagedNode().accept(request);return n.accept(request);
 }fail('Usage: p31-node watch|accept');}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main(process.argv.slice(2)).then(v=>{if(v)console.log(JSON.stringify(v));}).catch(e=>{console.error(/^P31_[A-Z_]+$/.test(e.message)?e.message:'P31_OPERATION_FAILED');process.exitCode=1;});

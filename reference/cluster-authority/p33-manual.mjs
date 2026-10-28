@@ -49,7 +49,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    if(state.pending||routes.journal&&['DNS_REQUESTED','DNS_AWAITING_HTTP','ROLLBACK_DNS_AWAITING_HTTP'].includes(routes.journal.status))fail('P33_PREVIOUS_OPERATION_PENDING');
    if(!c.keys[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
    if(body.acceptTargetData!==true)fail('P33_TARGET_DATA_ACCEPTANCE_REQUIRED',400);
-   state.epoch++;r.epoch=state.epoch;r.operationId=body.requestId;r.targetNodeId=body.targetNodeId;r.primaryNodeId=null;r.lease=null;r.phase='FENCING';r.challenge=nonce();r.fingerprint=fingerprint;r.journal=null;
+   r.previousPrimaryNodeId=state.declaredPrimary?.nodeId||r.primaryNodeId||null;state.declaredPrimary=null;state.epoch++;r.epoch=state.epoch;r.operationId=body.requestId;r.targetNodeId=body.targetNodeId;r.primaryNodeId=null;r.lease=null;r.phase='FENCING';r.challenge=nonce();r.fingerprint=fingerprint;r.journal=null;
    r.dataChoice='USE_EXISTING_TARGET_DATA_NO_AUTOMATIC_REPLICATION';
   }else if(action==='p33-control'){
    if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED')fail('P33_TRANSITION_PENDING');
@@ -82,7 +82,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
      r.journal={operationId:r.operationId,targetNodeId:r.targetNodeId,kind:'both',status:'DNS_REQUESTED',from:{siteNodeId:routes.siteNodeId,panelNodeId:routes.panelNodeId},challenge:nonce(),attemptId:crypto.randomUUID()};r.phase='DNS_REQUESTED';
     }
     if(r.journal.kind==='both'&&(!r.lease||r.lease.expiresAt<=now))fail('P33_ACTIVE_LEASE_REQUIRED');
-    r.journal.attemptId=crypto.randomUUID();
+    if(!healthy(s,r.journal.targetNodeId,now))fail('P33_TARGET_NOT_READY');r.journal.attemptId=crypto.randomUUID();
    }else if(action==='p33-confirm'){
     const j=r.journal;if(j?.status!=='AWAITING_PUBLIC')fail('P33_NO_PUBLIC_CHECK_PENDING');
     const challengeState={...r,challenge:j.challenge};
@@ -93,7 +93,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
      const w=await p33Proof(body.siteEnvelope,c,s,challengeState,{nodeId:r.targetNodeId,kind:'PUBLIC_SITE',now});
      if(w.httpServing!==true||w.wordpress!==true||w.leaseEpoch!==r.epoch)fail('P33_PUBLIC_SITE_INVALID');
      r.phase='COMMITTED';r.primaryNodeId=r.targetNodeId;
-     state.declaredPrimary={nodeId:r.targetNodeId,label:body.label||'Managed LAB Primary',scope:P33_SCOPE,epoch:r.epoch,recordedAt:new Date(now).toISOString(),authority:'SIGNED_MANAGED_WRITER_AND_PUBLIC_ROUTE',writerLeaseGranted:true,fencingVerified:true,nodeWritersFenced:false};
+     state.declaredPrimary={nodeId:r.targetNodeId,label:[...JSON.parse(env.MHC_MEMBERS_JSON||'[]'),...(s.dynamicMembers||[])].find(n=>n.nodeId===r.targetNodeId)?.label||'Managed LAB Primary',scope:P33_SCOPE,epoch:r.epoch,recordedAt:new Date(now).toISOString(),authority:'SIGNED_MANAGED_WRITER_AND_PUBLIC_ROUTE',writerLeaseGranted:true,fencingVerified:true,nodeWritersFenced:false};
     }
     r.journal={...j,status:'VERIFIED',httpVerifiedAt:new Date(now).toISOString()};
    }else fail('P33_ACTION_INVALID');

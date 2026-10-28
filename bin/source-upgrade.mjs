@@ -43,6 +43,7 @@ export class SourceUpgrade{
  gate(){
   if(!this.fixture&&!supportedRuntime(process.platform,this.prefix))fail('TERMUX_REQUIRED');
   for(const p of ['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json','.config/mhc-full-installer/install-incomplete'])if(exists(path.join(this.home,p)))fail('PRODUCTION_OR_INCOMPLETE_NODE');
+  const active=this.safe(path.join(this.home,'.local/state/mhc-p33-node/state.json'));if(exists(active)&&json(active).desired==='ACTIVE')fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
   const cfg=path.join(this.home,'.config/mhc-full-installer');
   if(fs.readFileSync(path.join(cfg,'installed'),'utf8').trim()!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')fail('UNKNOWN_INSTALLER_MARKER');
   this.nodeId=json(this.safe(path.join(cfg,'node-identity.json'))).nodeId;if(!LAB_NODES.includes(this.nodeId))fail('NODE_NOT_APPROVED_LAB');

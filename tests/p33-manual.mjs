@@ -37,7 +37,7 @@ try{
  await assert.rejects(call('p33-active',body({envelope:sign(b,'ACTIVE',{database:{writeReadDelete:false}})})),/APP_NOT_PROVEN/);
  await call('p33-active',body({envelope:sign(b,'ACTIVE')}));assert.equal(r().phase,'ACTIVE');
  failPanel=true;await assert.rejects(call('p33-route',body({envelope:sign(b,'ACTIVE')})),/NETWORK_FAILED/);assert.equal(r().phase,'DNS_REQUESTED');assert.equal(records.get(site).content,tb);assert.equal(records.get(panel).content,ta);
- object=new ClusterAuthority(ctx,env);await assert.rejects(call('p33-route',body()),/COOLDOWN/);time+=31000;state().heartbeats[a]=healthy();state().heartbeats[b]=healthy();failPanel=false;await call('p33-route',body());assert.deepEqual(patches,[site,panel]);assert.equal(r().phase,'AWAITING_PUBLIC');assert.equal(state().declaredPrimary,undefined);
+ object=new ClusterAuthority(ctx,env);await assert.rejects(call('p33-route',body()),/COOLDOWN/);time+=31000;state().heartbeats[a]=healthy();state().heartbeats[b]=healthy();failPanel=false;await call('p33-route',body());assert.deepEqual(patches,[site,panel]);assert.equal(r().phase,'AWAITING_PUBLIC');assert.equal(state().declaredPrimary,null);
  const publicProof=(id,kind,extra={})=>sign(id,kind,{nonce:r().journal.challenge,...extra});
  await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL',{accessVerified:false}),siteEnvelope:publicProof(b,'PUBLIC_SITE')})),/PUBLIC_ACCESS/);
  await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL'),siteEnvelope:publicProof(a,'PUBLIC_SITE')})),/STALE_OR_MISMATCH/);
