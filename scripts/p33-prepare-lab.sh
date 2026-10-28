@@ -7,6 +7,7 @@ umask 077
 nodeid=$(node -p 'JSON.parse(require("fs").readFileSync(process.env.HOME+"/.config/mhc-full-installer/node-identity.json")).nodeId')
 [[ "$nodeid" == 4ed4c025-62ae-4c2a-8d68-65dd76ecf550 || "$nodeid" == 4a9672d1-bb62-4286-946a-a78b73e57b24 ]] || exit 2
 [[ -f "$HOME/.local/share/mhc-full-installer/bin/p33-node.mjs" ]] || { echo P33_SOURCE_REQUIRED;exit 2; }
+export SVDIR="$PREFIX/var/service"
 base="$HOME/.local/share/mhc-p33-lab"
 archive="$HOME/.local/state/mhc-p31-lab/transfer-code-media-static.tar"
 [[ ! -e "$base" && -f "$archive" ]] || { echo P33_DATA_EXISTS_OR_ARCHIVE_MISSING_INSPECT_BEFORE_RETRY;exit 2; }
@@ -54,7 +55,7 @@ switch_theme('p33lab');delete_option('theme_switched');update_option('blog_publi
 $images=glob($base.'/site/wp-content/uploads/p33/*');$img=basename($images[0]);
 $id=wp_insert_post(['post_title'=>'MHC Manual Primary LAB','post_status'=>'publish','post_type'=>'page','comment_status'=>'open','post_content'=>'<p>Isolated WordPress LAB. Original Vsmart websites are unchanged.</p><img src="/wp-content/uploads/p33/'.esc_attr($img).'" alt="LAB media"/>']);
 if(is_wp_error($id)||!$id)throw new Exception('P33_CONTENT_FAILED');update_option('show_on_front','page');update_option('page_on_front',$id);
-$db->query('CREATE TABLE mhc_p33_probe (id CHAR(36) PRIMARY KEY)');
+if(!$db->query('CREATE TABLE mhc_p33_lab.mhc_p33_probe (id CHAR(36) PRIMARY KEY)'))throw new Exception('P33_PROBE_TABLE_CREATE_FAILED');
 PHP
 mariadb --no-defaults -u root > "$base/logs/quiesce.log" 2>&1 <<'SQL'
 REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'mhc_p33_web'@'localhost';
