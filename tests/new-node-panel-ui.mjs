@@ -1,0 +1,12 @@
+import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import assert from 'node:assert/strict';
+const root=path.resolve(process.argv[2]||'.'),src=fs.readFileSync(path.join(root,'bin/legacy-panel-src/public/app.js'),'utf8');
+const content={innerHTML:''},title={};let current;
+const context=vm.createContext({console,setInterval:()=>0,document:{querySelector:s=>s==='#content'?content:title},fetch:async()=>({ok:true,json:async()=>current})});
+vm.runInContext(src.slice(0,src.indexOf("$('#navigation').addEventListener"))+`\nglobalThis.render=async()=>{state.tab='cluster';await mhcClusterPage();};`,context);
+const n1={nodeId:'c2a69fe8-6b97-4f42-a938-95d843c2b5d2',label:'Xiaomi11T',heartbeatRecent:true,telemetryRecent:true,telemetry:{onboarding:{v:1,installPhase:'INSTALLED',completedStages:6,managementRunning:true,tunnelRunning:true,blockers:['SITE_RESTORE_AND_GUARDS_REQUIRED','CONTROL_PROOF_REQUIRED']}}};
+async function render(phase,status){current={mode:'SHARED_AUTHORITY_PREPARE_ONLY',nodes:[n1],p33:{enabled:true,phase,journal:status?{status}:null},p32:{},p31:{enabled:true}};await context.render();return content.innerHTML;}
+for(const phase of ['AWAITING_PUBLIC','COMMITTED']){const html=await render(phase,'AWAITING_PUBLIC');assert(!html.includes('data-action="p33-switch"'));assert(!html.includes('data-action="p33-control"'));assert(html.includes('data-action="p33-confirm"'));}
+const ready=await render('COMMITTED','VERIFIED');assert(ready.includes('data-action="p33-switch"'));assert(ready.includes('Xiaomi11T'));assert(ready.includes('Thiếu website/DB'));assert(ready.includes('Chưa đủ điều kiện'));
+current={mode:'SHARED_AUTHORITY_PREPARE_ONLY',nodes:[n1],p33:{enabled:true,phase:'COMMITTED',journal:{status:'VERIFIED'}},p32:{}};await context.render();assert(!content.innerHTML.includes('data-action="p33-switch"'));assert(!content.innerHTML.includes('data-action="p33-control"'));
+current={mode:'N1_LOCAL_NOT_JOINED',nodes:[],localOnboarding:n1.telemetry.onboarding};await context.render();assert(content.innerHTML.includes('~/mhc-full join'));assert(!content.innerHTML.includes('data-action="p33-switch"'));
+console.log('PASS N1 Panel rendering: fresh setup, joined progress/data blocker; Control/both pending hide new transitions and show public confirmation. DOM fixture only.');
