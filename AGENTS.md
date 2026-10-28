@@ -4,6 +4,8 @@
 
 > Áp dụng cho `E:\CODE\MHC`. Ưu tiên yêu cầu **mới nhất** từ người dùng hơn các mô tả LAB cũ, nhưng không bỏ các điều kiện an toàn dữ liệu.
 
+> **Roadmap cập nhật 28/10/2026 (quyết định chủ dự án):** Đọc [`docs/HOSTING-PANEL-ROADMAP.md`](docs/HOSTING-PANEL-ROADMAP.md) khi lập kế hoạch sau P3.3. Ưu tiên **đang chạy** là Manual Primary + Control P3.3; sau đó là Hosting Panel cá nhân HP1 → HP2 → HP3, **rồi mới P4 auto Primary**. Panel-only recovery P3.2 là khả năng quản trị dự phòng, **không** giữ website online. Đây là thứ tự dự kiến, không cho phép tự rời P3.3 hay bắt đầu HP1/P4 khi chưa được giao. Nguồn nghiệm thu thực: `docs/LIVE-PROGRESS.md`.
+
 ## Quy trình bắt buộc
 1. Trước khi sửa code, đọc lần lượt: `AGENTS.md`, `docs/CODEMAP.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/TROUBLESHOOTING.md`, `docs/ROADMAP-TO-V1.md`, `docs/VSMART-LAB-RUNBOOK.md`, `docs/PROJECT-STATUS-2026-10-26.md`.
 2. Kiểm tra Git/worktree trước; không xóa, reset cứng, rebase, force-push, chạy install phá dữ liệu nếu không được cho phép riêng. Tạo commit cho mỗi mốc độc lập và push chỉ khi remote/branch được xác nhận.
