@@ -34,10 +34,11 @@ function configMatches(raw,c,{legacy=false}={}){
  if(panel?.service!=='http://127.0.0.1:9090'||access?.required!==true||access.teamName!==c.teamDomain.replace('.cloudflareaccess.com','')||JSON.stringify(access.audTag)!==JSON.stringify([c.audience])||rules.at(-1)?.service!=='http_status:404'||rules.at(-1)?.hostname)return false;
  return rules.every(r=>!r.hostname||r.hostname===c.hostname||legacy&&r.hostname==='preview-lab.giaouoc.com'&&r.service==='http://127.0.0.1:18131'&&r.originRequest?.access?.required===true&&r.originRequest?.access?.teamName===access.teamName&&JSON.stringify(r.originRequest?.access?.audTag)===JSON.stringify(access.audTag));
 }
-async function cf(env,c,method,suffix,body,fetcher){
+async function cf(env,c,method,suffix,body,fetcher,allowUnconfigured=false){
  if(!/^[A-Za-z0-9._~-]{25,256}$/.test(env.MHC_N1_CF_TOKEN||''))fail('N1_CF_TUNNEL_PERMISSION_REQUIRED',503);
  let res;try{res=await fetcher('https://api.cloudflare.com/client/v4/accounts/'+c.accountId+'/cfd_tunnel'+suffix,{method,headers:{authorization:'Bearer '+env.MHC_N1_CF_TOKEN,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),redirect:'manual',signal:AbortSignal.timeout(10000)});}catch{fail('N1_CF_UNREACHABLE',503);}
  if(res.status===401||res.status===403)fail('N1_CF_TUNNEL_PERMISSION_REQUIRED',503);
+ if(res.status===404&&allowUnconfigured&&method==='GET'&&suffix.endsWith('/configurations'))return {config:null};
  if(!res.ok)fail('N1_CF_API_FAILED',503);
  let raw='',size=0;for await(const b of res.body||[]){size+=b.length;if(size>524288)fail('N1_CF_REPLY_TOO_LARGE',503);raw+=new TextDecoder().decode(b);}
  let data;try{data=JSON.parse(raw);}catch{fail('N1_CF_REPLY_INVALID',503);}if(data.success!==true)fail('N1_CF_API_FAILED',503);return data.result;
@@ -90,7 +91,7 @@ export async function n1Action({ctx,env,action,body={},nodeId,authorize,fetcher=
   }
   const t=await cf(env,c,'GET','/'+row.tunnelId,null,fetcher);
   if(t?.id!==row.tunnelId||t.deleted_at||t.config_src!=='cloudflare'||!row.legacy&&t.name!==row.name)fail('N1_TUNNEL_IDENTITY_CONFLICT');
-  let cfg=await cf(env,c,'GET','/'+row.tunnelId+'/configurations',null,fetcher);
+  let cfg=await cf(env,c,'GET','/'+row.tunnelId+'/configurations',null,fetcher,!row.legacy&&['CREATED','CONFIGURE_REQUESTED'].includes(row.phase));
   if(!configMatches(cfg,c,{legacy:row.legacy===true})){
    if(row.legacy||!['CREATED','CONFIGURE_REQUESTED'].includes(row.phase))fail('N1_EXISTING_TUNNEL_CONFIG_CHANGED');
    const existing=cfg?.config?.ingress;if(existing?.length&&!(existing.length===1&&!existing[0].hostname&&existing[0].service==='http_status:404'))fail('N1_EXISTING_TUNNEL_CONFIG_CHANGED');

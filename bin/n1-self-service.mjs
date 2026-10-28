@@ -1,6 +1,7 @@
 // Agent-owned, resumable management setup. Own Tunnel token only; never DNS/SQL/site data.
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import {spawnSync} from 'node:child_process';
 import {sharedStatus,sharedN1Request} from './cluster-authority.mjs';import {ControlNode} from './control-node.mjs';
+import {waitForSupervisor} from './new-node-install.mjs';
 const home=()=>process.env.HOME||os.homedir(),fail=c=>{throw Error(c);};
 function safe(root,file){let at=path.resolve(root);if(fs.lstatSync(at).isSymbolicLink())fail('N1_SETUP_SYMLINK_DENIED');const rel=path.relative(at,file);if(rel.startsWith('..')||path.isAbsolute(rel))fail('N1_SETUP_PATH_DENIED');for(const p of rel.split(path.sep)){at=path.join(at,p);if(fs.lstatSync(at,{throwIfNoEntry:false})?.isSymbolicLink())fail('N1_SETUP_SYMLINK_DENIED');}return file;}
 function read(root,file,{fixture=false,json=true}={}){safe(root,file);const st=fs.lstatSync(file);if(!st.isFile()||st.size>65536||!fixture&&(st.mode&0o077))fail('N1_SETUP_PRIVATE_FILE_UNSAFE');const text=fs.readFileSync(file,'utf8');return json?JSON.parse(text):text;}
@@ -11,7 +12,7 @@ export class N1SelfService{
  constructor(o={}){this.home=o.home||home();this.prefix=o.prefix||process.env.PREFIX;this.fixture=o.fixture===true;this.now=o.now||Date.now;this.status=o.status||(()=>sharedStatus('agent'));this.request=o.request||sharedN1Request;this.execute=o.execute||((c,a)=>spawnSync(c,a,{encoding:'utf8',timeout:15000,maxBuffer:65536,stdio:['ignore','pipe','pipe']}));this.proof=o.proof||((nonce)=>new ControlNode().proof(nonce));this.config=path.join(this.home,'.config/mhc-full-installer');this.stateFile=path.join(this.home,'.local/state/mhc-n1-self-service/state.json');}
  gate(){if(!this.fixture&&(this.prefix!=='/data/data/com.termux/files/usr'||!['android','linux'].includes(process.platform)))fail('N1_SETUP_TERMUX_REQUIRED');for(const p of ['apps/thophuongpro/.env','.config/mini-hosting-cluster/node.json','.config/mini-hosting-cluster/ha.json'])if(fs.existsSync(path.join(this.home,p)))fail('N1_SETUP_PRODUCTION_DENIED');const id=read(this.home,path.join(this.config,'node-identity.json'),{fixture:this.fixture}),progress=read(this.home,path.join(this.home,'.local/state/mhc-new-node-install/progress.json'),{fixture:this.fixture});if(id.kind!=='new-node-standby'||progress.phase!=='INSTALLED'||progress.nodeId!==id.nodeId)fail('N1_SETUP_COMPLETED_INSTALL_REQUIRED');return id;}
  run(command,args){const r=this.execute(command,args);if(r.status!==0||r.error)fail('N1_SETUP_SERVICE_FAILED');return r.stdout||'';}
- configure(value,state){
+ async configure(value,state){
   const own=this.gate(),authority=read(this.home,path.join(this.config,'authority.json'),{fixture:this.fixture}),pub=read(this.home,path.join(this.config,'node-proof-key.pub'),{fixture:this.fixture,json:false});
   if(value.publicKey!==pub||value.origin?.schema!==1||value.origin.hostname!=='panel-lab.giaouoc.com'||!/^[a-z0-9-]+\.cloudflareaccess\.com$/.test(value.origin.teamDomain||'')||!/^[A-Za-z0-9_-]{32,128}$/.test(value.origin.audience||'')||!/^[a-f0-9-]{36}$/.test(value.tunnelId||'')||typeof value.tunnelToken!=='string'||!/^[A-Za-z0-9_=+\/-]{30,8192}$/.test(value.tunnelToken))fail('N1_SETUP_REPLY_INVALID');
   if(state.tunnelId&&state.tunnelId!==value.tunnelId)fail('N1_SETUP_TUNNEL_PIN_CHANGED');
@@ -22,7 +23,7 @@ export class N1SelfService{
   else atomic(this.home,token,value.tunnelToken+'\n');
   const existing=fs.existsSync(remote)?read(this.home,remote,{fixture:this.fixture}):null;
   if(existing&&!([existing,...existing.applications||[]].some(a=>a.hostname===value.origin.hostname&&a.teamDomain===value.origin.teamDomain&&a.audience===value.origin.audience)))fail('N1_SETUP_EXISTING_ACCESS_CONFIG_DIFFERS');
-  if(!existing){atomic(this.home,remote,JSON.stringify(value.origin)+'\n');state.restartPanel=true;this.save(state);}
+  if(!existing){state.restartPanel=true;this.save(state);atomic(this.home,remote,JSON.stringify(value.origin)+'\n');}
   const cfg={schema:1,enabled:true,transport:'authority',keyFlavor:'N1',nodeId:own.nodeId,clusterId:authority.clusterId,publicKey:pub};
   if(fs.existsSync(self)&&JSON.stringify(read(this.home,self,{fixture:this.fixture}))!==JSON.stringify(cfg))fail('N1_SETUP_EXISTING_CONTROL_PIN_DIFFERS');
   if(!fs.existsSync(self))atomic(this.home,self,JSON.stringify(cfg)+'\n');
@@ -30,6 +31,7 @@ export class N1SelfService{
   const expectedRun='#!/data/data/com.termux/files/usr/bin/sh\nexec 2>&1\nexec /data/data/com.termux/files/usr/bin/cloudflared tunnel --no-autoupdate run --token-file "$HOME/.config/mhc-full-installer/cloudflare-lab/tunnel-token"\n';
   if(!fs.existsSync(service)){this.run(path.join(this.prefix,'bin/bash'),[path.join(this.home,'.local/share/mhc-full-installer/bin/panel-tunnel-service.sh'),'install','--confirm=INSTALL_LAB_PANEL_TUNNEL']);}
   else if(read(this.prefix,path.join(service,'run'),{fixture:true,json:false})!==expectedRun)fail('N1_SETUP_EXISTING_SERVICE_DIFFERS');
+  if(!this.fixture)await waitForSupervisor([path.join(service,'supervise/ok')]);
   this.run(path.join(this.prefix,'bin/sv-enable'),['mhc-panel-tunnel']);this.run(path.join(this.prefix,'bin/sv'),['up',service]);
   if(state.restartPanel){this.run(path.join(this.prefix,'bin/sv'),['restart',path.join(this.prefix,'var/service/amh-panel')]);state.restartPanel=false;}
  }
@@ -42,7 +44,7 @@ export class N1SelfService{
   try{
    if(!state.lastProvisionAt||this.now()-state.lastProvisionAt>=45000){
     const reply=await this.request('n1-provision'),v=reply.n1;if(!v)fail('N1_SETUP_REPLY_INVALID');
-    this.configure(v,state);state={...state,phase:v.phase,tunnelId:v.tunnelId,lastProvisionAt:this.now(),retryAfter:null,errorCode:null};this.save(state);
+    await this.configure(v,state);state={...state,phase:v.phase,tunnelId:v.tunnelId,lastProvisionAt:this.now(),retryAfter:null,errorCode:null};this.save(state);
    }
    if(state.phase==='CONTROL_REGISTERED'){
     const envelope=await this.proof(crypto.randomBytes(32).toString('hex'));

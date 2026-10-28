@@ -32,9 +32,9 @@ Source self-service mới dùng Agent → cùng Worker/DO để tự cấp Tunne
 
 ### Cấp quyền Cloudflare một lần cho cả cluster
 
-1. Cloudflare → My Profile → API Tokens → Create Token → Custom/Get started. Đặt tên MHC-N1-TUNNEL.
-2. Permissions: **Account → Cloudflare Tunnel → Edit**. Account Resources: Include → Specific account → account chứa giaouoc.com, ID35b2468610cfa060d5d02865b7996a74. Không thêm DNS/Access/Workers hoặc quyền tạo token.
-3. Chọn thời hạn theo chính sách của bạn; khi hết hạn phải cấp token thay thế. Tạo token rồi chạy đúng lệnh PowerShell dưới, chỉ dán token tại lời nhắc ẩn. Không dán token vào chat/lệnh/screenshot.
+1. Giao diện Account API tokens mới: Manage account → Account API tokens → Create token, tên MHC-N1-TUNNEL → Permission policies → **Start from scratch**. Giao diện token cá nhân cũ: My Profile → API Tokens → Create Token → Custom/Get started.
+2. Tìm `cloudflared`; chọn **Cloudflare One Connector: cloudflared → Write**. Tên cũ **Cloudflare Tunnel → Edit/Write** cũng được API chấp nhận. Chỉ cần một Write permission; chọn thêm Read vẫn dùng được. Với account token, tạo trong đúng account chứa giaouoc.com, ID35b2468610cfa060d5d02865b7996a74; có thể không có Specific account. Với user token, Include → Specific account đúng account này. Không chọn full account/write all/DNS/Access/Workers hoặc quyền tạo token.
+3. Lưu/Add policy nếu màn hình yêu cầu, chọn thời hạn theo chính sách; để trống Client IP filtering vì Worker dùng token. Review token → Create token. Tạo token xong chưa đủ: phải chạy đúng lệnh PowerShell dưới và dán token tại lời nhắc ẩn để đưa vào Worker. Khi hết hạn cần token thay thế. Không dán token vào chat/lệnh/screenshot.
 
 ```powershell
 & 'E:\CODE\MHC\MHC\.work\repository\tools\configure-cloudflare-n1.ps1'

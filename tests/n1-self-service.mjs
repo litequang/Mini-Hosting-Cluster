@@ -21,7 +21,7 @@ const fakeCF=async(url,o)=>{
  if(o.method==='POST'){createCalls++;assert.equal(createCalls,1);const p=JSON.parse(o.body);created={id:tunnelId,name:p.name,config_src:p.config_src,status:'down',connections:[]};if(loseCreateReply){loseCreateReply=false;throw Error('network lost after creation');}result=created;}
  else if(!suffix){assert.equal(o.method,'GET');result=created?[created]:[];}
  else if(suffix==='/'+tunnelId){result={...created,status:connected?'healthy':'down',connections:connected?[{is_pending_reconnect:false}]:[]};}
- else if(suffix.endsWith('/configurations')){if(o.method==='PUT'){putCalls++;tunnelCfg=JSON.parse(o.body);if(losePutReply){losePutReply=false;throw Error('lost configuration reply');}}result=tunnelCfg;}
+ else if(suffix.endsWith('/configurations')){if(o.method==='GET'&&!putCalls)return new Response('',{status:404});if(o.method==='PUT'){putCalls++;tunnelCfg=JSON.parse(o.body);if(losePutReply){losePutReply=false;throw Error('lost configuration reply');}}result=tunnelCfg;}
  else if(suffix.endsWith('/token')){result=tunnelToken;}else throw Error('unexpected CF route');
  return Response.json({success:true,result});
 };
@@ -45,6 +45,7 @@ try{
  await assert.rejects(call('n1-provision'),/CF_UNREACHABLE/);assert.equal(row().phase,'CONFIGURE_REQUESTED');assert.equal(createCalls,1);assert.equal(putCalls,1);checks++;
  const provisioned=await call('n1-provision');assert.equal(provisioned.n1.phase,'WAITING_CONNECTOR');assert.equal(provisioned.n1.tunnelToken,tunnelToken);assert.equal(provisioned.p33.controlOnlyNodeIds.includes(id),false);assert.equal(putCalls,1);checks++;
  assert.equal(tunnelCfg.config.ingress.length,2);assert.equal(tunnelCfg.config.ingress[0].originRequest.access.required,true);assert.equal(tunnelCfg.config.ingress[1].service,'http_status:404');checks++;
+ const expectedConfig=structuredClone(tunnelCfg);tunnelCfg.config.ingress[0].hostname='panel.giaouoc.com';await assert.rejects(call('n1-provision'),/EXISTING_TUNNEL_CONFIG_CHANGED/);assert.equal(putCalls,1,'never overwrite changed ingress');tunnelCfg=expectedConfig;checks++;
  const secretStatus=JSON.stringify(await call('status',{},'panel',a));assert(!secretStatus.includes(tunnelToken));assert(!secretStatus.includes(env.MHC_N1_CF_TOKEN));assert(!JSON.stringify([...storage.data.values()]).includes(tunnelToken));checks++;
  write(path.join(dir,'installed'),'TEST 0.5.0C-REMOTE-PANEL installed on clean Termux');write(path.join(dir,'node-identity.json'),{schema:1,nodeId:id,kind:'new-node-standby'});write(path.join(dir,'authority.json'),{schema:1,clusterId:cluster,nodeId:id});write(path.join(home,'.local/state/mhc-new-node-install/progress.json'),{schema:1,nodeId:id,phase:'INSTALLED'});fs.mkdirSync(path.join(home,'android-hosting-panel/data'),{recursive:true,mode:0o700});fs.mkdirSync(prefix,{recursive:true});
  let tunnelStarted=0,panelRestarted=0;
