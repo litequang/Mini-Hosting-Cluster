@@ -37,6 +37,10 @@
 - Rejoin old node as standby/quarantine; nó không tự bật lại route/DB writer.
 - Nghiệm thu: switchover và rollback giữa hai LAB độc lập, cả khi Panel của Primary chết; một hostname Panel vẫn truy cập qua node dự phòng được bảo vệ Cloudflare Access trong chế độ recovery.
 
+## Lộ trình Hosting Panel cá nhân được chốt 28/10/2026
+
+**Sau khi hoàn tất P3.3 Manual Primary + Control:** ưu tiên **HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**, sau đó mới triển khai **P4 Auto Primary / Auto Control**. Đây là thứ tự mới nhất theo yêu cầu chủ dự án. **Panel/Control recovery của P3.2 đã có không phải tự chuyển website**; Auto Primary nhằm khôi phục website/DB khi máy chính gặp sự cố và cần fencing tránh 2 writers. Không ngắt Codex đang hoàn thiện P3.3; không tự bắt đầu HP1/P4. Phạm vi module, DoD và rủi ro: [HOSTING-PANEL-ROADMAP.md](HOSTING-PANEL-ROADMAP.md). Trạng thái thực: [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
+
 ## P4 — Auto Primary healthy + newest verified snapshot
 - Heartbeat agent, active web probe, timestamp+hash verified backups, storage/capacity+online reliability scoring.
 - Election cooldown, tie breaker deterministic, durable epoch, multiple health checks; không tự bầu nếu authority unavailable.
