@@ -103,6 +103,8 @@ Nếu chỉ bảo vệ được entrypoint do MHC quản lý, nhãn phải nói 
 
 Đọc LIVE-PROGRESS trước mọi mutation; không suy ra trạng thái hiện hành từ example. Source và fixtures P32 đã commit, chạy các test phù hợp theo bin/self-test.sh. tools/p32-live-panel.mjs là client dùng trên đúng Vsmart/XZ3 Termux LAB, copy bằng SSH/SCP vào thư mục state private rồi chạy Node; không đưa password/token vào arguments. Client chỉ dùng password file local đã có (panel-login-once hoặc panel-test-password0600), không reset password, từ chối node/target ngoài allowlist và footprint production. Các action: origin-check (không đọc/yêu cầu password file), status, p32-route NODE_ID [both|panel], p32-resume, p32-rollback, confirm-denied-local. Client local không thể confirm Internet; bước đó bắt buộc từ phiên Access thật trên public Panel. Nếu thiếu password file thì local login test NOT RUN; Access SSO vẫn dùng được.
 
+Không cần chọn target trước khi xác minh: dropdown chỉ áp dụng nút chuyển tuyến. Xác minh luôn dùng origin public đang nhận request. Chỉ bấm một lần cho mỗi journal chờ; lần sau có thể báo AUTHORITY_P32_NO_CONFIRMABLE_ROUTE. Đọc VERIFIED/ROLLBACK_VERIFIED + httpVerified=true để phân biệt đã hoàn tất với journal/cấu hình không hợp lệ.
+
 Khi journal DNS_AWAITING_HTTP, mở Panel LAB hiện trỏ node đích, Cluster → Xác minh Internet từ Panel LAB; chỉ sau Worker ghi VERIFIED mới kết thúc pending/chuẩn bị ứng viên khác. DNS_REQUESTED thì kiểm actual records và p32-resume sau cooldown; không blind abort. Tắt Windows không tự xóa journal/source/backup trên phones hoặc Cloudflare; giữ Android/Termux/network hoạt động nếu cần public preview. Worker adapter source có thể mới hơn payload node vì reference/cluster-authority không thuộc gói81 file điện thoại.
 
 

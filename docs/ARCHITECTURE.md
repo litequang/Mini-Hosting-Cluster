@@ -16,7 +16,7 @@ Internet: panel.giaouoc.com           Website LAB được allowlist
                   Panel A  Panel B  Panel N
 ```
 
-Mọi node có original Panel 9090 và node Agent. Authority chung độc lập điện thoại, dùng DO transaction/CAS và audit; không bầu riêng trên từng Android. Membership/heartbeat/Monitor chung đã quan sát trên Vsmart và XZ3. P3 DNS journal/Panel recovery có source, bản Cloudflare P3/Cron chưa xác minh. Sơ đồ không chứng nhận website/Panel đã tự chuyển giữa hai node.
+Mọi node có original Panel 9090 và node Agent. Authority chung độc lập điện thoại, dùng DO transaction/CAS và audit; không bầu riêng trên từng Android. Membership/heartbeat/Monitor dùng cùng authority. P3.2 có journal tuyến read-only và Cron recovery riêng Panel; trạng thái triển khai/nghiệm thu thực chỉ ở LIVE-PROGRESS. Sơ đồ không chứng nhận safe writer Primary hoặc chuyển production.
 
 ## Quyền và luồng điều khiển
 

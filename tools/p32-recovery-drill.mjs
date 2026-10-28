@@ -17,7 +17,7 @@ function save(v){const temp=journal+'.'+crypto.randomUUID();const fd=fs.openSync
 function running(name){const r=spawnSync('sv',['status',path.join(prefix,'var/service',name)],{encoding:'utf8',timeout:10000});return r.status===0&&/^run:/.test(r.stdout||'');}
 function service(action,name){if(!services.includes(name))fail('P32_DRILL_SERVICE_DENIED');const r=spawnSync('sv',['-w','15',action,path.join(prefix,'var/service',name)],{stdio:'ignore',timeout:20000});if(r.status!==0)fail('P32_DRILL_SERVICE_ACTION_FAILED');}
 function view(j){return {scope:'XZ3_AGENT_AND_TUNNEL_OUTAGE_ONLY',phase:j?.phase||'NOT_STARTED',drillId:j?.drillId||null,startedAt:j?.startedAt||null,rescueAt:j?.rescueAt||null,restoredAt:j?.restoredAt||null,services:Object.fromEntries([...services,'amh-panel','sshd'].map(n=>[n,running(n)])),fullAndroidPowerOrNetworkOutageTested:false};}
-function restore(reason,expected){const j=read();if(!j||expected&&expected!==j.drillId)fail('P32_DRILL_RESTORE_ID_MISMATCH');let failed=false;for(const n of services)try{service('up',n);}catch{failed=true;}if(failed||services.some(n=>!running(n))){save({...j,phase:'RESTORE_FAILED'});fail('P32_DRILL_RESTORE_NOT_RUNNING');}save({...j,phase:reason,restoredAt:new Date().toISOString()});return view(read());}
+function restore(reason,expected){const j=read();if(!j||!expected||expected!==j.drillId)fail('P32_DRILL_RESTORE_ID_MISMATCH');let failed=false;for(const n of services)try{service('up',n);}catch{failed=true;}if(failed||services.some(n=>!running(n))){save({...j,phase:'RESTORE_FAILED'});fail('P32_DRILL_RESTORE_NOT_RUNNING');}save({...j,phase:reason,restoredAt:new Date().toISOString()});return view(read());}
 try{
  gate();
  if(action==='status'){console.log(JSON.stringify(view(read())));}
