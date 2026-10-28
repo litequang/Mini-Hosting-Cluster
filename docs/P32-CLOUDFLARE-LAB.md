@@ -107,3 +107,12 @@ Khi journal DNS_AWAITING_HTTP, mở Panel LAB hiện trỏ node đích, Cluster 
 
 
 origin-check dùng raw HTTP tới loopback9090 với Host public thật để kiểm deny missing/invalid JWT, hostname ngoài allowlist và unauth APIs. Không dùng fetch Host override để kết luận guard vì Node26 có thể chuẩn hóa header; không đổi guard khi probe nhầm. Kết quả negative checks PASS không chứng minh valid Access login hoặc tuyến Internet đã VERIFIED. Sau gián đoạn, nếu preview quarantine mà pending/journal giữ nguyên, đọc signed readiness/event reason rồi re-PREPARE chính pending khi hợp lệ; không restart supervisor, tạo intent mới hoặc xóa journal để vượt DNS_AWAITING_HTTP.
+
+
+## Controlled outage riêng management XZ3
+
+Sau manual roundtrip/rollback VERIFIED: giữ website preview trên Vsmart, chuyển chỉ Panel LAB sang XZ3 và xác minh Access origin. Bật MHC_P32_PANEL_RECOVERY_ENABLED=LAB_PANEL_ONLY tại đúng Worker hiện hữu; đọc lại shared status phải recoveryEnabled=true, không chỉ settings/deployment API. Giữ source/namespace/secrets/journal; không bật P4 hoặc writer.
+
+Copy tools/p32-recovery-drill.mjs tới private state LAB trên XZ3. status chỉ đọc; start cần --confirm=STOP_XZ3_LAB_MANAGEMENT_FOR_RECOVERY_TEST, kiểm lại authority và đúng node rồi mới dừng duy nhất mhc-authority-agent + mhc-panel-tunnel. Không dừng amh-panel/sshd, không reboot/cắt Wi-Fi, không đụng Tunnel Vsmart đang chở production Panel. Intent và timer management12phút được đặt trước khi dừng; restore DRILL_UUID khởi lại cả hai services, kiểm running và ghi journal. Nếu một lệnh up lỗi vẫn thử service còn lại. Timer chỉ best-effort cùng Termux, không đảm bảo khi Android kill app/mất điện; SSH và người cứu hộ vẫn cần giữ.
+
+Quan sát heartbeat age>5phút, Cron1phút, chỉ record Panel chuyển về Vsmart, site CNAME/epoch/revision/pending/Primary/lease không đổi; DNS xong vẫn chờ public Panel proof. Sau khi DNS recovery, restore management XZ3, đọc lại telemetry và theo dõi nhiều vòng Cron không failback. Ghi rõ đây là outage Agent+Tunnel, không phải full Android power/network/reboot acceptance. Lần chạy thực và phần NOT RUN chỉ ở LIVE-PROGRESS.
