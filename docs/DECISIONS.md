@@ -1,5 +1,16 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 28/10/2026 — Đơn giản hóa chuyển node, ưu tiên Auto Primary Lite ngay sau Manual
+
+- **User đổi thứ tự ưu tiên:** Codex đang làm **P3.3 Manual Primary + Control** cứ tiếp tục, không ngắt; tiếp theo **P4 Lite Auto Primary + Control (LAB MHC-managed site) → HP1 Hosting Core → HP2 Domain & Automation → HP3 Backup/Advanced → P5 production theo phê duyệt riêng**. Quyết định này thay thế lựa chọn trước đó để Auto sau HP3. Xem docs/HOSTING-PANEL-ROADMAP.md.
+- Mục tiêu hữu ích nhất là **website tự phục hồi khi Primary mất mạng**, không chỉ mở lại Panel. P3.2 Panel-only auto recovery giữ nguyên, không làm thành phase riêng. Control có thể route độc lập; chuyển site writer chỉ sau writer gates/lease theo epoch.
+- **Không đòi dữ liệu hai node giống 100%**: backup/restore thủ công được chấp nhận, standby dùng data sẵn có dù có thể cũ; hiển thị RPO và độ mới đã kiểm chứng, không tự hợp nhất/ghi đè/đồng bộ data hoặc bắt buộc MariaDB GTID.
+- **Tối giản nhưng không bỏ an toàn:** Nếu Vsmart offline thì không thể yêu cầu Vsmart tắt writer qua mạng. Chỉ auto promote XZ3 khi writer lease cũ đã hết hiệu lực, các đường ghi **site thuộc MHC quản lý** tự từ chối khi authority/lease mất và node đích đủ điều kiện. Dùng single Cloudflare DO + CAS revision/epoch; không có authority thì fail-closed. Có thể tồn tại root/SQL đặc quyền/shell/cron ngoài MHC nên không khẳng định toàn điện thoại đã fence; site có unmanaged writers phải chặn auto. Chuyển tuyến phải có signed HTTPS site/node proof. Vsmart trở lại luôn Standby/quarantine và không tự failback.
+- P3.3 đang thiết kế yêu cầu cả hai LAB reachable để quiesce. **Không bỏ check đó tùy tiện**; kế tiếp cần bổ sung và test self-fencing + manual old-offline takeover có bằng chứng trước P4 Lite tự động. Auto là opt-in sau controlled fault trên Vsmart/XZ3, không bật sớm và không đổi M51/X7b/production.
+- GitHub docs có thể được cập nhật khi Codex VS Code đang chạy: Codex cần fetch/merge an toàn ở checkpoint phù hợp, giữ mọi sửa đổi chưa commit, không hard reset/force push hoặc giả định nhánh tự đồng bộ vào phiên đang làm.
+
+
+
 ## 28/10/2026 — Ưu tiên Manual Primary + Control có phạm vi
 
 - User yêu cầu chuyển node thủ công trước, Auto khi lỗi/offline làm sau. Triển khai scoped writer lease cho website WordPress LAB mới, giữ site/Panel production nguyên vẹn; không để replication nâng cao chặn mốc usable.
