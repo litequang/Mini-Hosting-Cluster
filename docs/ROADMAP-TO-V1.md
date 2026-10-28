@@ -39,7 +39,7 @@
 
 ## Thứ tự mới nhất — 28/10/2026: khôi phục WEBSITE trước, Hosting Panel sau
 
-**Đang làm: P3.3 Manual Primary + Control**. Codex tiếp tục hoàn thiện code/tests/live rollout hai Android hiện tại, **không dừng hay làm lại**. Sau nghiệm thu P3.3 thật trên Vsmart/XZ3: **P4 Lite (Auto Primary + Control cho site LAB thuộc MHC quản lý) → HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**. Production migration P5 chỉ sau khi user duyệt.
+**Đang làm: P3.3 Manual Primary + Control**. Codex tiếp tục hoàn thiện code/tests/live rollout hai Android hiện tại, **không dừng hay làm lại**. Sau nghiệm thu P3.3 thật trên Vsmart/XZ3: **N1 Unified New Node Installer → P4 Lite (Auto Primary + Control cho site LAB thuộc MHC quản lý) → HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**. N1 bổ sung cài mới/ghép nhiều node/kiểm eligibility từ nguồn động, không cấp Primary hoặc writer khi join; chi tiết tại [UNIFIED-NEW-NODE-INSTALLER.md](UNIFIED-NEW-NODE-INSTALLER.md). Production migration P5 chỉ sau khi user duyệt.
 
 - P4 Lite **tái dùng** Manual pipeline; Authority độc lập, CAS epoch và lease/fencing, health+HTTP site/Tunnel; kiểm dataset node đích; khi node cũ mất liên lạc, **chờ quyền ghi cũ hết và đảm bảo managed writer self-fence**, thay vì giả định mất mạng là SQL ngừng. Site/DB trên node đích có thể cũ hơn; chấp nhận RPO, không ép replication/GTID 100%. Chỉ auto chọn site MHC-managed đã được xác minh có guard HTTP/PHP/app-DB/jobs; nếu không fence được thì không auto promote, hiển thị yêu cầu can thiệp thủ công. Node cũ rejoin chỉ Standby/quarantine, không auto failback.
 - P3.2 tự khôi phục Panel/Control là tính năng quản trị phụ đã có, **không thay thế website failover**.
