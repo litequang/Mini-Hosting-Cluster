@@ -1,5 +1,9 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## N1 installer bị gián đoạn PC/SSH
+
+Không suy ra script trên Android đã dừng khi PC restart. Kiểm metadata ~/.local/state/mhc-new-node-install/installer.pid, installer.exit, progress.json và install.lock; chỉ đọc các field stage/phase/completed/errorCode, không gửi log thô/credential. Trong bootstrap chưa có Node thì PID/log/source-commit vẫn là checkpoint, chưa có progress.json không tự có nghĩa chưa có process. Nếu launcher/lock còn chạy thì theo dõi, không chạy lại. Khi dừng, retry đúng pinned bootstrap/source ban đầu; changed source/manifest/output phải được điều tra, không xóa journal hoặc rotate identity. Cổng8022 từ chối thì cần mở Termux/chạy sshd cứu hộ; sau cài phải kiểm runit SSH + Boot, không xem standalone daemon là tự phục hồi.
+
 ## P3.3 Manual LAB: còn AWAITING_PUBLIC
 
 P33_TRANSITION_PENDING nghĩa là chưa được bắt đầu một lượt chuyển khác. Đọc phase/journal và target thực: DNS/site/Control có thể đã đổi, lease có hiệu lực nhưng Primary chưa COMMITTED vì đang chờ signed Internet proof. Tải lại panel-lab.giaouoc.com rồi chỉ bấm **Hoàn tất kiểm tra Internet**; dropdown không quyết định target khi confirm. Khi COMMITTED/journal VERIFIED mới bắt đầu chuyển tiếp. Không xóa pending/lock, fake proof hoặc dùng localhost thay Access. Thông báo lỗi của lượt bấm begin lần hai không có nghĩa lượt chuyển đang chờ đã thất bại.
