@@ -37,9 +37,15 @@
 - Rejoin old node as standby/quarantine; nó không tự bật lại route/DB writer.
 - Nghiệm thu: switchover và rollback giữa hai LAB độc lập, cả khi Panel của Primary chết; một hostname Panel vẫn truy cập qua node dự phòng được bảo vệ Cloudflare Access trong chế độ recovery.
 
-## Lộ trình Hosting Panel cá nhân được chốt 28/10/2026
+## Thứ tự mới nhất — 28/10/2026: khôi phục WEBSITE trước, Hosting Panel sau
 
-**Sau khi hoàn tất P3.3 Manual Primary + Control:** ưu tiên **HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**, sau đó mới triển khai **P4 Auto Primary / Auto Control**. Đây là thứ tự mới nhất theo yêu cầu chủ dự án. **Panel/Control recovery của P3.2 đã có không phải tự chuyển website**; Auto Primary nhằm khôi phục website/DB khi máy chính gặp sự cố và cần fencing tránh 2 writers. Không ngắt Codex đang hoàn thiện P3.3; không tự bắt đầu HP1/P4. Phạm vi module, DoD và rủi ro: [HOSTING-PANEL-ROADMAP.md](HOSTING-PANEL-ROADMAP.md). Trạng thái thực: [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
+**Đang làm: P3.3 Manual Primary + Control**. Codex tiếp tục hoàn thiện code/tests/live rollout hai Android hiện tại, **không dừng hay làm lại**. Sau nghiệm thu P3.3 thật trên Vsmart/XZ3: **P4 Lite (Auto Primary + Control cho site LAB thuộc MHC quản lý) → HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**. Production migration P5 chỉ sau khi user duyệt.
+
+- P4 Lite **tái dùng** Manual pipeline; Authority độc lập, CAS epoch và lease/fencing, health+HTTP site/Tunnel; kiểm dataset node đích; khi node cũ mất liên lạc, **chờ quyền ghi cũ hết và đảm bảo managed writer self-fence**, thay vì giả định mất mạng là SQL ngừng. Site/DB trên node đích có thể cũ hơn; chấp nhận RPO, không ép replication/GTID 100%. Chỉ auto chọn site MHC-managed đã được xác minh có guard HTTP/PHP/app-DB/jobs; nếu không fence được thì không auto promote, hiển thị yêu cầu can thiệp thủ công. Node cũ rejoin chỉ Standby/quarantine, không auto failback.
+- P3.2 tự khôi phục Panel/Control là tính năng quản trị phụ đã có, **không thay thế website failover**.
+- Manual P3.3 hiện yêu cầu liên lạc cả hai máy để fence; P4 Lite phải có bài nghiệm thu old-node offline dựa trên self-fencing lease đã kiểm chứng, không chỉ xóa check old-online.
+- Auto sau P3.3 vẫn **opt-in disabled by default** cho đến khi thử mất mạng, lease expiry, rejoin, public HTTPS và không hai managed writer trên hai Android. Không bật production.
+- Chi tiết scope và DoD tại [HOSTING-PANEL-ROADMAP.md](HOSTING-PANEL-ROADMAP.md). Source/runtime PASS/NOT RUN theo [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
 
 ## P4 — Auto Primary healthy + newest verified snapshot
 - Heartbeat agent, active web probe, timestamp+hash verified backups, storage/capacity+online reliability scoring.
