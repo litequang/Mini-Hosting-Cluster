@@ -57,4 +57,7 @@ await assert.rejects(authorityRequest(cfg(a),'status',{},async(url,init)=>{
 }),/REPLY_MISMATCH/);
 const unauthorized=await worker.fetch(new Request('https://authority.example/v1/clusters/'+cluster+'/begin',{method:'POST',headers:{'x-mhc-internal-role':'panel'}}),env);
 assert.equal(unauthorized.status,401);
+const report=await call(a,'heartbeat',{sequence:2,sentAt:Date.now(),telemetry:{v:1,services:{'amh-panel':'running'},onboarding:{v:1,installPhase:'INSTALLED',sourceCommit:'f'.repeat(40),completedStages:6,authorityConfigured:true,managementRunning:true,tunnelRunning:true,eligiblePrimary:true,routeVerified:true,siteVerified:true,blockers:['SITE_RESTORE_AND_GUARDS_REQUIRED','SECRET_DO_NOT_LEAK'],secret:'SECRET_DO_NOT_LEAK'}}},'agent');
+const onboarding=report.nodes.find(n=>n.nodeId===a).telemetry.onboarding;
+assert.equal(onboarding.installPhase,'INSTALLED');assert.equal(onboarding.eligiblePrimary,false);assert.equal(onboarding.siteVerified,false);assert.equal(onboarding.routeVerified,false);assert(!JSON.stringify(report).includes('SECRET_DO_NOT_LEAK'));assert.equal(report.writeLeaseGranted,false);
 console.log('PASS: shared authority concurrency, role auth, replay, durable retry, crash recovery, storage failure and client fail-closed (in-memory storage fixture)');

@@ -7,6 +7,16 @@ import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 export const LAB_NODES=['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24'];
+export function upgradeAuthoritySnapshot(s,nodeId,managementOnly=false){
+ if(s.mode!=='SHARED_AUTHORITY_PREPARE_ONLY'||!Array.isArray(s.nodes))fail('AUTHORITY_SAFETY_MISMATCH');
+ const node=s.nodes.find(n=>n.nodeId===nodeId);if(!node)fail('AUTHORITY_NODE_MISSING');
+ const r=s.p33;
+ if(s.pending||r?.enabled&&(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED'))fail('AUTHORITY_TRANSITION_BLOCKS_UPGRADE');
+ if(s.declaredPrimary?.nodeId===nodeId||r?.primaryNodeId===nodeId||r?.lease?.nodeId===nodeId||node.role==='PRIMARY_MANAGED_SCOPE')fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
+ if(s.writeLeaseGranted!==false&&!(managementOnly&&r?.enabled===true&&r.scope==='MHC_MANAGED_WORDPRESS_LAB'&&r.writerLeaseGranted===true&&r.lease?.scope===r.scope&&r.lease.nodeId!==nodeId&&r.primaryNodeId===r.lease.nodeId&&r.lease.epoch===s.epoch&&r.lease.expiresAt>Date.now()))fail('AUTHORITY_SAFETY_MISMATCH');
+ return {clusterId:s.clusterId,revision:s.revision,epoch:s.epoch,lastSeenAt:node.lastSeenAt,telemetryRecent:node.telemetryRecent,
+  ownership:JSON.stringify({primary:r?.primaryNodeId||null,leaseNode:r?.lease?.nodeId||null,operation:r?.operationId||null,phase:r?.phase||null,panel:s.p32?.panelNodeId||null,site:s.p32?.siteNodeId||null})};
+}
 export const PANEL_FILES=['src/server.mjs','src/system.mjs','src/mhc-integration.mjs','src/mhc-remote-access.mjs','public/index.html','public/app.js','public/style.css'];
 export const LEGACY_BOOT_SHA='dfb55b50c571c154843dd035e0c272d8c7a82b5959312e737d36399b112dca85';
 export const OLD_CANONICAL_SHA='82142c143ce49c2e259b8ce68f1dae1bcad2b13ac4368117e752e558e66d027f';
@@ -22,7 +32,7 @@ const save=(p,v)=>atomic(p,JSON.stringify(v,null,2)+'\n');
 export class SourceUpgrade{
  constructor(options={}){
   this.home=path.resolve(options.home||os.homedir());this.prefix=options.prefix||process.env.PREFIX||'';
-  this.state=path.join(this.home,'.local/state/mhc-source-upgrade');this.fixture=options.fixture===true;
+  this.state=path.join(this.home,'.local/state/mhc-source-upgrade');this.fixture=options.fixture===true;this.approvedNodeId=options.approvedNodeId||null;
   this.command=options.command||((cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:20000,maxBuffer:524288,env:{...process.env,HOME:this.home,PREFIX:this.prefix,SVDIR:path.join(this.prefix,'var/service')}}));
   this.services=options.services||{status:n=>this.serviceStatus(n),set:(n,up)=>this.checked('sv',['-w','15',up?'up':'down',path.join(this.prefix,'var/service',n)],'SERVICE_'+n+'_FAILED')};
   this.acquire=options.acquire||((p)=>fs.readFileSync(p));this.syntax=options.syntax||((p,e)=>this.checkSyntax(p,e));
@@ -46,12 +56,20 @@ export class SourceUpgrade{
   const active=this.safe(path.join(this.home,'.local/state/mhc-p33-node/state.json'));if(exists(active)&&json(active).desired==='ACTIVE')fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
   const cfg=path.join(this.home,'.config/mhc-full-installer');
   if(fs.readFileSync(path.join(cfg,'installed'),'utf8').trim()!=='TEST 0.5.0C-REMOTE-PANEL installed on clean Termux')fail('UNKNOWN_INSTALLER_MARKER');
-  this.nodeId=json(this.safe(path.join(cfg,'node-identity.json'))).nodeId;if(!LAB_NODES.includes(this.nodeId))fail('NODE_NOT_APPROVED_LAB');
+  const identity=json(this.safe(path.join(cfg,'node-identity.json')));this.nodeId=identity.nodeId;
+  if(!LAB_NODES.includes(this.nodeId)){
+   if(!/^[a-f0-9-]{36}$/.test(this.nodeId||'')||this.approvedNodeId!==this.nodeId)fail('NODE_NOT_APPROVED_LAB');
+   const progress=json(this.safe(path.join(this.home,'.local/state/mhc-new-node-install/progress.json')));
+   if(identity.kind!=='new-node-standby'||progress.nodeId!==this.nodeId||progress.phase!=='INSTALLED'||!/^MHC-N1-/.test(progress.version||'')||!/^[a-f0-9]{40}$/.test(progress.commit||'')||!/^[a-f0-9]{64}$/.test(progress.manifestSha256||'')||!['packages','runtime','identity','panel-admin','services','verify'].every(n=>progress.completed?.includes(n)))fail('N1_COMPLETED_INSTALL_REQUIRED');
+   // An operator-pinned UUID plus authenticated current membership; never a local self-claim.
+   this.managementOnlyNode=!['.config/mhc-full-installer/p31/config.json','.config/mhc-full-installer/p33/config.json','.local/state/mhc-p33-node/state.json','.local/share/mhc-p33-lab'].some(p=>exists(this.safe(path.join(this.home,p))));
+   const member=this.shared();if(member.telemetryRecent!==true)fail('AUTHORITY_FRESH_MEMBERSHIP_REQUIRED');
+  }
   for(const p of ['android-hosting-panel/src/server.mjs','android-hosting-panel/data/admin.json','.config/mhc-full-installer/authority.json'])if(!exists(this.safe(path.join(this.home,p))))fail('REQUIRED_EXISTING_STATE_MISSING');
   for(const n of ['amh-panel','mhc-authority-agent'])if(!exists(path.join(this.prefix,'var/service',n,'run')))fail('MANAGEMENT_SERVICE_MISSING');
  }
  serviceStatus(n){const r=this.command('sv',['status',path.join(this.prefix,'var/service',n)]);const m=/^run:.*?\(pid (\d+)\)/.exec(r.stdout||'');return {running:!!m,pid:m?Number(m[1]):null};}
- shared(){const r=this.command(process.execPath,[path.join(this.home,'.local/share/mhc-full-installer/bin/cluster-authority.mjs'),'status']);if(r.status!==0)fail('AUTHORITY_STATUS_FAILED');const s=JSON.parse(r.stdout);if(s.writeLeaseGranted!==false||s.mode!=='SHARED_AUTHORITY_PREPARE_ONLY')fail('AUTHORITY_SAFETY_MISMATCH');const node=s.nodes?.find(n=>n.nodeId===this.nodeId);if(!node)fail('AUTHORITY_NODE_MISSING');return {clusterId:s.clusterId,revision:s.revision,epoch:s.epoch,lastSeenAt:node.lastSeenAt,telemetryRecent:node.telemetryRecent};}
+ shared(){const r=this.command(process.execPath,[path.join(this.home,'.local/share/mhc-full-installer/bin/cluster-authority.mjs'),'status']);if(r.status!==0)fail('AUTHORITY_STATUS_FAILED');return upgradeAuthoritySnapshot(JSON.parse(r.stdout),this.nodeId,this.managementOnlyNode===true);}
  async baseline(){const services=Object.fromEntries(['amh-panel','mhc-authority-agent'].map(n=>[n,this.services.status(n)]));if(Object.values(services).some(s=>!s.running))fail('MANAGEMENT_NOT_HEALTHY_BEFORE_UPGRADE');return {services,shared:this.fixture?null:this.shared()};}
  async realHealth(before,expected){
   const end=Date.now()+60000;let last='MANAGEMENT_HEALTH_FAILED';
@@ -59,7 +77,7 @@ export class SourceUpgrade{
    for(const n of ['amh-panel','mhc-authority-agent']){const s=this.services.status(n);if(!s.running||s.pid===before.services[n].pid)fail('PROCESS_NOT_RELOADED_'+n);}
    const root=await fetch('http://127.0.0.1:9090/',{signal:AbortSignal.timeout(4000)});if(root.status!==200)fail('PANEL_HTTP_FAILED');
    const asset=await fetch('http://127.0.0.1:9090/app.js',{signal:AbortSignal.timeout(4000)});if(asset.status!==200||digest(Buffer.from(await asset.arrayBuffer()))!==expected)fail('PANEL_ASSET_MISMATCH');
-   const s=this.shared();if(s.clusterId!==before.shared.clusterId||s.revision!==before.shared.revision||s.epoch!==before.shared.epoch)fail('SHARED_STATE_CHANGED');
+   const s=this.shared();if(s.clusterId!==before.shared.clusterId||s.revision!==before.shared.revision||s.epoch!==before.shared.epoch||s.ownership!==before.shared.ownership)fail('SHARED_STATE_CHANGED');
    if(!s.telemetryRecent||!s.lastSeenAt||s.lastSeenAt===before.shared.lastSeenAt)fail('FRESH_HEARTBEAT_REQUIRED');return s;
   }catch(e){last=e.message;await pause(1000);}}
   fail(last);
@@ -127,7 +145,7 @@ export class SourceUpgrade{
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const args=process.argv.slice(2),mode=args[0],at=args.indexOf('--package'),hashAt=args.indexOf('--manifest-sha256');
- try{const u=new SourceUpgrade(),dir=at>=0?args[at+1]:path.dirname(fileURLToPath(import.meta.url)),hash=hashAt>=0?args[hashAt+1]:undefined;
+ try{const nodeAt=args.indexOf('--node-id'),u=new SourceUpgrade({approvedNodeId:nodeAt>=0?args[nodeAt+1]:null}),dir=at>=0?args[at+1]:path.dirname(fileURLToPath(import.meta.url)),hash=hashAt>=0?args[hashAt+1]:undefined;
   const result=mode==='--plan'?await u.plan(dir,hash):mode==='--apply'?await u.apply(dir,hash):mode==='--verify'?await u.verify(dir,hash):mode==='--rollback'?await u.rollback(args[1]):fail('USAGE_PLAN_APPLY_VERIFY_ROLLBACK');console.log(JSON.stringify(result,null,2));
  }catch(e){console.error('MHC_SOURCE_UPGRADE_FAILED '+String(e.message).replace(/[^A-Za-z0-9_:. -]/g,'').slice(0,250));process.exitCode=1;}
 }

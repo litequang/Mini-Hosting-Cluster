@@ -85,8 +85,15 @@ export async function mhcModules(){
    {id:'wp-cli',installed:present('wp'),version:wp,service:null}
  ],services,notice:'Installed binary or runit process does not prove HTTP, DB replication, or HA readiness.'};
 }
+export async function mhcOnboarding(){
+ const {onboardingObservation}=await import(pathToFileURL(path.join(BIN,'node-onboarding.mjs')).href);
+ const observed=await Promise.all(['amh-panel','mhc-authority-agent','mhc-panel-tunnel'].map(service));
+ return {scope:'LOCAL_OBSERVATION_ONLY',checkedAt:new Date().toISOString(),onboarding:onboardingObservation({home:HOME,services:Object.fromEntries(observed.map(s=>[s.name,s.state]))})};
+}
 export async function mhcCluster(){
- if(sharedConfigured())return sharedView();
+ let localOnboarding=null;try{localOnboarding=(await mhcOnboarding()).onboarding;}catch{}
+ if(sharedConfigured())return {...await sharedView(),localOnboarding};
+ if(localOnboarding)return {mode:'N1_LOCAL_NOT_JOINED',nodeCount:0,nodes:[],localOnboarding};
  const cli=path.join(BIN,'cluster-summary.mjs');
  if(!fs.existsSync(cli))return {mode:'NOT_INSTALLED',nodeCount:0,alerts:[],capabilities:{},notice:'No MHC cluster metadata on this node.'};
  const raw=await run(process.execPath,[cli,'status'],3200);

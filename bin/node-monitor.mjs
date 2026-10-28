@@ -4,6 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFile} from 'node:child_process';
+import {onboardingObservation} from './node-onboarding.mjs';
 const HOME=process.env.HOME||os.homedir();
 const PREFIX=process.env.PREFIX||'/data/data/com.termux/files/usr';
 const SERV=['amh-panel','sshd','nginx','mysqld','mini-web','mhc-authority-agent','mhc-panel-tunnel','mhc-full-wp-php','mhc-full-wp-nginx','named-tunnel','php-fpm','mhc-full-daily-backup'];
@@ -119,7 +120,7 @@ export async function collectNodeMetrics(){
   memory:{totalMiB:range(Math.round(ramTotal),0,1e8),freeMiB:range(Math.round(ramFree),0,1e8)},
   storage:disk(),network:network(),
   battery:power,uptimeSec:range(Math.round(os.uptime()),0,1e10),
-  services:status
+  onboarding:onboardingObservation({home:HOME,services:status}),services:status
  };
  cache=m;cacheAt=Date.now();return m;
 }
@@ -143,5 +144,5 @@ export function compactTelemetry(m){
   battery:{percentage:pct(m.battery?.percentage),temperatureC:temp(m.battery?.temperatureC),
    status:['CHARGING','DISCHARGING','FULL','NOT_CHARGING','UNAVAILABLE','UNKNOWN'].includes(m.battery?.status)?m.battery.status:'UNKNOWN',
    health:['GOOD','OVERHEAT','DEAD','OVER_VOLTAGE','UNSPECIFIED_FAILURE','COLD','UNKNOWN'].includes(m.battery?.health)?m.battery.health:null},
-  uptimeSec:range(m.uptimeSec,0,1e10),services:svc};
+  uptimeSec:range(m.uptimeSec,0,1e10),onboarding:onboardingObservation({home:HOME,services:svc}),services:svc};
 }

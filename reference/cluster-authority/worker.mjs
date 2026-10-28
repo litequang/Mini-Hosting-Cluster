@@ -35,6 +35,15 @@ function telemetrySafe(v){
   snapshot:{name:/^snapshot-\d{8}$/.test(v.snapshot?.name||'')?v.snapshot.name:null,
    recordedAt:typeof v.snapshot?.recordedAt==='string'&&/^\d{4}-\d\d-\d\dT/.test(v.snapshot.recordedAt)?v.snapshot.recordedAt.slice(0,32):null,
    verified:false},
+  ...(v.onboarding?.v===1?{onboarding:{v:1,
+   installPhase:['IN_PROGRESS','INTERRUPTED','INSTALLED'].includes(v.onboarding.installPhase)?v.onboarding.installPhase:'INTERRUPTED',
+   sourceCommit:/^[a-f0-9]{40}$/.test(v.onboarding.sourceCommit||'')?v.onboarding.sourceCommit:null,
+   stage:['packages','runtime','identity','panel-admin','services','verify'].includes(v.onboarding.stage)?v.onboarding.stage:null,
+   completedStages:num(v.onboarding.completedStages,6),authorityConfigured:v.onboarding.authorityConfigured===true,
+   managementRunning:v.onboarding.managementRunning===true,tunnelRunning:v.onboarding.tunnelRunning===true,
+   routeVerified:false,siteVerified:false,eligiblePrimary:false,androidRebootVerified:false,
+   blockers:(Array.isArray(v.onboarding.blockers)?v.onboarding.blockers:[]).filter(x=>['INSTALL_INCOMPLETE','PAIRING_REQUIRED','MANAGEMENT_NOT_RUNNING','TUNNEL_NOT_RUNNING','CONTROL_PROOF_REQUIRED','SITE_RESTORE_AND_GUARDS_REQUIRED'].includes(x)).slice(0,6),
+   errorCode:/^N1_[A-Z0-9_]{1,90}$/.test(v.onboarding.errorCode||'')?v.onboarding.errorCode:null}}:{}),
   services:Object.fromEntries(metricServices.map(id=>[id,metricStatus(v.services?.[id])]))};
 }
 function metricPoint(m,now){

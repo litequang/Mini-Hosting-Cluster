@@ -19,6 +19,8 @@ node "$ROOT/tests/p32-cloudflare.mjs"
 node "$ROOT/tests/manual-candidate-ui.mjs" "$ROOT"
 node "$ROOT/tests/access-sso-panel.mjs" "$ROOT"
 node "$ROOT/tests/source-upgrade.mjs" "$ROOT"
+node "$ROOT/tests/new-node-install.mjs"
+node "$ROOT/tests/new-node-onboarding.mjs"
 node "$ROOT/tests/cluster-pairing.mjs"
 node "$ROOT/tests/monitor-all-nodes.mjs"
 for f in "$ROOT/install.sh" "$ROOT/bin/"*.sh "$ROOT/scripts/"*.sh "$ROOT/tests/"*.sh;do bash -n "$f";done

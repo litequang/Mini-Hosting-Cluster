@@ -90,7 +90,7 @@ else
  warn=1
 fi
 if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then say 'Shared cluster enrollment' 'CONFIGURED (no keys displayed)'
-else say 'Shared cluster enrollment' 'NOT JOINED (use mhc-full join <CODE>)';fi
+else say 'Shared cluster enrollment' 'NOT JOINED (run mhc-full join, then enter the code when prompted)';fi
 if [[ -f "$HOME/.config/mhc-full-installer/authority.json" ]];then
  client="$HOME/.local/share/mhc-full-installer/bin/cluster-authority.mjs"
  if [[ -f "$client" ]];then

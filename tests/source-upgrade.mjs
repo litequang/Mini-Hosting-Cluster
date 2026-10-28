@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {SourceUpgrade,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA,supportedRuntime} from '../bin/source-upgrade.mjs';
+import {SourceUpgrade,upgradeAuthoritySnapshot,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA,supportedRuntime} from '../bin/source-upgrade.mjs';
 assert.equal(supportedRuntime('android','/data/data/com.termux/files/usr'),true);
 assert.equal(supportedRuntime('linux','/data/data/com.termux/files/usr'),true);
 assert.equal(supportedRuntime('win32','/data/data/com.termux/files/usr'),false);
@@ -70,6 +70,17 @@ try{
  const writer=fixture();write(path.join(writer.home,'.local/state/mhc-p33-node/state.json'),JSON.stringify({desired:'ACTIVE'}));await assert.rejects(writer.u.apply(writer.pkg),/P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE/);writer.unchanged();assert.equal(writer.calls.length,0);scenarios++;
  const unhealthy=fixture();unhealthy.states['mhc-authority-agent'].running=false;await assert.rejects(unhealthy.u.apply(unhealthy.pkg),/MANAGEMENT_NOT_HEALTHY/);unhealthy.unchanged();assert.equal(unhealthy.calls.length,0);scenarios++;
  const identity=fixture();write(path.join(identity.home,'.config/mhc-full-installer/node-identity.json'),JSON.stringify({nodeId:'00000000-0000-4000-8000-000000000001'}));await assert.rejects(identity.u.plan(identity.pkg),/NODE_NOT_APPROVED/);scenarios++;
+ const n1=fixture(),id='00000000-0000-4000-8000-000000000003';
+ write(path.join(n1.home,'.config/mhc-full-installer/node-identity.json'),JSON.stringify({nodeId:id,kind:'new-node-standby'}));n1.u.approvedNodeId=id;
+ write(path.join(n1.home,'.local/state/mhc-new-node-install/progress.json'),JSON.stringify({nodeId:id,phase:'INSTALLED',version:'MHC-N1-fixture',commit:'a'.repeat(40),manifestSha256:'b'.repeat(64),completed:['packages','runtime','identity','panel-admin','services','verify']}));
+ n1.u.shared=()=>({telemetryRecent:true});assert((await n1.u.plan(n1.pkg)).changes.length>0);n1.u.shared=()=>{throw Error('AUTHORITY_STATUS_FAILED');};await assert.rejects(n1.u.plan(n1.pkg),/AUTHORITY_STATUS_FAILED/);assert.equal(n1.calls.length,0);scenarios++;
+ const shared={mode:'SHARED_AUTHORITY_PREPARE_ONLY',clusterId:'fixture',revision:36,epoch:8,pending:null,nodes:[{nodeId:id,role:'STANDBY_NO_WRITER_GRANT',telemetryRecent:true}],writeLeaseGranted:true,p33:{enabled:true,scope:'MHC_MANAGED_WORDPRESS_LAB',phase:'COMMITTED',journal:{status:'VERIFIED'},primaryNodeId:LAB_NODES[0],writerLeaseGranted:true,lease:{nodeId:LAB_NODES[0],scope:'MHC_MANAGED_WORDPRESS_LAB',epoch:8,expiresAt:Date.now()+90000}}};
+ assert.equal(upgradeAuthoritySnapshot(shared,id,true).epoch,8);scenarios++;
+ assert.throws(()=>upgradeAuthoritySnapshot(shared,LAB_NODES[0]),/NODE_MISSING/);
+ const own=structuredClone(shared);own.nodes[0].role='PRIMARY_MANAGED_SCOPE';assert.throws(()=>upgradeAuthoritySnapshot(own,id),/QUIESCE/);scenarios++;
+ for(const phase of ['FENCING','ACTIVE','AWAITING_PUBLIC']){assert.throws(()=>upgradeAuthoritySnapshot({...shared,p33:{...shared.p33,phase}},id),/TRANSITION/);}scenarios++;
+ assert.throws(()=>upgradeAuthoritySnapshot({...shared,p33:{...shared.p33,lease:{...shared.p33.lease,epoch:7}}},id,true),/SAFETY/);scenarios++;
+ assert.throws(()=>upgradeAuthoritySnapshot(shared,id),/SAFETY/);scenarios++;
  const unknown=fixture();write(path.join(unknown.home,'.termux/boot/10-start-hosting'),'custom boot');await assert.rejects(unknown.u.plan(unknown.pkg),/UNKNOWN_LEGACY_BOOT/);scenarios++;
  if(process.platform!=='win32'){const symlink=fixture();fs.unlinkSync(symlink.dest(symlink.manifest.files[0]));fs.symlinkSync(path.join(symlink.home,'.config/mhc-full-installer/authority.json'),symlink.dest(symlink.manifest.files[0]));await assert.rejects(symlink.u.plan(symlink.pkg),/SYMLINK/);scenarios++;}
  // Real child processes retain the source hash from startup. Apply and rollback must reload both.

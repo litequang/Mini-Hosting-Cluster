@@ -64,7 +64,7 @@ export class FreshInstaller{
   if(stage==='panel-admin')files=['.config/mhc-full-installer/panel-login-once','android-hosting-panel/data/admin.json'];
   this.report.receipts ||= {};this.report.receipts[stage]=files.map(p=>({area:'home',path:p,sha256:digest(fs.readFileSync(safe(path.join(this.home,p))))}));
  }
- status(){const s=privateJson(this.file,this.fixture);return {version:s.version,sourceCommit:s.commit,phase:s.phase,currentStage:s.currentStage,completed:s.completed,hardware:s.hardware,nodeId:s.nodeId,role:s.role,joined:false,routeReady:false,siteReady:false,eligiblePrimary:false,errorCode:s.errorCode||null,localChecks:s.localChecks||null};}
+ status(){const s=privateJson(this.file,this.fixture);return {version:s.version,sourceCommit:s.commit,phase:s.phase,currentStage:s.currentStage,completed:s.completed,hardware:s.hardware,nodeId:s.nodeId,role:s.role,joined:exists(path.join(this.config,'authority.json')),membershipVerified:false,routeReady:false,siteReady:false,eligiblePrimary:false,errorCode:s.errorCode||null,localChecks:s.localChecks||null};}
  packages(){
   this.command('pkg',['update','-y'],{timeout:300000,stdio:'inherit'});
   this.command('pkg',['install','-y','nodejs','nginx','php','php-fpm','mariadb','openssh','termux-services','termux-api','cloudflared','git','curl','coreutils','python','rsync','tar','gzip','unzip','openssl-tool','util-linux'],{timeout:600000,stdio:'inherit'});

@@ -37,6 +37,7 @@ for(const f of ['src/server.mjs','src/system.mjs','src/mhc-integration.mjs','src
  fs.copyFileSync(path.join(root,'bin/legacy-panel-src',f),path.join(target,f));
 }
 fs.mkdirSync(path.join(tmp,'.local/share/mhc-full-installer/bin'),{recursive:true});
+fs.copyFileSync(path.join(root,'bin/node-onboarding.mjs'),path.join(tmp,'.local/share/mhc-full-installer/bin/node-onboarding.mjs'));
 fs.copyFileSync(path.join(root,'bin/replication-observer.mjs'),path.join(tmp,'.local/share/mhc-full-installer/bin/replication-observer.mjs'));
 fs.copyFileSync(path.join(root,'bin/fencing-lease-lab.mjs'),path.join(tmp,'.local/share/mhc-full-installer/bin/fencing-lease-lab.mjs'));
 fs.copyFileSync(path.join(root,'bin/gtid-lab.mjs'),path.join(tmp,'.local/share/mhc-full-installer/bin/gtid-lab.mjs'));
@@ -71,7 +72,7 @@ try{
   try{status=await fetch(`http://127.0.0.1:${available}/api/session`);break;}catch{await new Promise(r=>setTimeout(r,100));}
  }
  assert(status?.ok,stderr||'Panel failed to start');
- for(const name of ['remote-access','modules','cluster','monitor','sites','backups','replication','switchover','fencing','witness','write-paths','writer-audit']){const no=await fetch(`http://127.0.0.1:${available}/api/mhc/${name}`);assert.equal(no.status,401);}
+ for(const name of ['onboarding','remote-access','modules','cluster','monitor','sites','backups','replication','switchover','fencing','witness','write-paths','writer-audit']){const no=await fetch(`http://127.0.0.1:${available}/api/mhc/${name}`);assert.equal(no.status,401);}
  const login=await fetch(`http://127.0.0.1:${available}/api/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'admin',password:'test-sandbox-strong-password'})});
  assert.equal(login.status,200);const cookie=login.headers.get('set-cookie').split(';')[0];
  for(const endpoint of ['remote-access','modules','cluster','monitor','sites','backups','replication','switchover','fencing','witness','write-paths','writer-audit']){
@@ -86,6 +87,7 @@ try{
   assert(!JSON.stringify(data).includes('VERY_SECRET_HASH_DO_NOT_SEND'));
   assert(!JSON.stringify(data).includes('SHOULD_NOT_LEAK_DELTA_PATH'));
   assert(!JSON.stringify(data).includes('private-file-name.json'));
+  if(endpoint==='onboarding'){assert.equal(data.scope,'LOCAL_OBSERVATION_ONLY');assert.equal(data.onboarding,null);}
   if(endpoint==='remote-access'){assert.equal(data.configured,false);assert.equal(data.accessJwtRequired,true);}
   if(endpoint==='monitor'){assert.equal(data.battery.percentage,68);assert.equal(data.battery.temperatureC,35.1);assert.equal(data.device,'Vsmart LAB');}
   if(endpoint==='sites'){assert.equal(data.sites[0]?.slug,'demo');assert.equal(data.sites[0]?.httpVerifiedNow,false);}

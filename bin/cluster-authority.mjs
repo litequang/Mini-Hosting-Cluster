@@ -196,7 +196,7 @@ async function installAuthorityService(){
  }
  let started=false;
  try{
-  execFileSync(path.join(process.env.PREFIX,'bin/sv-enable'),['mhc-authority-agent'],{timeout:4500,stdio:'ignore'});
+  execFileSync(path.join(process.env.PREFIX,'bin/sv-enable'),['mhc-authority-agent'],{timeout:4500,stdio:'ignore',env:{...process.env,SVDIR:path.join(process.env.PREFIX,'var/service')}});
   execFileSync(path.join(process.env.PREFIX,'bin/sv'),['up',service],{timeout:4500,stdio:'ignore'});
   started=true;
  }catch{/* if runit not ready, node-doctor --repair can safely enable it */}
@@ -204,7 +204,10 @@ async function installAuthorityService(){
 }
 
 async function main(args){
- if(args.length===2&&args[0]==='join')return joinWithCode(args[1]);
+ if(args[0]==='join'){
+  if(args.length>2||args.length===2&&args[1]!=='--stdin')throw Error('JOIN_RUN_WITHOUT_CODE_ARGUMENT_OR_USE_STDIN');
+  const {readJoinCode}=await import('./join-input.mjs');return joinWithCode(await readJoinCode({stdin:args[1]==='--stdin'}));
+ }
  if(args.length===1&&args[0]==='prepare')return prepareEnrollment();
  if(args.length===4&&args[0]==='configure'&&args[3]==='--confirm=CONFIGURE_LAB_PREPARE_ONLY')return configureAuthority(args[1],args[2]);
  if(args[0]==='service-install'){
