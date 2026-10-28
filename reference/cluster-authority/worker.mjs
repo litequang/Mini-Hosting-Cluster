@@ -1,3 +1,4 @@
+import {p33Action,p33View,p33Enabled,P33_ACTIONS} from './p33-manual.mjs';
 import {p3Config,p3SwitchDns,p3SwitchPanelDns} from './p3-route.mjs';
 import {p3RecoveryPlan} from './p3-recovery.mjs';
 import {p32Action,p32View,p32BlocksPreparation,P32_BUILD} from './p32-lab.mjs';
@@ -75,6 +76,8 @@ async function json(req,max=4096){
 }
 export default {
  async scheduled(event,env,ctx){
+  // P3.3 is manual only; do not race the legacy LAB DNS recovery journal.
+  if(p33Enabled(env))return;
   // Cron survives Android outages and must never grant writer privileges.
   if(env.MHC_P32_LAB_ENABLED==='READ_ONLY_ROUTING'&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY'&&UUID.test(env.MHC_CLUSTER_ID||'')){
    const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(env.MHC_CLUSTER_ID));ctx.waitUntil(stub.fetch(new Request('https://authority.internal/p32-maintenance',{method:'POST'})));return;
@@ -85,7 +88,7 @@ export default {
  },
  async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback|p33-begin|p33-fenced|p33-active|p33-route|p33-confirm|p33-renew|p33-control|p33-cancel)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');
@@ -93,12 +96,12 @@ export default {
   // Dynamic member credentials can only be verified inside this cluster's Durable Object.
   const role=action==='join'?'joining':staticRole||(UUID.test(id||'')&&TOKEN.test(token)?'dynamic':null);
   if(!role)return reply({error:'UNAUTHORIZED'},401);
-  if(action==='heartbeat'&&role==='panel'||(['begin','abort','route','route-resume','complete','history','invite'].includes(action)||action.startsWith('p32-'))&&role==='agent')return reply({error:'ROLE_DENIED'},403);
+  if(action==='heartbeat'&&role==='panel'||(['begin','abort','route','route-resume','complete','history','invite'].includes(action)||action.startsWith('p32-'))&&role==='agent'||action.startsWith('p33-')&&role!=='dynamic'&&role!==(action==='p33-renew'?'agent':'panel'))return reply({error:'ROLE_DENIED'},403);
   if(request.method!==(['status','history','p32-status'].includes(action)?'GET':'POST'))return reply({error:'METHOD_NOT_ALLOWED'},405);
   const nonce=request.headers.get('x-mhc-nonce');if(!UUID.test(nonce||''))fail('NONCE_REQUIRED');
   const targetNodeId=action==='history'?request.headers.get('x-mhc-target'):null;
   if(action==='history'&&!UUID.test(targetNodeId||''))fail('MONITOR_TARGET_INVALID',400);
-  const body=action==='history'?{targetNodeId}:['status','p32-status'].includes(action)?{}:await json(request,action.startsWith('p32-')?16384:4096);
+  const body=action==='history'?{targetNodeId}:['status','p32-status'].includes(action)?{}:await json(request,action.startsWith('p33-')?32768:action.startsWith('p32-')?16384:4096);
   const stub=env.MHC_AUTHORITY.get(env.MHC_AUTHORITY.idFromName(match[1]));
   // Only the authenticated Worker can call this binding; no caller headers are forwarded.
   return await stub.fetch(new Request('https://authority.internal/'+action,{method:'POST',body:JSON.stringify({action,body,nodeId:id,role,nonce,clusterId:match[1],
@@ -116,9 +119,15 @@ export class ClusterAuthority {
    const {action,body,nodeId,role,nonce,clusterId,dynamicToken}=await req.json();
    if(clusterId!==this.env.MHC_CLUSTER_ID||!UUID.test(nonce))fail('INVALID_INTERNAL_REQUEST');
    if(action!=='join'&&!UUID.test(nodeId))fail('INVALID_INTERNAL_REQUEST');
-   if(!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))fail('INVALID_ACTION');
+   if(!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback',...P33_ACTIONS].includes(action))fail('INVALID_ACTION');
    const staticList=members(this.env);
    const now=Date.now();
+   if(action.startsWith('p33-')){
+    const p33=await p33Action({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now});
+    const status=await this.fetch(new Request('https://authority.internal/status',{method:'POST',body:JSON.stringify({action:'status',body:{},nodeId,role,nonce,clusterId,dynamicToken})}));
+    if(!status.ok)return status;return reply({...await status.json(),p33});
+   }
+   if(p33Enabled(this.env)&&(['begin','abort','route','route-resume','complete'].includes(action)||action.startsWith('p32-')&&action!=='p32-status'))fail('P33_USE_MANAGED_MANUAL_PIPELINE',409);
    if(action.startsWith('p32-')){
     const view=await p32Action({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:async s=>(await authorizedRole(s,staticList,nodeId,role,dynamicToken))==='panel',now});
     const status=await this.fetch(new Request('https://authority.internal/status',{method:'POST',body:JSON.stringify({action:'status',body:{},nodeId,role,nonce,clusterId,dynamicToken})}));
@@ -234,12 +243,13 @@ export class ClusterAuthority {
      metricsAt:s.heartbeats[n.nodeId]?.metricsAt?new Date(s.heartbeats[n.nodeId].metricsAt).toISOString():null,
      telemetry:s.heartbeats[n.nodeId]?.telemetry||null,role:'STANDBY_NO_WRITER_GRANT'}));
     const history=action==='history'?await tx.get('monitor-history:'+body.targetNodeId)||[]:null;
-    return {mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
+    const p33=p33View(this.env,await tx.get('p33')||{epoch:s.epoch},now);
+    return {p33,mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
      declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],
      panelRecovery:s.panelRecovery||null,panelRecoveryEnabled:this.env.MHC_P3_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',pending:s.pending?{...s.pending,label:nodes.find(n=>n.nodeId===s.pending.targetNodeId)?.label||'Removed member'}:null,
-     callerSequence:s.heartbeats[nodeId]?.sequence||0,receipt,canComplete:false,writeLeaseGranted:false,
+     callerSequence:s.heartbeats[nodeId]?.sequence||0,receipt,canComplete:false,writeLeaseGranted:p33.enabled&&p33.writerLeaseGranted,
      automaticFailover:false,livePrimaryVerified:false,notice:'M3 LAB supports operator-attested DNS routing; application validation and writer fencing are NOT independently proven, no writer lease is granted.'};
    });
    if(action==='route'||action==='route-resume'){

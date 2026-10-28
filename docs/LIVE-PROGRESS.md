@@ -2,6 +2,16 @@
 
 Checkpoint 28/10/2026 (+07) hoàn tất P3.2 trong phạm vi tuyến LAB read-only và controlled management outage. Branch codex/m1-m2-foundation; checkout E:\CODE\MHC\MHC\.work\repository. Checkpoint cũ tra Git history. Không sửa bốn file clock-health ở workspace cha, M51/X7b/F3216 hoặc Cloudflare production.
 
+## P3.3 — IN PROGRESS: Manual Primary + Control trước, Auto làm sau
+
+- Yêu cầu mới28/10 cho phép triển khai phần chủ động chuyển Primary có quyền ghi/Control; giới hạn dừng trước writer của prompt P3.2 đã được thay thế cho LAB. Không mở production hoặc P4.
+- Hoạt động thật vẫn là P3.2 bên dưới: hai node d791938, Worker51b52ff/config eaf63e2a, revision12/epoch5, không writer lease. Chưa deploy runtime P3.3.
+- Source mới: reference/cluster-authority/p33-manual.mjs và authority client/Worker tích hợp, opt-in MANUAL_MANAGED_SITE. Pipeline FENCING → ACTIVATING → ACTIVE → DNS_REQUESTED → AWAITING_PUBLIC → COMMITTED; lease90s/renew chỉ Agent, CAS/receipts/audit, signed proof cả hai node và scope MHC_MANAGED_WORDPRESS_LAB. Chuyển Control độc lập, không grant writer từ heartbeat hoặc checkbox. Khi P33 opt-in sẽ khóa legacy/read-only mutation và Cron cũ để không có hai executor đổi DNS.
+- Test Windows fixtures **PASS** P33 auth/CAS/fence signature/lease/activation proof/partial DNS/crash/resume/public identity/Control/cancel/storage fail-closed; regression P32 **PASS**. Android runtime/WordPress writable/public switch P33 **NOT RUN**. Không dùng fixture thay nghiệm thu thật.
+- Commit chứa source/test tại checkpoint này: git log -1 --format=%H -- reference/cluster-authority/p33-manual.mjs tests/p33-manual.mjs. Chưa có release node P33.
+- Thiếu DoD: runtime managed WordPress riêng, HTTP/SQL writer gates/quiesce, signed fence thực, peer/Panel UI, source upgrade và manual roundtrip trên hai Android/public proof. Privileged/root/shell/same-UID ngoài MHC không được coi là đã fence; không cấp độc quyền toàn điện thoại.
+- Blocker cần user: chưa có; SSH và quyền Cloudflare LAB đang dùng được. Một việc tiếp theo: thực hiện runtime WordPress LAB mới và gate/quiesce trên node, rồi kiểm SQL/HTTP trước khi bật opt-in authority.
+
 ## P3.2 — DONE trong phạm vi LAB read-only / Control recovery
 
 - **Hoạt động thật:** original Panel9090 + Agent mỗi Android, authority độc lập, hai Tunnel riêng, Access email SSO/JWT tại origin/session gắn Host/CSRF và mật khẩu cứu hộ localhost. Chuyển Panel+website preview Vsmart → XZ3 → Vsmart bằng journal/signed proof; chuyển riêng Control độc lập website; Cron recovery và rejoin không tự failback. Đây không phải Primary có quyền ghi.
@@ -94,7 +104,7 @@ Hậu kiểm cuối: config/admin/remote-access bytes cả hai không đổi; to
 | M1/P1 hosting | IN PROGRESS | Vsmart WP/PHP/SQL/upload/backup/restore thật PASS26/10, source889786e; hậu kiểm mới PASS; XZ3 dataset riêng PASS774f7c9 | Reboot/Doze NOT RUN, cần operator/đường cứu hộ | Hẹn reboot canary XZ3 có người mở Termux nếu cần |
 | M2/P2 Panel và authority | IN PROGRESS | Hai Android9090+Agent/Monitor/proof d791938; Worker51b52ff; Access Vsmart/XZ3 VERIFIED, origin denial5/5 mỗi node PASS | Full Android power/network/reboot/Doze NOT RUN | Giữ đường cứu hộ; thiết kế scoped Manual Primary P3.3 |
 | P2.5 website/subdomain tự động | NOT STARTED runtime | Tạo site cục bộ có source; chưa tích hợp publishing Cloudflare vào nút tạo; route fixture PASS ở baseline5cce13c | Chưa có publishing tổng quát ngoài đúng2 LAB hosts P3.2 | Thiết kế publishing theo site/hostname được ủy quyền riêng |
-| M3/P3 Manual Primary | BLOCKED; nền P3.1 DONE | Hai target read-only d791938; Vsmart/XZ3 public VERIFIED; rollback public ROLLBACK_VERIFIED; chưa writer lease/Primary commit | Writer lease/gates và conditional data rollback chưa có | Chốt giới hạn writer/lease trước mở promote |
+| M3/P3 Manual Primary | IN PROGRESS; P3.3 source chưa runtime | Hai target read-only d791938; Vsmart/XZ3 public VERIFIED; rollback public ROLLBACK_VERIFIED; chưa writer lease/Primary commit | Writer lease/gates và conditional data rollback chưa có | Chốt giới hạn writer/lease trước mở promote |
 | M4/P4 Auto Primary | NOT STARTED runtime | Legacy recommendation/source route có, không là auto mới; nền774f7c9 chặn promote | Manual ghi chưa đạt DoD; full reboot/partition/writer recovery chưa nghiệm thu | Tái dùng luồng Manual khi đạt DoD |
 | P5 migration M51/X7b | NOT STARTED | Không truy cập/sửa production, chưa test migration | Backup độc lập và user duyệt từng mốc | Giữ nguyên production đến khi LAB đạt DoD |
 

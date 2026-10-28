@@ -1,0 +1,54 @@
+import assert from 'node:assert/strict';import crypto from 'node:crypto';
+import worker,{ClusterAuthority} from '../reference/cluster-authority/worker.mjs';
+import {authorityRequest} from '../bin/cluster-authority.mjs';
+import {LAB_NODES} from '../reference/cluster-authority/p32-lab.mjs';
+import {P33_SCOPE} from '../reference/cluster-authority/p33-manual.mjs';
+class Storage{data=new Map();tail=Promise.resolve();fail=false;transaction(fn){const job=this.tail.then(async()=>{const m=new Map(structuredClone([...this.data]));const result=await fn({get:async k=>structuredClone(m.get(k)),put:async(k,v)=>{if(this.fail)throw Error('storage failure');m.set(k,structuredClone(v));}});this.data=m;return result;});this.tail=job.catch(()=>{});return job;}}
+const [a,b]=LAB_NODES,cluster='2c1ea7c0-1d1f-4802-8336-0925a529c431',zone='a'.repeat(32),site='b'.repeat(32),panel='c'.repeat(32),ta='d8b3fbc5-1a5e-4d6a-958c-21ebc8c6dabb.cfargotunnel.com',tb='dc1650f8-911c-4e82-af3b-d9f61e50b2ee.cfargotunnel.com';
+const pairs=Object.fromEntries(LAB_NODES.map(id=>[id,crypto.generateKeyPairSync('ed25519')])),entries=LAB_NODES.map((nodeId,i)=>({nodeId,label:i?'XZ3':'Vsmart',agentKey:String(i+1).repeat(43),panelKey:String(i+3).repeat(43)}));
+const routes=[{zoneId:zone,recordId:site,hostname:'preview-lab.giaouoc.com',kind:'site',nodeTargets:{[a]:ta,[b]:tb}},{zoneId:zone,recordId:panel,hostname:'panel-lab.giaouoc.com',kind:'panel',nodeTargets:{[a]:ta,[b]:tb}}];
+const env={MHC_CLUSTER_ID:cluster,MHC_MEMBERS_JSON:JSON.stringify(entries),MHC_P33_ENABLED:'MANUAL_MANAGED_SITE',MHC_P32_LAB_ENABLED:'READ_ONLY_ROUTING',MHC_P32_INITIAL_NODE_ID:a,MHC_P32_CF_TOKEN:'FIXTURE_DNS_TOKEN_123456789012345678901234567890',MHC_P32_ROUTES_JSON:JSON.stringify(routes),MHC_P32_PROOF_KEYS_JSON:JSON.stringify(Object.fromEntries(LAB_NODES.map(id=>[id,pairs[id].publicKey.export({type:'spki',format:'pem'})])))};
+const storage=new Storage(),ctx={storage};let object=new ClusterAuthority(ctx,env),time=Date.now(),failPanel=false,patches=[];
+const state=()=>storage.data.get('state'),r=()=>storage.data.get('p33');
+const healthy=()=>({receivedAt:time,metricsAt:time,sequence:1,telemetry:{services:{'amh-panel':'running','mhc-panel-tunnel':'running'}}});
+storage.data.set('state',{schema:1,revision:12,epoch:5,pending:null,heartbeats:{[a]:healthy(),[b]:healthy()}});storage.data.set('p32',{revision:17,siteNodeId:a,panelNodeId:a,journal:{status:'VERIFIED'}});
+env.MHC_AUTHORITY={idFromName:id=>id,get:()=>({fetch:req=>object.fetch(req)})};
+const records=new Map(routes.map(x=>[x.recordId,{id:x.recordId,name:x.hostname,type:'CNAME',proxied:true,content:ta}]));
+const fakeCF=async(url,opts)=>{const id=url.split('/').at(-1);assert.equal(opts.redirect,'manual');assert.equal(opts.headers.authorization,'Bearer '+env.MHC_P32_CF_TOKEN);if(opts.method==='PATCH'){if(failPanel&&id===panel)throw Error('interrupted');patches.push(id);Object.assign(records.get(id),JSON.parse(opts.body));}return Response.json({success:true,result:records.get(id)});};
+const transport=(url,opts)=>worker.fetch(new Request(url,opts),env);
+const call=(action,body={},role='panel',id=a)=>authorityRequest({url:'https://fixture.test',nodeId:id,clusterId:cluster,token:entries.find(e=>e.nodeId===id)[role+'Key']},action,body,transport);
+const body=(extra={})=>({requestId:crypto.randomUUID(),expectedRevision:state().revision,expectedP33Revision:r()?.revision||0,operationId:r()?.operationId||null,...extra});
+function sign(id,kind,extra={}){const p=r()||{epoch:state().epoch,revision:0,operationId:null,challenge:null};const proof={schema:3,scope:P33_SCOPE,nodeId:id,clusterId:cluster,epoch:p.epoch,revision:p.revision,operationId:p.operationId,nonce:p.challenge,checkedAt:time,expiresAt:time+15000,kind,management:{panel:true,agent:true},dataset:{verified:true,preparedAt:new Date(time).toISOString()},database:{writeDenied:true,connections:0,writeReadDelete:true},httpStopped:true,childrenStopped:true,httpServing:true,wordpress:true,leaseEpoch:p.epoch,accessVerified:true,host:'panel-lab.giaouoc.com',...extra};return {proof,signature:crypto.sign(null,Buffer.from(JSON.stringify(proof)),pairs[id].privateKey).toString('base64url')};}
+const fences=()=>LAB_NODES.map(id=>sign(id,'FENCED'));
+const originalFetch=globalThis.fetch,originalNow=Date.now;globalThis.fetch=fakeCF;Date.now=()=>time;
+try{
+ await assert.rejects(call('p33-begin',body({targetNodeId:a,acceptTargetData:true}),'agent'),/ROLE_DENIED/);
+ await assert.rejects(call('p33-renew',body()),/ROLE_DENIED/);
+ await assert.rejects(call('begin',body({targetNodeId:a})),/P33_USE_MANAGED/);
+ await assert.rejects(call('p32-route',body()),/P33_USE_MANAGED/);
+ await assert.rejects(call('p33-begin',body({targetNodeId:b})),/DATA_ACCEPTANCE/);
+ const race=await Promise.allSettled([call('p33-begin',body({targetNodeId:b,acceptTargetData:true})),call('p33-begin',body({targetNodeId:a,acceptTargetData:true}))]);assert.equal(race.filter(x=>x.status==='fulfilled').length,1);assert.equal(r().phase,'FENCING');assert.equal(r().lease,null);
+ await assert.rejects(call('p33-fenced',body({envelopes:[sign(a,'FENCED')]})),/ALL_NODES_FENCE/);
+ const tampered=fences();tampered[0].proof.database.writeDenied=false;await assert.rejects(call('p33-fenced',body({envelopes:tampered})),/SIGNATURE_INVALID/);
+ await assert.rejects(call('p33-fenced',body({envelopes:[sign(a,'FENCED',{database:{writeDenied:false,connections:0}}),sign(b,'FENCED')]})),/WRITERS_NOT_FENCED/);
+ const granted=await call('p33-fenced',body({envelopes:fences()}));assert.equal(granted.writeLeaseGranted,true);assert.equal(granted.declaredPrimary,null);assert.equal(r().lease.nodeId,b);
+ await assert.rejects(call('p33-renew',{epoch:r().epoch,operationId:r().operationId},'agent',a),/NOT_RENEWABLE/);
+ await call('p33-renew',{epoch:r().epoch,operationId:r().operationId},'agent',b);
+ await assert.rejects(call('p33-active',body({envelope:sign(b,'ACTIVE',{database:{writeReadDelete:false}})})),/APP_NOT_PROVEN/);
+ await call('p33-active',body({envelope:sign(b,'ACTIVE')}));assert.equal(r().phase,'ACTIVE');
+ failPanel=true;await assert.rejects(call('p33-route',body({envelope:sign(b,'ACTIVE')})),/NETWORK_FAILED/);assert.equal(r().phase,'DNS_REQUESTED');assert.equal(records.get(site).content,tb);assert.equal(records.get(panel).content,ta);
+ object=new ClusterAuthority(ctx,env);await assert.rejects(call('p33-route',body()),/COOLDOWN/);time+=31000;state().heartbeats[a]=healthy();state().heartbeats[b]=healthy();failPanel=false;await call('p33-route',body());assert.deepEqual(patches,[site,panel]);assert.equal(r().phase,'AWAITING_PUBLIC');assert.equal(state().declaredPrimary,undefined);
+ const publicProof=(id,kind,extra={})=>sign(id,kind,{nonce:r().journal.challenge,...extra});
+ await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL',{accessVerified:false}),siteEnvelope:publicProof(b,'PUBLIC_SITE')})),/PUBLIC_ACCESS/);
+ await assert.rejects(call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL'),siteEnvelope:publicProof(a,'PUBLIC_SITE')})),/STALE_OR_MISMATCH/);
+ const commit=await call('p33-confirm',body({panelEnvelope:publicProof(b,'PUBLIC_PANEL'),siteEnvelope:publicProof(b,'PUBLIC_SITE')}));assert.equal(commit.declaredPrimary.nodeId,b);assert.equal(commit.declaredPrimary.scope,P33_SCOPE);assert.equal(commit.automaticFailover,false);assert.equal(r().phase,'COMMITTED');
+ const before={epoch:state().epoch,lease:structuredClone(r().lease),primary:structuredClone(state().declaredPrimary),site:records.get(site).content};
+ const challenge=crypto.randomBytes(32).toString('hex');await call('p33-control',body({targetNodeId:a,nonce:challenge,envelope:sign(a,'READY',{nonce:challenge})}));assert.equal(records.get(panel).content,ta);assert.equal(records.get(site).content,before.site);assert.deepEqual(r().lease,before.lease);assert.equal(state().epoch,before.epoch);
+ await call('p33-confirm',body({panelEnvelope:publicProof(a,'PUBLIC_PANEL')}));assert.deepEqual(state().declaredPrimary,before.primary);assert.equal(r().phase,'COMMITTED');
+ const next=body({targetNodeId:a,acceptTargetData:true});await call('p33-begin',next);assert.equal(r().lease,null,'new intent revokes old lease before fencing');await call('p33-begin',next);await assert.rejects(call('p33-begin',{...next,targetNodeId:b}),/IDEMPOTENCY_CONFLICT/);
+ await assert.rejects(call('p33-fenced',body({envelopes:[]})),/ALL_NODES_FENCE/);assert.equal(r().lease,null,'offline/missing node proof never grants writer');
+ await call('p33-cancel',body({envelopes:fences()}));assert.equal(r().phase,'CANCELLED');assert.equal(state().declaredPrimary,null);assert.equal((await call('status')).writeLeaseGranted,false);
+ storage.fail=true;const count=patches.length;await assert.rejects(call('p33-begin',body({targetNodeId:a,acceptTargetData:true})),/STORAGE_UNAVAILABLE/);storage.fail=false;assert.equal(patches.length,count);
+ const result=await call('status');assert(!JSON.stringify(result).includes(env.MHC_P32_CF_TOKEN));assert(!JSON.stringify(result).includes(entries[0].agentKey));
+ console.log('PASS P33 authority: panel/agent auth, CAS, mandatory data choice, signed all-node fencing, scoped lease/renewal, app activation proof, partial DNS/crash/resume, public signatures, independent Control, rejoin/no takeover, cancel and storage fail-closed (fixtures only).');
+}finally{globalThis.fetch=originalFetch;Date.now=originalNow;}

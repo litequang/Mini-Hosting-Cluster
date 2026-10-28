@@ -8,6 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
+const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel'];
 const home=()=>process.env.HOME||os.homedir();
 const configPath=()=>path.join(home(),'.config/mhc-full-installer/authority.json');
 export function authorityConfigured(){try{fs.lstatSync(configPath());return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
@@ -79,19 +80,20 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback',...P33_ACTIONS].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
  try{response=await fetcher(url,{method:['status','history','p32-status'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
-  body:['status','history','p32-status'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(action.startsWith('p32-')&&action!=='p32-status'?45000:5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
+  body:['status','history','p32-status'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout((action.startsWith('p32-')&&action!=='p32-status'||action.startsWith('p33-')&&action!=='p33-renew')?45000:5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
  const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
  if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>524288){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
  let v;try{v=JSON.parse(raw);}catch{throw Error('AUTHORITY_REPLY_INVALID');}
  if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
- if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||v.writeLeaseGranted!==false||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
+ if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||typeof v.writeLeaseGranted!=='boolean'||v.writeLeaseGranted&&!(v.p33?.enabled===true&&v.p33.scope==='MHC_MANAGED_WORDPRESS_LAB'&&v.p33.writerLeaseGranted===true&&v.p33.lease?.scope==='MHC_MANAGED_WORDPRESS_LAB')||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
  return v;
 }
+export async function sharedManagedRequest(action,body={}){if(!P33_ACTIONS.includes(action))throw Error('AUTHORITY_MANAGED_ACTION_INVALID');labDirectory();return authorityRequest(config(action==='p33-renew'?'agent':'panel'),action,body);}
 export async function sharedStatus(role='panel'){return authorityRequest(config(role),'status');}
 export async function sharedLabRequest(action,body={}){
  if(!['p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))throw Error('AUTHORITY_LAB_ACTION_INVALID');
