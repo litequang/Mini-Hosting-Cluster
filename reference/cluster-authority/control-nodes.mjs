@@ -3,7 +3,7 @@ const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]
 const fail=c=>{throw Object.assign(Error(c),{status:409});};
 export function controlNodes(env,siteKeys={}){
  let entries;try{entries=JSON.parse(env.MHC_CONTROL_NODES_JSON||'{}');}catch{fail('CONTROL_REGISTRY_INVALID');}
- if(!entries||typeof entries!=='object'||Array.isArray(entries)||Object.keys(entries).length>18)fail('CONTROL_REGISTRY_INVALID');
+ if(!entries||typeof entries!=='object'||Array.isArray(entries)||Object.keys(entries).length>198)fail('CONTROL_REGISTRY_INVALID');
  const keys=new Set(Object.values(siteKeys).map(k=>k.replace(/\s/g,''))),tunnels=new Set();
  for(const [id,v]of Object.entries(entries)){
   if(!uuid.test(id)||siteKeys[id]||!v||!uuid.test(v.tunnelId)||typeof v.publicKey!=='string'||v.publicKey.length>500||!/^-----BEGIN PUBLIC KEY-----\n[A-Za-z0-9+/=\n]+\n-----END PUBLIC KEY-----\s*$/.test(v.publicKey))fail('CONTROL_REGISTRY_INVALID');

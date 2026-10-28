@@ -28,7 +28,19 @@ Panel phân biệt cài hệ thống, ghép, Panel/Agent, Tunnel và thiếu web
 
 Mỗi node phải có Tunnel token riêng0600, đúng Access/AUD/hostname và origin JWT; không copy token giữa các node, không đặt account API token trên phone. Control cần public-key/Tunnel registry được operator chấp nhận và proof quản trị mới. Peer SSH dùng forced-command và host/proof pins; thiếu đường peer thì báo unavailable, không mở SSH Internet.
 
-Luồng tự động cấp Tunnel/peer sau join đang được hoàn thiện; pilot dùng CLI/API có kiểm tra và backup. `control-configure.mjs` prepare/configure xử lý public pins theo N-node, yêu cầu UUID và confirmation rõ; không cấp writer hoặc tự đổi DNS. Operator dùng cùng Worker/DO hiện có, không tạo authority khác hoặc reset cluster.
+Source self-service mới dùng Agent → cùng Worker/DO để tự cấp Tunnel và đăng ký ứng viên Control sau mã ghép. Release02 phía trên chưa chứa luồng này; chỉ dùng release mới khi được công bố có checksum. Mỗi node giữ public pin được mã ghép phê duyệt, token Tunnel riêng và origin Access; readiness quản trị đi qua Authority, không cần nhập SSH peer thủ công cho node mới. Không tự đổi DNS hoặc nhận Control đang phục vụ chỉ vì join. Peer SSH cũ vẫn dùng cho managed writer/site trên hai LAB hiện có.
+
+### Cấp quyền Cloudflare một lần cho cả cluster
+
+1. Cloudflare → My Profile → API Tokens → Create Token → Custom/Get started. Đặt tên MHC-N1-TUNNEL.
+2. Permissions: **Account → Cloudflare Tunnel → Edit**. Account Resources: Include → Specific account → account chứa giaouoc.com, ID35b2468610cfa060d5d02865b7996a74. Không thêm DNS/Access/Workers hoặc quyền tạo token.
+3. Chọn thời hạn theo chính sách của bạn; khi hết hạn phải cấp token thay thế. Tạo token rồi chạy đúng lệnh PowerShell dưới, chỉ dán token tại lời nhắc ẩn. Không dán token vào chat/lệnh/screenshot.
+
+```powershell
+& 'E:\CODE\MHC\MHC\.work\repository\tools\configure-cloudflare-n1.ps1'
+```
+
+Helper kiểm quyền đọc Tunnel trong đúng account rồi dùng phiên Wrangler đã đăng nhập lưu MHC_N1_CF_TOKEN trực tiếp vào Worker Secret. Không ghi token xuống PC/phone; API write thực được kiểm khi provision. Các giá trị public MHC_N1_ENABLED/MHC_N1_CONFIG_JSON được deployment LAB cấu hình riêng đúng existing Access team/AUD, không tạo app/policy hoặc sửa production. Nếu chưa deploy source/vars phù hợp thì cấp secret chưa có nghĩa self-service đã chạy. Sau thiết lập ban đầu, thêm điện thoại không cần PC hoặc CLI Cloudflare. Panel hiển thị blocker nếu thiếu quyền/connector/approval, node vẫn Standby.
 
 Node chưa có bản website/DB đã restore và kiểm guard không được làm Primary. Việc chuẩn bị dữ liệu là backup/restore có checksum/probe được chỉ định riêng; dữ liệu có thể cũ, không yêu cầu GTID hay đồng bộ100%.
 

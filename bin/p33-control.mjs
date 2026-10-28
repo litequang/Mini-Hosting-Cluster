@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import {sharedStatus,sharedManagedRequest} from './cluster-authority.mjs';
 import {p31PeerEnvelope} from './p31-control.mjs';
 import {controlConfigured,controlPeerEnvelope} from './control-peer.mjs';
+import {n1ControlEnvelope} from './n1-self-service.mjs';
 import {P33_SCOPE} from './p33-node.mjs';
 const fail=c=>{throw Error(c);},sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function view(s){if(s.p33?.enabled!==true||s.p33.scope!==P33_SCOPE)fail('P33_NOT_CONFIGURED');return s.p33;}
@@ -60,10 +61,11 @@ export async function p33Action(body,context={}){
  }else if(body.action==='control'){
   const nonce=crypto.randomBytes(32).toString('hex');let envelope;
   if(r.controlOnlyNodeIds?.includes(body.id)){
-   const reply=await controlPeerEnvelope(body.id,{action:'control-ready',nodeId:body.id,nonce}),p=reply.envelope?.proof;
-   if(!p||p.schema!==1||p.scope!=='MHC_CONTROL_ONLY'||p.nodeId!==body.id||p.clusterId!==s.clusterId||p.epoch!==r.epoch||p.revision!==r.revision||p.operationId!==r.operationId||p.nonce!==nonce||p.kind!=='READY'||p.expiresAt-p.checkedAt!==15000||Date.now()<p.checkedAt-2000||Date.now()>p.expiresAt||!crypto.verify(null,Buffer.from(JSON.stringify(p)),reply.publicKey,Buffer.from(reply.envelope.signature||'','base64url')))fail('CONTROL_PEER_PROOF_INVALID');envelope=reply.envelope;
+   const relay=s.n1Enabled&&s.nodes.find(n=>n.nodeId===body.id)?.n1?.controlRegistered;
+   const reply=relay?await n1ControlEnvelope(body.id):await controlPeerEnvelope(body.id,{action:'control-ready',nodeId:body.id,nonce}),p=reply.envelope?.proof,expectedNonce=relay?p?.nonce:nonce;
+   if(!p||p.schema!==1||p.scope!=='MHC_CONTROL_ONLY'||p.nodeId!==body.id||p.clusterId!==s.clusterId||p.epoch!==r.epoch||p.revision!==r.revision||p.operationId!==r.operationId||!/^[a-f0-9]{64}$/.test(expectedNonce||'')||p.nonce!==expectedNonce||p.kind!=='READY'||p.expiresAt-p.checkedAt!==15000||Date.now()<p.checkedAt-2000||Date.now()>p.expiresAt||!crypto.verify(null,Buffer.from(JSON.stringify(p)),reply.publicKey,Buffer.from(reply.envelope.signature||'','base64url')))fail('CONTROL_PEER_PROOF_INVALID');envelope=reply.envelope;
   }else envelope=await p33Request(body.id,'p33-ready',nonce);
-  await sharedManagedRequest('p33-control',{...requestBody(s),requestId:body.requestId,targetNodeId:body.id,nonce,envelope});
+  await sharedManagedRequest('p33-control',{...requestBody(s),requestId:body.requestId,targetNodeId:body.id,nonce:envelope.proof.nonce,envelope});
  }else if(body.action==='cancel'){
   const envelopes=await Promise.all((await p33Readiness()).nodes.map(n=>p33Request(n.nodeId,'p33-fence')));
   return sharedManagedRequest('p33-cancel',{...requestBody(await sharedStatus()),envelopes});

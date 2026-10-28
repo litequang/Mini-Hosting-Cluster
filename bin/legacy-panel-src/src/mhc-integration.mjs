@@ -13,10 +13,10 @@ const BIN=path.join(HOME,'.local/share/mhc-full-installer/bin');
 const BOOT=path.join(HOME,'.config/mhc-full-installer/installed');
 function sharedConfigured(){try{fs.lstatSync(path.join(HOME,'.config/mhc-full-installer/authority.json'));return true;}catch(e){if(e.code==='ENOENT')return false;throw e;}}
 async function sharedClient(){return import(pathToFileURL(path.join(BIN,'cluster-authority.mjs')).href);}
-function controlPeerConfigured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/control-node.json'));}
+function controlPeerConfigured(){return ['control-node.json','control-self-service.json'].some(f=>fs.existsSync(path.join(HOME,'.config/mhc-full-installer',f)));}
 function p31Configured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/p31/config.json'));}
 async function p31Client(){return import(pathToFileURL(path.join(BIN,'p31-control.mjs')).href);}
-async function sharedView(){try{return {...await (await sharedClient()).sharedStatus(),n1Control:{controllerReady:controlPeerConfigured()},...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
+async function sharedView(){try{const live=await (await sharedClient()).sharedStatus();return {...live,n1Control:{controllerReady:controlPeerConfigured()||live.n1Enabled===true,siteControllerReady:fs.existsSync(path.join(HOME,'.config/mhc-full-installer/control-node.json'))},...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z0-9_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
 async function p33Client(){return import(pathToFileURL(path.join(BIN,'p33-control.mjs')).href);}
 export async function mhcP33Action(body,context){return (await p33Client()).p33Action(body,context);}
 export async function mhcP33Readiness(){return (await p33Client()).p33Readiness();}

@@ -3,7 +3,7 @@ import path from 'node:path';import os from 'node:os';import fs from 'node:fs';i
 import {ControlNode,controlConfig,controlConfigured} from './control-node.mjs';
 export {controlConfigured};
 export async function controlPeerEnvelope(nodeId,request){
- const home=process.env.HOME||os.homedir(),c=controlConfig(home),p=c.peers.find(n=>n.nodeId===nodeId);if(!p||request.nodeId!==nodeId)throw Error('CONTROL_PEER_NOT_APPROVED');
+ const home=process.env.HOME||os.homedir(),c=controlConfig(home);if(c.transport==='authority')throw Error('CONTROL_SITE_PEER_UNAVAILABLE');const p=c.peers.find(n=>n.nodeId===nodeId);if(!p||request.nodeId!==nodeId)throw Error('CONTROL_PEER_NOT_APPROVED');
  const management=request.action==='control-ready';if(management?p.kind!=='control-only':p.kind!=='site'||!['p33-ready','p33-fence','p33-activate','p33-active'].includes(request.action))throw Error('CONTROL_PEER_ACTION_DENIED');
  if(nodeId===c.nodeId){const envelope=management?await new ControlNode().proof(request.nonce):await new(await import('./p33-node.mjs')).ManagedNode().accept(request);return {envelope,publicKey:p.publicKey,clusterId:c.clusterId};}
  const dir=path.join(home,'.config/mhc-full-installer'),key=path.join(dir,c.keyFlavor==='N1'?'../../.ssh/id_ed25519_mhc_node':'p31/ssh-key'),hosts=path.join(dir,'control-known-hosts');

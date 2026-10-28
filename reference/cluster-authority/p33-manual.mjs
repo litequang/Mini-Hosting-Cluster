@@ -1,5 +1,6 @@
 // Manual ownership of one explicitly managed LAB WordPress site. Never fences root/shell.
 import {controlNodes,controlAdapter,verifyControlProof} from './control-nodes.mjs';
+import {n1EffectiveEnv} from './n1-onboarding.mjs';
 import {p32Config} from './p32-lab.mjs';
 import {p3SwitchDns,p3SwitchPanelDns,p3InspectDns} from './p3-route.mjs';
 export const P33_SCOPE='MHC_MANAGED_WORDPRESS_LAB';
@@ -31,6 +32,7 @@ export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
 const healthy=(s,id,now)=>{const h=s.heartbeats?.[id];return h&&now-h.receivedAt>=0&&now-h.receivedAt<=90000&&now-(h.metricsAt||0)>=0&&now-(h.metricsAt||0)<=90000&&h.telemetry?.services?.['amh-panel']==='running'&&h.telemetry?.services?.['mhc-panel-tunnel']==='running';};
 export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher=fetch,now=Date.now(),internal=false}){
  if(!p33Enabled(env))fail('P33_NOT_ENABLED',403);
+ env=await ctx.storage.transaction(tx=>n1EffectiveEnv(env,tx));
  const c=p32Config(env),management=controlNodes(env,c.keys),adapter=controlAdapter(c,management),fingerprint=await sha(JSON.stringify({routes:c.routes,keys:c.keys}));
  const planned=await ctx.storage.transaction(async tx=>{
   const state=await tx.get('state');if(!state||state.schema!==1||!Number.isSafeInteger(state.revision)||!Number.isSafeInteger(state.epoch))fail('P33_STATE_INVALID',503);

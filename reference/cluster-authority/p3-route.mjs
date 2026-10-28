@@ -17,7 +17,7 @@ export function p3Config(env){
     names.has(r.hostname)||records.has(r.zoneId+':'+r.recordId))error('P3_CONFIG_INVALID');
   names.add(r.hostname);records.add(r.zoneId+':'+r.recordId);
   const members=Object.entries(r.nodeTargets);
-  if(members.length<2||members.length>20||
+  if(members.length<2||members.length>200||
      members.some(([k,v])=>!UUID.test(k)||!TUNNEL.test(v)))error('P3_CONFIG_INVALID');
  }
  if(!UUID.test(env.MHC_P3_INITIAL_PRIMARY_NODE_ID||''))error('P3_CONFIG_INVALID');
