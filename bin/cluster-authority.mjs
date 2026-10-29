@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MODE='SHARED_AUTHORITY_PREPARE_ONLY';
 const P33_ACTIONS=['p33-begin','p33-fenced','p33-active','p33-route','p33-confirm','p33-renew','p33-control','p33-cancel','p33-refence'];
+const SITE_ACTIONS=['site-start','site-poll','site-result','site-upload','site-download','site-call','site-job'];
 const N1_ACTIONS=['n1-provision','n1-publish','n1-control-proof'];
 const home=()=>process.env.HOME||os.homedir();
 const configPath=()=>path.join(home(),'.config/mhc-full-installer/authority.json');
@@ -81,7 +82,7 @@ function config(role){
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
- if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback',...P33_ACTIONS,...N1_ACTIONS].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
+ if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback',...P33_ACTIONS,...N1_ACTIONS,...SITE_ACTIONS].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
  try{response=await fetcher(url,{method:['status','history','p32-status'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
@@ -96,6 +97,7 @@ export async function authorityRequest(c,action,body={},fetcher=fetch){
 }
 export async function sharedManagedRequest(action,body={}){if(!P33_ACTIONS.includes(action))throw Error('AUTHORITY_MANAGED_ACTION_INVALID');labDirectory();return authorityRequest(config(action==='p33-renew'?'agent':'panel'),action,body);}
 export async function sharedN1Request(action,body={}){if(!N1_ACTIONS.includes(action))throw Error('AUTHORITY_N1_ACTION_INVALID');labDirectory();return authorityRequest(config(action==='n1-control-proof'?'panel':'agent'),action,body);}
+export async function sharedSiteRequest(action,body={}){if(!SITE_ACTIONS.includes(action))throw Error('AUTHORITY_SITE_ACTION_INVALID');labDirectory();return authorityRequest(config(['site-start','site-call','site-job'].includes(action)?'panel':'agent'),action,body);}
 export async function sharedStatus(role='panel'){return authorityRequest(config(role),'status');}
 export async function sharedLabRequest(action,body={}){
  if(!['p32-status','p32-route','p32-resume','p32-confirm','p32-rollback'].includes(action))throw Error('AUTHORITY_LAB_ACTION_INVALID');
@@ -235,7 +237,8 @@ async function main(args){
  while(true){
   try{if(Date.now()-lastHeartbeat>=30000){const s=await heartbeat();lastHeartbeat=Date.now();console.log(JSON.stringify({at:new Date().toISOString(),mode:s.mode,revision:s.revision,epoch:s.epoch,writeLeaseGranted:false}));}}catch(e){console.error(e.message);}
   let selfService=false;try{const m=await import('./n1-self-service.mjs');selfService=m.n1SelfServiceEligible();if(selfService)await m.n1Reconcile();}catch(e){console.error(/^((AUTHORITY_)?N1_|CONTROL_)[A-Z0-9_]+$/.test(e.message)?e.message:'N1_RECONCILE_FAILED');}
-  await new Promise(r=>setTimeout(r,selfService?5000:30000));
+  try{await (await import('./site-standby.mjs')).siteAgentTick();}catch(e){console.error(/^((AUTHORITY_)?SITE_|P33_)[A-Z0-9_]+$/.test(e.message)?e.message:'SITE_AGENT_RETRY');}
+  await new Promise(r=>setTimeout(r,3000));
  }
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main(process.argv.slice(2)).then(v=>{if(v)console.log(JSON.stringify(v,null,2));}).catch(e=>{console.error(e.message);process.exitCode=1;});

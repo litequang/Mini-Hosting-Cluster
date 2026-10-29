@@ -12,7 +12,7 @@ import {listDatabases,createDatabase,listTables,backupDatabase,restoreDatabase} 
 import {listBackups,backupSiteArchive,backupFile} from './backups.mjs';
 import {backupStatus,startBackup,verifyLatest,downloadableSnapshot} from './tpp-backup-manager.mjs';
 import {nodeProcessStats} from './node-process-monitor.mjs';
-import {mhcModules,mhcOnboarding,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard,mhcP31Readiness,mhcP32OriginProof,mhcP32Action,mhcP33Action,mhcP33Readiness,mhcP33OriginProof} from './mhc-integration.mjs';
+import {mhcModules,mhcOnboarding,mhcCluster,mhcMonitor,mhcMonitorHistory,mhcGenerateInvite,mhcSites,mhcBackups,mhcReplication,mhcSwitchover,mhcFencing, mhcWitness, mhcWritePaths, mhcWriterAudit,mhcPrimarySelection,mhcPrimaryAction,mhcAutomaticElection,mhcNodeGuard,mhcP31Readiness,mhcP32OriginProof,mhcP32Action,mhcP33Action,mhcP33Readiness,mhcP33OriginProof,mhcStandbyAction} from './mhc-integration.mjs';
 import {existingSite,statusExisting,listExistingFiles,readExistingFile,writeExistingFile,mkdirExisting,deleteExisting,renameExisting,downloadExistingFile,deployExisting,rollbackExisting,existingLog} from './existing-site.mjs';
 const PUBLIC=path.join(ROOT,'public');
 const sessions=new Map(),attempts=new Map();let mutations=Promise.resolve();
@@ -77,6 +77,7 @@ async function api(req,res,url){
  if(route==='/api/mhc/auto-primary'&&method==='GET')return send(res,200,await mhcAutomaticElection());
  if(route==='/api/mhc/primary-selection'&&method==='GET')return send(res,200,await mhcPrimarySelection());
  if(route==='/api/mhc/p33-action'&&method==='POST'){const b=jsonBody(await readBody(req,4096));return send(res,200,await queueMutate(()=>mhcP33Action(b,{host:String(req.headers.host||'').toLowerCase(),accessVerified:req.mhcRemoteAccess===true,jwt:req.headers['cf-access-jwt-assertion']})));}
+ if(route==='/api/mhc/standby'&&method==='POST'){const b=jsonBody(await readBody(req,4096));return send(res,200,await queueMutate(()=>mhcStandbyAction(b)));}
  if(route==='/api/mhc/p33-readiness'&&method==='GET')return send(res,200,await mhcP33Readiness());
  if(route==='/api/mhc/p31-readiness'&&method==='GET')return send(res,200,await mhcP31Readiness());
  if(route==='/api/mhc/p32-origin-proof'&&method==='GET')return send(res,200,await mhcP32OriginProof(url.searchParams.get('nonce'),{host:String(req.headers.host||'').toLowerCase(),accessVerified:req.mhcRemoteAccess===true}));

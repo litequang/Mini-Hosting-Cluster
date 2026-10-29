@@ -1,5 +1,6 @@
 // Manual ownership of one explicitly managed LAB WordPress site. Never fences root/shell.
 import {controlNodes,controlAdapter,verifyControlProof} from './control-nodes.mjs';
+import {siteEffectiveEnv,siteProfiles} from './site-standby.mjs';
 import {n1EffectiveEnv} from './n1-onboarding.mjs';
 import {p32Config} from './p32-lab.mjs';
 import {p3SwitchDns,p3SwitchPanelDns,p3InspectDns} from './p3-route.mjs';
@@ -12,9 +13,9 @@ const sha=async s=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256
 const nonce=()=>Array.from(crypto.getRandomValues(new Uint8Array(32))).map(v=>v.toString(16).padStart(2,'0')).join('');
 export const p33Enabled=e=>e.MHC_P33_ENABLED==='MANUAL_MANAGED_SITE';
 export function p33View(env,r,now=Date.now()){
- const controlOnlyNodeIds=Object.keys(controlNodes(env)),siteNodeIds=Object.keys(JSON.parse(env.MHC_P32_PROOF_KEYS_JSON||'{}'));
+ const siteNodeIds=p33Enabled(env)?Object.keys(siteProfiles(env).keys):Object.keys(JSON.parse(env.MHC_P32_PROOF_KEYS_JSON||'{}')),controlOnlyNodeIds=Object.keys(controlNodes(env)).filter(id=>!siteNodeIds.includes(id));
  const lease=r?.lease&&r.lease.expiresAt>now?r.lease:null;
- return {enabled:p33Enabled(env),controlOnlyNodeIds,siteNodeIds,scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,controlRecoveryEnabled:p33Enabled(env)&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
+ return {enabled:p33Enabled(env),controlOnlyNodeIds,siteNodeIds,participants:r?.participants||null,scope:P33_SCOPE,revision:r?.revision||0,epoch:r?.epoch||0,phase:r?.phase||'IDLE',operationId:r?.operationId||null,targetNodeId:r?.targetNodeId||null,primaryNodeId:r?.primaryNodeId||null,lease,writerLeaseGranted:!!lease,challenge:r?.challenge||null,journal:r?.journal||null,automaticFailover:false,controlRecoveryEnabled:p33Enabled(env)&&env.MHC_P32_PANEL_RECOVERY_ENABLED==='LAB_PANEL_ONLY',nodeWritersFenced:false,notice:'Chỉ website WordPress LAB do MHC quản lý; không fence root/shell/SQL đặc quyền hoặc website khác.'};
 }
 export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
  const p=envelope?.proof;
@@ -32,8 +33,8 @@ export async function p33Proof(envelope,c,s,r,{nodeId,kind,now}){
 const healthy=(s,id,now)=>{const h=s.heartbeats?.[id];return h&&now-h.receivedAt>=0&&now-h.receivedAt<=90000&&now-(h.metricsAt||0)>=0&&now-(h.metricsAt||0)<=90000&&h.telemetry?.services?.['amh-panel']==='running'&&h.telemetry?.services?.['mhc-panel-tunnel']==='running';};
 export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher=fetch,now=Date.now(),internal=false}){
  if(!p33Enabled(env))fail('P33_NOT_ENABLED',403);
- env=await ctx.storage.transaction(tx=>n1EffectiveEnv(env,tx));
- const c=p32Config(env),management=controlNodes(env,c.keys),adapter=controlAdapter(c,management),fingerprint=await sha(JSON.stringify({routes:c.routes,keys:c.keys}));
+ env=await ctx.storage.transaction(tx=>siteEffectiveEnv(env,tx));
+ const c=siteProfiles(env),base=p32Config(env),management=controlNodes(env,base.keys),panelAdapter=controlAdapter(base,management),adapter={...panelAdapter,MHC_P3_ROUTES_JSON:JSON.stringify(c.routes.map(r=>r.kind==='site'?r:JSON.parse(panelAdapter.MHC_P3_ROUTES_JSON).find(x=>x.kind==='panel')))},fingerprint=await sha(JSON.stringify({routes:base.routes,keys:base.keys}));
  const planned=await ctx.storage.transaction(async tx=>{
   const state=await tx.get('state');if(!state||state.schema!==1||!Number.isSafeInteger(state.revision)||!Number.isSafeInteger(state.epoch))fail('P33_STATE_INVALID',503);
   const role=internal?'scheduled':await authorize(state);if(!internal&&role!==(action==='p33-renew'?'agent':'panel'))fail('ROLE_DENIED',403);
@@ -71,13 +72,16 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    if(state.pending||routes.journal&&['DNS_REQUESTED','DNS_AWAITING_HTTP','ROLLBACK_DNS_AWAITING_HTTP'].includes(routes.journal.status))fail('P33_PREVIOUS_OPERATION_PENDING');
    if(!c.keys[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
    if(body.acceptTargetData!==true)fail('P33_TARGET_DATA_ACCEPTANCE_REQUIRED',400);
+   const nodes=await tx.get('site-nodes')||{};for(const id of Object.keys(c.keys)){if(['RUNNING','QUEUED'].includes(nodes[id]?.job?.status)&&nodes[id].job.type!=='manual')fail('P33_SITE_PREPARATION_BUSY');}
+   if(!base.keys[body.targetNodeId]){const evidence=nodes[body.targetNodeId]?.evidence;if(evidence?.ready!==true||now-evidence.checkedAt>180000)fail('P33_SITE_EVIDENCE_STALE');}
+   r.participants=Object.keys(c.keys).sort();
    r.previousPrimaryNodeId=state.declaredPrimary?.nodeId||r.primaryNodeId||null;state.declaredPrimary=null;state.epoch++;r.epoch=state.epoch;r.operationId=body.requestId;r.targetNodeId=body.targetNodeId;r.primaryNodeId=null;r.lease=null;r.phase='FENCING';r.challenge=nonce();r.fingerprint=fingerprint;r.journal=null;
    r.dataChoice='USE_EXISTING_TARGET_DATA_NO_AUTOMATIC_REPLICATION';
   }else if(action==='p33-control'){
    if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED')fail('P33_TRANSITION_PENDING');
    if(!c.keys[body.targetNodeId]&&!management[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
    if(!hex.test(body.nonce||''))fail('P33_CONTROL_CHALLENGE_REQUIRED');
-   if(management[body.targetNodeId])await verifyControlProof(body.envelope,management[body.targetNodeId],s,r,{nodeId:body.targetNodeId,nonce:body.nonce,kind:'READY',now});
+   if(management[body.targetNodeId]&&body.envelope?.proof?.scope==='MHC_CONTROL_ONLY')await verifyControlProof(body.envelope,management[body.targetNodeId],s,r,{nodeId:body.targetNodeId,nonce:body.nonce,kind:'READY',now});
    else {const p=await p33Proof(body.envelope,c,s,{...r,challenge:body.nonce},{nodeId:body.targetNodeId,now});if(!['READY','ACTIVE','FENCED'].includes(p.kind))fail('P33_CONTROL_PROOF_INVALID');}
    r.fingerprint=fingerprint;
    r.journal={...(management[body.targetNodeId]?{controlProfileSha256:await sha(JSON.stringify(management[body.targetNodeId]))}:{}),operationId:body.requestId,targetNodeId:body.targetNodeId,kind:'panel',status:'DNS_REQUESTED',from:{siteNodeId:routes.siteNodeId,panelNodeId:routes.panelNodeId},challenge:nonce(),attemptId:crypto.randomUUID()};
@@ -85,8 +89,9 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    if(body.operationId!==r.operationId)fail('P33_OPERATION_MISMATCH');
    if(action==='p33-fenced'||action==='p33-cancel'){
     if(action==='p33-fenced'&&r.phase!=='FENCING'||action==='p33-cancel'&&!['FENCING','ACTIVATING','ACTIVE'].includes(r.phase))fail('P33_FENCE_PHASE_INVALID');
-    if(!Array.isArray(body.envelopes)||body.envelopes.length!==Object.keys(c.keys).length)fail('P33_ALL_NODES_FENCE_REQUIRED');
-    for(const id of Object.keys(c.keys)){
+    const participants=r.participants||Object.keys(base.keys);
+    if(!Array.isArray(body.envelopes)||body.envelopes.length!==participants.length)fail('P33_ALL_NODES_FENCE_REQUIRED');
+    for(const id of participants){
      const p=await p33Proof(body.envelopes.find(e=>e.proof?.nodeId===id),c,s,r,{nodeId:id,kind:'FENCED',now});
      if(p.httpStopped!==true||p.database?.writeDenied!==true||p.database?.connections!==0||p.childrenStopped!==true)fail('P33_MANAGED_WRITERS_NOT_FENCED');
     }
@@ -115,7 +120,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    }else if(action==='p33-confirm'){
     const j=r.journal;if(j?.status!=='AWAITING_PUBLIC')fail('P33_NO_PUBLIC_CHECK_PENDING');
     const challengeState={...r,challenge:j.challenge};
-    const p=j.kind==='panel'&&management[j.targetNodeId]?await verifyControlProof(body.panelEnvelope,management[j.targetNodeId],s,r,{nodeId:j.targetNodeId,nonce:j.challenge,kind:'PUBLIC_PANEL',now}):await p33Proof(body.panelEnvelope,c,s,challengeState,{nodeId:j.targetNodeId,kind:'PUBLIC_PANEL',now});
+    const p=j.kind==='panel'&&management[j.targetNodeId]&&body.panelEnvelope?.proof?.scope==='MHC_CONTROL_ONLY'?await verifyControlProof(body.panelEnvelope,management[j.targetNodeId],s,r,{nodeId:j.targetNodeId,nonce:j.challenge,kind:'PUBLIC_PANEL',now}):await p33Proof(body.panelEnvelope,c,s,challengeState,{nodeId:j.targetNodeId,kind:'PUBLIC_PANEL',now});
     if(p.accessVerified!==true||p.host!=='panel-lab.giaouoc.com')fail('P33_PUBLIC_ACCESS_REQUIRED');
     if(j.kind==='both'){
      if(!r.lease||r.lease.expiresAt<=now)fail('P33_ACTIVE_LEASE_REQUIRED');

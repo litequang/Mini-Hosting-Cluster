@@ -53,3 +53,13 @@ Với điện thoại Android mới, người vận hành:
 - N1 đưa **n node** vào cluster và cung cấp eligibility thực theo từng site. Không làm auto election hoặc grant writer tự động.
 - P4 Lite dùng lại P3.3 pipeline và eligibility để tự failover với MHC-managed site khi old node offline; old managed writer phải tự fence khi authority/lease mất, chờ lease hết hạn/safety margin, không auto failback; không bắt buộc replication/GTID 100%, nhưng không được có hai managed writers.
 - Không mở rộng quyền tự động sang website Thờ Phượng Pro/M51/X7b production khi chưa nghiệm thu scope/backup và user phê duyệt riêng.
+
+## N1.3 — luồng chuẩn bị website dự phòng
+
+Original Panel 9090 → Cluster → node đích → **Chuẩn bị website dự phòng**. Chọn MHC WordPress LAB; kiểm tra hiện trạng trước. Chọn node nguồn Standby có site để tạo backup có checksum, rồi chọn backup đã xác minh và xác nhận phục hồi vào đích trống. Không restore đè site/schema/user đã có; nếu có dữ liệu, dùng **Kiểm tra lại**. **Thử lại tác vụ** tiếp tục cùng job/journal, không xóa/cài lại.
+
+Agent thực hiện độc lập PC. Relay HTTPS qua chính Authority/DO dùng role credentials và key đã ghép, không mở SSH/MariaDB ra Internet và không cần IP peer LAN. Backup tối đa64MiB, chunk192KiB có checksum, giữ tối đa2 bản/24h. Chỉ nội dung/core/theme/media LAB; không chuyển wp-config, DB credentials, WP users/usermeta, options, salts hoặc khóa. Đích tạo tài khoản/salts/password riêng. Phiên này chỉ hỗ trợ một site MHC-managed LAB, chưa phải restore WordPress bất kỳ/plugin tổng quát.
+
+Readiness gồm INSTALLED/JOINED/MANAGEMENT_READY/ROUTE_READY/SITE_READY/ELIGIBLE_PRIMARY. Heartbeat/join không cấp writer. HTTP/PHP/SQL/file và quyền SELECT-only/writer gate phải được Agent ký và còn mới; Authority chỉ thêm site candidate sau kiểm Tunnel riêng đúng hostname LAB. Chuẩn bị không đổi DNS, lease hoặc Primary. Manual lấy proof qua relay và buộc toàn bộ tập site participant đã chốt trong operation fence trước cấp lease. P32 hai-node read-only sandbox cũ giữ nguyên.
+
+Trạng thái thực thi và nghiệm thu: chỉ xem LIVE-PROGRESS.md; chưa coi source/fixture là Android runtime PASS. Fresh release mới phải giữ các release cũ bất biến; rollback source không restore/ghi đè database.

@@ -92,7 +92,7 @@ export async function n1Action({ctx,env,action,body={},nodeId,authorize,fetcher=
   const t=await cf(env,c,'GET','/'+row.tunnelId,null,fetcher);
   if(t?.id!==row.tunnelId||t.deleted_at||t.config_src!=='cloudflare'||!row.legacy&&t.name!==row.name)fail('N1_TUNNEL_IDENTITY_CONFLICT');
   let cfg=await cf(env,c,'GET','/'+row.tunnelId+'/configurations',null,fetcher,!row.legacy&&['CREATED','CONFIGURE_REQUESTED'].includes(row.phase));
-  if(!configMatches(cfg,c,{legacy:row.legacy===true})){
+  if(!configMatches(cfg,c,{legacy:row.legacy===true||row.siteEnabled===true})){
    if(row.legacy||!['CREATED','CONFIGURE_REQUESTED'].includes(row.phase))fail('N1_EXISTING_TUNNEL_CONFIG_CHANGED');
    const existing=cfg?.config?.ingress;if(existing?.length&&!(existing.length===1&&!existing[0].hostname&&existing[0].service==='http_status:404'))fail('N1_EXISTING_TUNNEL_CONFIG_CHANGED');
    await commit({phase:'CONFIGURE_REQUESTED'});await cf(env,c,'PUT','/'+row.tunnelId+'/configurations',{config:{ingress:ingress(c)}},fetcher);
@@ -114,4 +114,19 @@ export async function n1Action({ctx,env,action,body={},nodeId,authorize,fetcher=
   // Only the authenticated owner receives its own token. Never put this response into status/audit.
   return {...n1PublicView(row),tunnelToken:token,origin:{schema:1,hostname:c.hostname,teamDomain:c.teamDomain,audience:c.audience},publicKey:row.publicKey};
  }catch(e){const code=/^N1_[A-Z0-9_]+$/.test(e.message)?e.message:'N1_PROVISION_FAILED';await commit({busyUntil:row.phase==='CREATE_REQUESTED'&&!row.tunnelId?now+45000:0,errorCode:code});fail(code,e.status||503);}
+}
+// Used only after signed site verification and operator-confirmed preparation.
+// Adds the existing LAB site route to this node's own Tunnel; never changes DNS.
+export async function n1EnableSiteRoute({ctx,env,nodeId,fetcher=fetch}){
+ const c=n1Config(env),row=await ctx.storage.transaction(tx=>tx.get('n1-node:'+nodeId));
+ if(!row||row.phase!=='CONTROL_REGISTERED')fail('N1_CONTROL_NOT_REGISTERED');
+ const cfg=await cf(env,c,'GET','/'+row.tunnelId+'/configurations',null,fetcher);
+ if(!configMatches(cfg,c,{legacy:row.legacy===true||row.siteEnabled===true})&&!configMatches(cfg,c,{legacy:true}))fail('N1_EXISTING_TUNNEL_CONFIG_CHANGED');
+ if(!configMatches(cfg,c,{legacy:true})){
+  const rules=ingress(c),access=rules[0].originRequest;
+  rules.splice(1,0,{hostname:'preview-lab.giaouoc.com',service:'http://127.0.0.1:18131',originRequest:access});
+  await cf(env,c,'PUT','/'+row.tunnelId+'/configurations',{config:{...cfg.config,ingress:rules}},fetcher);
+  const check=await cf(env,c,'GET','/'+row.tunnelId+'/configurations',null,fetcher);if(!configMatches(check,c,{legacy:true}))fail('N1_SITE_ROUTE_VERIFY_FAILED');
+ }
+ await ctx.storage.transaction(async tx=>{const current=await tx.get('n1-node:'+nodeId);if(current?.tunnelId!==row.tunnelId||current.publicKey!==row.publicKey)fail('N1_EXISTING_CONTROL_PIN_CHANGED');await tx.put('n1-node:'+nodeId,{...current,siteEnabled:true});});
 }

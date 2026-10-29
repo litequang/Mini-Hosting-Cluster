@@ -1,5 +1,16 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## Checkpoint 29/10/2026 — N1.3 site Standby (IN PROGRESS)
+
+- Source mới: original Panel → chọn node → Chuẩn bị website dự phòng; sáu mức readiness có TTL; backup nội dung WordPress LAB loại credentials/user/options, relay có xác thực và checksum, restore vào đích trống, journal/retry, kiểm HTTP/PHP/SQL/Standby, mở rộng ứng viên site theo key đã phê duyệt. Chưa triển khai checkpoint này lên runtime.
+- PASS Windows: relay/role/signature/checksum/idempotence/DO restart/four-node eligibility/three-site mandatory fencing, P33 regressions, N1 installer/self-service/UI fixtures. PASS fixture trên Android11T: cùng nhóm test + PHP lint + Python archive (credential exclusion/traversal/symlink/checksum/resume/no overwrite). Đây không phải nghiệm thu backup/restore thật.
+- Thiết bị kiểm trực tiếp: Vsmart SSH key PASS, source2a40c18, Standby/RESTART_QUARANTINE, dataset đã chuẩn bị; XZ3 sourcef1fb83d, Standby; 11T sourcef1fb83d, Control/Tunnel chạy, chưa có site. Authority sourcef1fb83d, rev39/epoch8/COMMITTED, không có lease hiệu lực; route/lease chưa sửa.
+- Commit baseline gần nhất: c817416; kết quả source/test nằm trong commit chứa checkpoint này. Chưa phát hành release04; release01/02/03 giữ bất biến.
+- DoD còn thiếu: source rollout có backup, backup XZ3→relay→11T thật, kiểm HTTP/PHP/SQL và từ chối ghi ở Standby, verify readiness/Manual qua relay, unified release/checksum/rollback. Fresh clean Termux thứ tư, reboot/Doze và mất mạng thật: PHYSICAL_NOT_RUN.
+- Blocker cần user: chỉ thiết bị Termux sạch thứ tư và thử reboot/Doze/mất mạng thật khi cần nghiệm thu các mục đó; không chặn chuẩn bị site hiện tại.
+- Việc tiếp theo: triển khai canary source-only XZ3/11T và Worker LAB giữ namespace/state, rồi backup/restore thực qua Authority. Sau N1 ưu tiên P4 Lite, rồi Remote Operations Core trước cPanel nâng cao.
+
+
 Checkpoint 28/10/2026 (+07): P3.3 Manual hai Android đã nghiệm thu trong phạm vi WordPress LAB; N1 đang triển khai trên Xiaomi11T thật. Branch codex/m1-m2-foundation; checkout E:\CODE\MHC\MHC\.work\repository. Checkpoint cũ tra Git history. Không sửa bốn file clock-health ở workspace cha, M51/X7b/F3216 hoặc Cloudflare production.
 
 ## P3.3 — DONE trong phạm vi Manual Primary + Control / WordPress LAB hai Android

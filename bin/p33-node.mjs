@@ -16,7 +16,14 @@ export function validManagedLease(s,nodeId,now=Date.now()){
 export function readOnlyGrants(lines){return lines.some(l=>/^GRANT SELECT ON `mhc_p33_lab`\.\* TO /.test(l))&&lines.every(l=>/^GRANT (USAGE ON \*\.\*|SELECT ON `mhc_p33_lab`\.\*) TO /.test(l)&&!l.includes('WITH GRANT OPTION'));}
 export class ManagedNode{
  constructor(o={}){this.home=path.resolve(o.home||os.homedir());this.prefix=o.prefix||process.env.PREFIX||'';this.fixture=o.fixture===true;this.now=o.now||Date.now;this.authority=o.authority||(()=>sharedStatus('agent'));this.renew=o.renew||sharedManagedRequest;this.command=o.command||((cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:8000,maxBuffer:65536}));this.fetch=o.fetch||fetch;this.base=path.join(this.home,'.local/share/mhc-p33-lab');this.dir=path.join(this.home,'.local/state/mhc-p33-node');this.file=path.join(this.dir,'state.json');this.childrenFile=path.join(this.dir,'children.json');this.candidate=new CandidateNode({home:this.home,prefix:this.prefix,fixture:this.fixture});}
- config(){const c=this.candidate.config();this.candidate.safe(this.base);this.candidate.safe(this.dir);return c;}
+ config(){
+  const file=path.join(this.home,'.config/mhc-full-installer/site-standby.json');
+  if(!fs.existsSync(file)){const c=this.candidate.config();this.candidate.safe(this.base);this.candidate.safe(this.dir);return {...c,keyFlavor:'P31'};}
+  if(!this.fixture&&this.prefix!=='/data/data/com.termux/files/usr'||['apps/thophuongpro/.env','.config/mini-hosting-cluster/ha.json','.config/mini-hosting-cluster/node.json'].some(p=>fs.existsSync(path.join(this.home,p))))fail('P33_LAB_ONLY');
+  const c=json(this.candidate.safe(file),this.fixture),identity=json(path.join(this.home,'.config/mhc-full-installer/node-identity.json'),this.fixture),authority=json(path.join(this.home,'.config/mhc-full-installer/authority.json'),this.fixture);
+  if(c.schema!==1||c.scope!==P33_SCOPE||c.siteId!=='mhc-p33-wordpress-v1'||c.keyFlavor!=='N1'||c.nodeId!==identity.nodeId||c.clusterId!==authority.clusterId||c.nodeId!==authority.nodeId||!uuid.test(c.nodeId))fail('P33_SITE_CONFIG_INVALID');
+  this.candidate.safe(this.base);this.candidate.safe(this.dir);return c;
+ }
  state(){try{return json(this.file,this.fixture);}catch(e){if(e.code==='ENOENT')return {desired:'STANDBY'};throw e;}}
  event(event,fields={}){fs.mkdirSync(this.dir,{recursive:true,mode:0o700});fs.appendFileSync(path.join(this.dir,'events.jsonl'),JSON.stringify({at:new Date(this.now()).toISOString(),event,...fields})+'\n',{mode:0o600});}
  sql(query,root=false){const args=root?['--no-defaults','-u','root']:['--defaults-file='+this.candidate.safe(path.join(this.base,'db-client.cnf'))];const r=this.command('mariadb',[...args,'--batch','--skip-column-names','-e',query]);if(r.status!==0||r.error)fail('P33_SQL_COMMAND_FAILED');return (r.stdout||'').trim();}
@@ -65,7 +72,7 @@ export class ManagedNode{
   if(kind==='PUBLIC_PANEL'&&(origin?.accessVerified!==true||origin.host!=='panel-lab.giaouoc.com'))fail('P33_PUBLIC_ACCESS_REQUIRED');
   const latest=await this.authorityState();if(latest.p33.revision!==r.revision||latest.p33.operationId!==r.operationId)fail('P33_AUTHORITY_CHANGED_DURING_PROOF');
   const checkedAt=this.now(),p={schema:3,scope:P33_SCOPE,nodeId:c.nodeId,clusterId:c.clusterId,epoch:r.epoch,revision:r.revision,operationId:r.operationId,nonce,checkedAt,expiresAt:checkedAt+15000,kind,dataset,management,database,httpServing,httpStopped,childrenStopped,wordpress:true,leaseEpoch:live?r.epoch:null,nodeWritersFenced:false,...(kind==='PUBLIC_PANEL'?{host:origin.host,accessVerified:true}:{})};
-  const key=this.candidate.safe(path.join(this.home,'.config/mhc-full-installer/p31/proof-key.pem')),st=fs.lstatSync(key);if(st.isSymbolicLink()||!this.fixture&&(st.mode&0o077))fail('P33_SIGNING_KEY_UNSAFE');return {proof:p,signature:crypto.sign(null,Buffer.from(JSON.stringify(p)),fs.readFileSync(key)).toString('base64url')};
+  const key=this.candidate.safe(path.join(this.home,'.config/mhc-full-installer',c.keyFlavor==='N1'?'node-proof-key.pem':'p31/proof-key.pem')),st=fs.lstatSync(key);if(st.isSymbolicLink()||!this.fixture&&(st.mode&0o077))fail('P33_SIGNING_KEY_UNSAFE');return {proof:p,signature:crypto.sign(null,Buffer.from(JSON.stringify(p)),fs.readFileSync(key)).toString('base64url')};
  }
  async accept(request){
   const c=this.config();if(!['p33-ready','p33-fence','p33-activate','p33-active'].includes(request?.action)||request.nodeId!==c.nodeId||!hex.test(request.nonce||'')||!uuid.test(request.requestId||''))fail('P33_REQUEST_INVALID');

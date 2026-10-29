@@ -59,3 +59,10 @@ N1 onboarding: bin/join-input.mjs đọc mã ẩn/--stdin có timeout/bounds; bi
 Control-only N1: bin/control-node.mjs ký management/public-origin proof không đụng DB; control-peer.mjs tái sử dụng forced-command SSH qua public pins N-node; control-configure.mjs prepare/configure có UUID/confirmation/membership/backup. reference/cluster-authority/control-nodes.mjs chỉ mở rộng Panel route. Site participants giữ cơ chế fence P33 riêng; tests/control-node.mjs và p33-manual.mjs kiểm ranh giới.
 
 N1 self-service: reference/cluster-authority/n1-onboarding.mjs giữ approval từ invite, journal cấp Tunnel riêng, CF API allowlist, registry Control durable và signed proof relay trong cùng DO. bin/n1-self-service.mjs nối Agent với cơ chế này, chỉ cấu hình Tunnel token/origin Access/control-self-service trên node N1; không DNS/site/writer. tools/configure-cloudflare-n1.ps1/.mjs nhập token ẩn một lần vào Worker Secret; tests/n1-self-service.mjs kiểm lost-reply/retry/auth/signature/Control. Runtime và blocker chỉ ở LIVE-PROGRESS.
+
+### N1.3 — chuẩn bị site Standby
+
+- `reference/cluster-authority/site-standby.mjs`: job/backup chunk relay có role/key pin; site approval và sáu mức readiness, không đổi DNS/lease khi chuẩn bị.
+- `bin/site-standby.mjs`: Agent/Panel bridge, checksum/retry/journal, backup/restore vào đích trống và kiểm runtime; `site-standby-data.php` chỉ chuyển bảng nội dung LAB, tạo credentials riêng; `site-standby-archive.py` kiểm toàn bộ archive trước ghi.
+- Original Panel `/api/mhc/standby`: session + CSRF + mutation queue; UI Cluster/chọn node. Manual P33 dùng cùng relay để liên lạc N-node qua Internet, không SSH peer LAN.
+- Tests: `tests/site-standby.mjs`, `tests/site-standby-archive.py`, bổ sung UI và regression P33/N1.

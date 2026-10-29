@@ -4,6 +4,7 @@ import {sharedStatus,sharedManagedRequest} from './cluster-authority.mjs';
 import {p31PeerEnvelope} from './p31-control.mjs';
 import {controlConfigured,controlPeerEnvelope} from './control-peer.mjs';
 import {n1ControlEnvelope} from './n1-self-service.mjs';
+import {siteManualEnvelope} from './site-standby.mjs';
 import {P33_SCOPE} from './p33-node.mjs';
 const fail=c=>{throw Error(c);},sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function view(s){if(s.p33?.enabled!==true||s.p33.scope!==P33_SCOPE)fail('P33_NOT_CONFIGURED');return s.p33;}
@@ -11,13 +12,13 @@ const requestBody=s=>({requestId:crypto.randomUUID(),expectedRevision:s.revision
 export async function p33Request(nodeId,action,nonce=null){
  const s=await sharedStatus(),r=view(s);nonce ||= r.challenge||crypto.randomBytes(32).toString('hex');
  const request={action,nodeId,nonce,requestId:crypto.randomUUID(),epoch:r.epoch,revision:r.revision,operationId:r.operationId};
- const {envelope,publicKey,clusterId}=await (controlConfigured()?controlPeerEnvelope(nodeId,request):p31PeerEnvelope(nodeId,request));
+ const {envelope,publicKey,clusterId}=await (s.siteRelayEnabled?siteManualEnvelope(nodeId,request):controlConfigured()?controlPeerEnvelope(nodeId,request):p31PeerEnvelope(nodeId,request));
  const p=envelope?.proof;
  if(!p||p.scope!==P33_SCOPE||p.schema!==3||p.nodeId!==nodeId||p.clusterId!==clusterId||p.nonce!==nonce||p.epoch!==r.epoch||p.revision!==r.revision||p.operationId!==r.operationId||p.expiresAt-p.checkedAt!==15000||Date.now()<p.checkedAt-2000||Date.now()>p.expiresAt||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature||'','base64url')))fail('P33_PEER_PROOF_INVALID');
  return envelope;
 }
 export async function p33Readiness(){
- const s=await sharedStatus(),r=view(s);const nodes=await Promise.all(s.nodes.filter(n=>(r.siteNodeIds||['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24']).includes(n.nodeId)).map(async n=>{try{const e=await p33Request(n.nodeId,'p33-ready');return {nodeId:n.nodeId,label:n.label,ready:true,dataset:e.proof.dataset,management:e.proof.management};}catch(e){return {nodeId:n.nodeId,label:n.label,ready:false,problem:/^(P33|P31|AUTHORITY)_[A-Z0-9_]+$/.test(e.message)?e.message:'P33_PEER_UNAVAILABLE'};}}));return {scope:P33_SCOPE,phase:r.phase,nodes};
+ const s=await sharedStatus(),r=view(s),ids=!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)&&r.participants?r.participants:r.siteNodeIds||['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24'];const nodes=await Promise.all(s.nodes.filter(n=>ids.includes(n.nodeId)).map(async n=>{try{const e=await p33Request(n.nodeId,'p33-ready');return {nodeId:n.nodeId,label:n.label,ready:true,dataset:e.proof.dataset,management:e.proof.management};}catch(e){return {nodeId:n.nodeId,label:n.label,ready:false,problem:/^(P33|P31|AUTHORITY|SITE)_[A-Z0-9_]+$/.test(e.message)?e.message:'P33_PEER_UNAVAILABLE'};}}));return {scope:P33_SCOPE,phase:r.phase,nodes};
 }
 async function publicEnvelope(url,jwt){
  let response,bytes='';try{response=await fetch(url,{headers:{cookie:'CF_Authorization='+jwt,'cache-control':'no-cache'},redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});for await(const b of response.body||[]){bytes+=Buffer.from(b).toString('utf8');if(bytes.length>32768)fail('P33_PUBLIC_REPLY_TOO_LARGE');}if(!response.ok)fail('P33_PUBLIC_UNREACHABLE');return JSON.parse(bytes);}catch{fail('P33_PUBLIC_UNREACHABLE');}
