@@ -9,12 +9,22 @@ import {P33_SCOPE} from './p33-node.mjs';
 const fail=c=>{throw Error(c);},sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function view(s){if(s.p33?.enabled!==true||s.p33.scope!==P33_SCOPE)fail('P33_NOT_CONFIGURED');return s.p33;}
 const requestBody=s=>({requestId:crypto.randomUUID(),expectedRevision:s.revision,expectedP33Revision:view(s).revision,operationId:s.p33.operationId});
+// A fresh signed nonce-bound proof can arrive just ahead of the receiving Android clock.
+// Wait within the existing skew allowance; never extend proof TTL or Authority lease checks.
+export async function waitForPeerClock(proof,now=Date.now,delay=sleep){
+ if(!Number.isSafeInteger(proof?.checkedAt)||!Number.isSafeInteger(proof?.expiresAt)||proof.expiresAt-proof.checkedAt!==15000)fail('P33_PEER_PROOF_INVALID');
+ const wait=proof.checkedAt-2000-now();
+ if(wait>2000)fail('P33_PEER_CLOCK_SKEW');
+ if(wait>0)await delay(wait);
+ const current=now();if(current<proof.checkedAt-2000||current>proof.expiresAt)fail('P33_PEER_PROOF_INVALID');
+}
 export async function p33Request(nodeId,action,nonce=null){
  const s=await sharedStatus(),r=view(s);nonce ||= r.challenge||crypto.randomBytes(32).toString('hex');
  const request={action,nodeId,nonce,requestId:crypto.randomUUID(),epoch:r.epoch,revision:r.revision,operationId:r.operationId};
  const {envelope,publicKey,clusterId}=await (s.siteRelayEnabled?siteManualEnvelope(nodeId,request):controlConfigured()?controlPeerEnvelope(nodeId,request):p31PeerEnvelope(nodeId,request));
  const p=envelope?.proof;
- if(!p||p.scope!==P33_SCOPE||p.schema!==3||p.nodeId!==nodeId||p.clusterId!==clusterId||p.nonce!==nonce||p.epoch!==r.epoch||p.revision!==r.revision||p.operationId!==r.operationId||p.expiresAt-p.checkedAt!==15000||Date.now()<p.checkedAt-2000||Date.now()>p.expiresAt||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature||'','base64url')))fail('P33_PEER_PROOF_INVALID');
+ if(!p||p.scope!==P33_SCOPE||p.schema!==3||p.nodeId!==nodeId||p.clusterId!==clusterId||p.nonce!==nonce||p.epoch!==r.epoch||p.revision!==r.revision||p.operationId!==r.operationId||p.expiresAt-p.checkedAt!==15000||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature||'','base64url')))fail('P33_PEER_PROOF_INVALID');
+ await waitForPeerClock(p);
  return envelope;
 }
 export async function p33Readiness(){

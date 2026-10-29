@@ -1,5 +1,13 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## N1.3 — checkpoint xử lý clock phía nhận (IN PROGRESS, 29/10/2026)
+
+- User đã bật giờ tự động trênXZ3/Vsmart. SSH/ba site readiness PASS, rev39/epoch8/Control11T/không lease/Auto=false giữ nguyên; Manual readiness từXZ3 vẫn có lượt FAIL rồi PASS do proof tương lai sát2s. Không yêu cầu chỉnh giờ thủ công lặp lại.
+- Sửa p33Request: sau kiểm chữ ký/nonce/node/cluster/epoch/revision mới được chờ bounded tối đa2giây để proof đi vào ngưỡng cũ, rồi kiểm lại strict future2s và TTL15s. Không đổi timestamp/expiry/lease, không nới check Authority. Clock lệch lớn, expired/malformed/time-jump vẫn fail-closed.
+- Windows + Android11T fixture PASS clock boundary/large skew/expiry/time jump, P33 node/Authority và N1.3 relay; syntax self-test PASS. Actual rollout/readiness sau sửa **NOT RUN** tại checkpoint này.
+- Source baseline79d77f7; sửa nằm trong commit chứa checkpoint này. Một việc tiếp theo: package05 cùng source đã commit, source-only canary11T/XZ3 rồiVsmart có backup; kiểm readiness thật từ cả3Panel trước chốt N1.3. Release04 bất biến; chưa bắt đầu P4.0.
+
+
 ## N1.3 — IN PROGRESS: Standby website LAB đã hoạt động, còn kiểm clock từ Panel XZ3 (29/10/2026)
 
 **Kết quả thực:** original Panel9090 → Cluster → node đích → Chuẩn bị website dự phòng; XZ3 backup → authenticated Authority relay →11T restore/checksum/journal → site/SQL riêng đã VERIFIED. Không đổi DNS/Control/epoch/lease trong N1.3. Không gọi badge eligible là Primary đang ghi.

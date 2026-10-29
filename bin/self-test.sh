@@ -80,5 +80,6 @@ node "$ROOT/tests/site-standby.mjs"
 node "$ROOT/tests/upgrade-quiescence.mjs"
 node "$ROOT/tests/site-public-grants.mjs"
 node "$ROOT/tests/site-job-retry.mjs"
+node "$ROOT/tests/p33-peer-clock.mjs"
 python3 "$ROOT/tests/site-standby-archive.py" "$ROOT/bin/site-standby-archive.py"
 echo 'PASS: all TEST 0.5.0C-REMOTE-PANEL source self-tests (device runtime untested)'
