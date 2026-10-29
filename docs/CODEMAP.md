@@ -75,3 +75,5 @@ P4.0 source: reference/cluster-authority/site-sync.mjs giữ một policy/run/CA
 
 - bin/p4-fence.mjs: private SQL trigger definitions/inspection, root keeper pipe, authoritative lease→boot-time deadline; bin/p4-fence-install.mjs: authenticated Standby job/private backup/resume. p33-node consumes gate only when installed, legacy Manual unchanged otherwise. site-standby dispatches installation and returns signed fence evidence; Worker blocks incomplete maintenance.
 - tests/p4-fence.mjs: time/pipe/template fixtures. tests/p4-fence-sql.php: opt-in separate synthetic MariaDB fixture only, no managed-site setup or credentials in source. tests/source-upgrade.mjs: signed FENCED Standby may source-upgrade beside another writer; active writer denied. Runtime/tests/DoD only in LIVE-PROGRESS.
+
+- tests/p4-fence-cli.mjs: opt-in native Termux fixture mhc_p4_probe_<8hex> only; reproduces CLI1064, checks source delimiter helper and exact trigger hash, never managed schema.

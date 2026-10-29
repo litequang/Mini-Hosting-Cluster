@@ -22,6 +22,8 @@ export function sqlFenceStatements(schema,tables,lockName,appUser){
  }
  return entries;
 }
+// MariaDB CLI parses semicolons inside a trigger unless its client delimiter is changed.
+export function sqlFenceCli(sql){if(typeof sql!=='string'||!sql.startsWith("CREATE DEFINER='root'@'localhost' TRIGGER ")||sql.includes('//'))fail('P4_SQL_DDL_INVALID');return 'DELIMITER //\n'+sql+'\n//\nDELIMITER ;';}
 // Use system uptime (Linux boot time), not a rewound Android wall clock, for local lease expiry.
 export class LeaseDeadline{
  constructor(clock=()=>os.uptime()*1000){this.clock=clock;this.deadline=0;this.identity=null;}

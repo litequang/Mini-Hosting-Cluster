@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {atomicPrivate} from './site-sync.mjs';
-import {fenceConfigPath,readFenceConfig,sqlFenceStatements,inspectSqlFence,sqlFenceOpen} from './p4-fence.mjs';
+import {fenceConfigPath,readFenceConfig,sqlFenceStatements,sqlFenceCli,inspectSqlFence,sqlFenceOpen} from './p4-fence.mjs';
 const fail=code=>{throw Error(code);};
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
 function privateJson(file){
@@ -71,7 +71,7 @@ export async function installSqlFence(c,job){
  const expected=sqlFenceStatements(config.database,config.tables,config.lockName,config.user);
  const existing=n.sql("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA='mhc_p33_lab' ORDER BY TRIGGER_NAME",true).split('\n').filter(Boolean);
  if(existing.some(v=>!expected.some(e=>e.name===v)))fail('P4_EXISTING_TRIGGERS_REFUSED');
- for(const e of expected)if(!existing.includes(e.name))n.sql(e.sql,true);
+ for(const e of expected)if(!existing.includes(e.name))n.sql(sqlFenceCli(e.sql),true);
  const proof=inspectSqlFence(n,config);
  if(sqlFenceOpen(n,config))fail('P4_INSTALL_SQL_GATE_ALREADY_OPEN');
  try{

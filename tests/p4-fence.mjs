@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';import {PassThrough,Writable} from 'node:stream';
-import {LeaseDeadline,SqlFenceSession,sqlFenceStatements,sqlFenceBody,inspectSqlFence} from '../bin/p4-fence.mjs';
+import {LeaseDeadline,SqlFenceSession,sqlFenceStatements,sqlFenceCli,sqlFenceBody,inspectSqlFence} from '../bin/p4-fence.mjs';
 const name='mhc_p4_'+'a'.repeat(64),rows=sqlFenceStatements('mhc_p33_lab',['wp_posts','mhc_p33_probe'],name,'mhc_p33_web');
+assert(sqlFenceCli(rows[0].sql).startsWith('DELIMITER //\nCREATE DEFINER='));assert(sqlFenceCli(rows[0].sql).endsWith('\n//\nDELIMITER ;'));assert.throws(()=>sqlFenceCli('DROP DATABASE x'),/DDL_INVALID/);
 assert.equal(rows.length,12);assert.equal(new Set(rows.map(r=>r.name)).size,12);assert(rows.some(r=>r.when==='AFTER'&&r.event==='UPDATE'));
 assert(sqlFenceBody(name,'mhc_p33_web').includes('@@in_transaction<>0'));assert(sqlFenceBody(name,'mhc_p33_web').includes('mhc_owner<>CONNECTION_ID()'));assert(sqlFenceBody(name,'mhc_p33_web').includes("USER='root'"));
 for(const x of ['bad-lock','mhc_p4_'+'z'.repeat(64)])assert.throws(()=>sqlFenceBody(x,'mhc_p33_web'),/CONFIG/);
