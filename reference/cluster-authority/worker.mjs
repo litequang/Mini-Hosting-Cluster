@@ -101,7 +101,7 @@ export default {
  },
  async fetch(request,env){
  try{
-  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback|p33-begin|p33-fenced|p33-active|p33-route|p33-confirm|p33-renew|p33-control|p33-cancel|p33-refence|n1-provision|n1-publish|n1-control-proof|site-start|site-poll|site-result|site-upload|site-download|site-call|site-job)$/.exec(u.pathname);
+  const u=new URL(request.url),match=/^\/v1\/clusters\/([0-9a-f-]{36})\/(status|heartbeat|begin|abort|route|route-resume|complete|history|invite|join|p32-status|p32-route|p32-resume|p32-confirm|p32-rollback|p33-begin|p33-fenced|p33-active|p33-route|p33-confirm|p33-renew|p33-control|p33-cancel|p33-refence|n1-provision|n1-publish|n1-control-proof|site-start|site-poll|site-result|site-upload|site-download|site-call|site-job|site-progress)$/.exec(u.pathname);
   if(!match||match[1]!==env.MHC_CLUSTER_ID||!UUID.test(match[1]))return reply({error:'NOT_FOUND'},404);
   const action=match[2],list=members(env),id=request.headers.get('x-mhc-node');
   const node=list.find(n=>n.nodeId===id),token=(request.headers.get('authorization')||'').replace(/^Bearer /,'');

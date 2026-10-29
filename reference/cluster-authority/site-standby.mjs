@@ -2,7 +2,7 @@
 import {n1EffectiveEnv,n1EnableSiteRoute} from './n1-onboarding.mjs';
 import {p32Config} from './p32-lab.mjs';
 import {controlNodes} from './control-nodes.mjs';
-export const SITE_ACTIONS=['site-start','site-poll','site-result','site-upload','site-download','site-call','site-job'];
+export const SITE_ACTIONS=['site-start','site-poll','site-result','site-upload','site-download','site-call','site-job','site-progress'];
 export const SITE_ID='mhc-p33-wordpress-v1',CHUNK_BYTES=196608,MAX_BYTES=64*1024*1024;
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,hex=/^[a-f0-9]{64}$/;
 const fail=(c,status=409)=>{throw Object.assign(Error(c),{status});};
@@ -31,7 +31,7 @@ export function siteReadiness(env,s,id,row,n1,now=Date.now()){
  const blockers=[];if(!management)blockers.push('MANAGEMENT_OFFLINE');if(!route)blockers.push('TUNNEL_ROUTE_NOT_VERIFIED');if(!site)blockers.push(evidence?.errorCode||'SITE_DATA_AND_WRITER_GATE_NOT_VERIFIED');if(!approved)blockers.push('SITE_CANDIDATE_NOT_APPROVED');
  return {siteId:SITE_ID,states:{INSTALLED:!!installed,JOINED:joined,MANAGEMENT_READY:!!management,ROUTE_READY:!!route,SITE_READY:!!site,ELIGIBLE_PRIMARY:!!site&&!!route&&approved},blockers,lastCheckedAt:evidence?.checkedAt||null,preparedAt:evidence?.dataset?.preparedAt||null,dataset:evidence?.dataset||null,job:row?.job?publicJob(row.job):null};
 }
-function publicJob(j){return {id:j.id,nodeId:j.nodeId,type:j.type,status:j.status,stage:j.stage||j.status,createdAt:j.createdAt,updatedAt:j.updatedAt,errorCode:j.errorCode||null,snapshotId:j.snapshotId||null,...(j.result?{result:j.result}:{}),...(j.request?{request:j.request}:{})};}
+function publicJob(j){return {id:j.id,nodeId:j.nodeId,type:j.type,status:j.status,stage:j.status==='DONE'?'DONE':j.stage||j.status,progress:j.progress||null,createdAt:j.createdAt,updatedAt:j.updatedAt,errorCode:j.errorCode||null,snapshotId:j.snapshotId||null,...(j.result?{result:j.result}:{}),...(j.request?{request:j.request}:{})};}
 async function cleanup(tx,now){
  const snapshots=await tx.get('site-snapshots')||[],pending=await tx.get('site-upload-jobs')||[],rows=await tx.get('site-nodes')||{};
  const expired=snapshots.filter(v=>now-v.createdAt>=86400000),abandoned=pending.filter(v=>now-v.createdAt>=86400000||rows[v.nodeId]?.job?.id!==v.id||rows[v.nodeId]?.job?.status==='FAILED');
@@ -75,6 +75,9 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
   }
   if(action==='site-job')return {job:job?publicJob(job):null,snapshots:snapshots.filter(v=>v.status==='VERIFIED'&&now-v.createdAt<86400000).map(({chunks,...v})=>v),readiness:siteReadiness(env,s,target,row,await tx.get('n1-node:'+target),now),publicKey:known(target)};
   if(action==='site-poll'){
+   // Preserve failed restore's job ID so the UI can resume its private on-node journal.
+   // A background health check must never replace the operator's recoverable task.
+   if(job?.type==='restore'&&job.status==='FAILED')return {job:null};
    if(!job||!['QUEUED','RUNNING'].includes(job.status)||now-job.createdAt>86400000){
     if(now-(row.nextCheckAt||0)<0)return {job:null};
     if(!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase||'IDLE'))return {job:null};
@@ -87,6 +90,10 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
    if(job.resultDigest!==await sha(text(JSON.stringify(stable))))fail('SITE_RESULT_CONFLICT');return {job:publicJob(job)};
   }
   if(!job||body.jobId!==job.id||!['RUNNING','QUEUED'].includes(job.status)||now-job.createdAt>86400000)fail('SITE_JOB_MISMATCH');
+  if(action==='site-progress'){
+   if(!['backup','restore'].includes(job.type)||!['DOWNLOADING','VERIFYING_CHECKSUM','EXTRACTING','INSTALLING','RESTORING_DATABASE','VERIFYING_SITE'].includes(body.stage)||!Number.isSafeInteger(body.done)||!Number.isSafeInteger(body.total)||body.done<0||body.total<0||body.done>body.total||body.total>MAX_BYTES)fail('SITE_PROGRESS_INVALID');
+   job={...job,stage:body.stage,progress:{done:body.done,total:body.total},updatedAt:now};rows[target]={...row,job};await tx.put('site-nodes',rows);return {accepted:true};
+  }
   if(action==='site-upload'){
    if(job.type!=='backup'||!Number.isInteger(body.index)||body.index<0||body.index>=Math.ceil(MAX_BYTES/CHUNK_BYTES)||typeof body.data!=='string'||body.data.length>CHUNK_BYTES*4/3||!/^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.data)||!hex.test(body.sha256||''))fail('SITE_CHUNK_INVALID');
    const bytes=Uint8Array.from(atob(body.data),c=>c.charCodeAt(0));if(!bytes.length||bytes.length>CHUNK_BYTES||await sha(bytes)!==body.sha256)fail('SITE_CHUNK_CHECKSUM_MISMATCH');

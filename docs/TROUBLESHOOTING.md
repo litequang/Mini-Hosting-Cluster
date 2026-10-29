@@ -128,3 +128,6 @@ N1_WORKER_SECRET_INSTALL_FAILED từ bản helper CLI cũ: token đã qua Tunnel
 - Restore báo SITE_EXISTING_DATA_REFUSED_USE_VERIFY: giữ nguyên site/schema/user; dùng Kiểm tra lại. Retry phải giữ cùng job/journal, không chạy install.sh hoặc xóa DB để tiếp tục.
 
 - N1.3 trên Termux sạch: MariaDB có PUBLIC grants mặc định chỉ cho test/test_% có thể giữ nguyên vì không khớp mhc_p33_lab. Guard chỉ allowlist đúng các schema test này; không nới global/managed-schema grants. Updater không được chạy khi node đang backup/restore; Agent hoãn bắt đầu job trong thời gian updater lock.
+
+- SHOW GRANTS của appuser có thể bao gồm quyền PUBLIC thừa kế trên test/test_%. Kiểm quyền managed-site chỉ bỏ đúng các schema test này, vẫn phải thử UPDATE trên wp_options bị từ chối; không đánh đồng quyền ngoài scope với writer trên mhc_p33_lab. Không in SHOW GRANTS thô vì dòng USAGE có thể chứa authentication hash.
+- Nâng source khi mhc-lab-p33 đang Standby phải reload cả process guard; byte file mới không chứng minh process cũ đã nạp code mới. Source updater có backup/rollback trạng thái service này. Restore FAILED phải giữ job ID/journal, không để health check nền thay tác vụ của người dùng.

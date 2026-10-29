@@ -77,15 +77,19 @@ async function restore(c,job,snapshot){
  const d=path.join(c.work,job.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const journal=d+'/restore.json',content=d+'/content.json',file=d+'/backup.tar.gz';let state=fs.existsSync(journal)?read(journal):null;
  if(!state){if(fs.existsSync(c.node.base)||c.node.sql("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='mhc_p33_lab'",true)!=='0'||c.node.sql("SELECT COUNT(*) FROM mysql.user WHERE User='mhc_p33_web'",true)!=='0')fail('SITE_EXISTING_DATA_REFUSED_USE_VERIFY');state={jobId:job.id,snapshotId:snapshot.id,sha256:snapshot.sha256,stage:'DOWNLOAD',createdAt:Date.now()};save(journal,state);}
  if(state.snapshotId!==snapshot.id||state.sha256!==snapshot.sha256)fail('SITE_RESTORE_JOURNAL_CONFLICT');
+ const progress=(stage,done=snapshot.bytes)=>retry(()=>sharedSiteRequest('site-progress',{jobId:job.id,stage,done,total:snapshot.bytes}));
  if(state.stage==='DOWNLOAD'){
-  for(let start=0;start<snapshot.chunks;start+=3)await Promise.all(Array.from({length:Math.min(3,snapshot.chunks-start)},async(_,offset)=>{const index=start+offset,p=d+'/chunk-'+index;if(fs.existsSync(p))return;const s=(await retry(()=>sharedSiteRequest('site-download',{jobId:job.id,index}))).site,bytes=Buffer.from(s.data,'base64');if(hash(bytes)!==s.sha256||bytes.length!==s.size)fail('SITE_DOWNLOAD_CHECKSUM_MISMATCH');const tmp=p+'.tmp';fs.writeFileSync(tmp,bytes,{mode:0o600});fs.renameSync(tmp,p);}));
+  await progress('DOWNLOADING',0);
+  for(let start=0;start<snapshot.chunks;start+=3){await Promise.all(Array.from({length:Math.min(3,snapshot.chunks-start)},async(_,offset)=>{const index=start+offset,p=d+'/chunk-'+index;if(fs.existsSync(p))return;const s=(await retry(()=>sharedSiteRequest('site-download',{jobId:job.id,index}))).site,bytes=Buffer.from(s.data,'base64');if(hash(bytes)!==s.sha256||bytes.length!==s.size)fail('SITE_DOWNLOAD_CHECKSUM_MISMATCH');const tmp=p+'.tmp';fs.writeFileSync(tmp,bytes,{mode:0o600});fs.renameSync(tmp,p);}));if(start%12===0)await progress('DOWNLOADING',Math.min(snapshot.bytes,(start+3)*CHUNK));}
+  await progress('VERIFYING_CHECKSUM');
   const fd=fs.openSync(file,'w',0o600);try{for(let i=0;i<snapshot.chunks;i++)fs.writeSync(fd,fs.readFileSync(d+'/chunk-'+i));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
   if(fs.statSync(file).size!==snapshot.bytes||hash(fs.readFileSync(file))!==snapshot.sha256)fail('SITE_BACKUP_CHECKSUM_MISMATCH');
   // Extract into a journal-owned staging directory. An interrupted extract resumes by verifying existing bytes.
-  const packed=archive('unpack',d+'/stage/site',file,content);if(packed.manifestSha256!==snapshot.manifestSha256)fail('SITE_BACKUP_MANIFEST_MISMATCH');
+  await progress('EXTRACTING');const packed=archive('unpack',d+'/stage/site',file,content);if(packed.manifestSha256!==snapshot.manifestSha256)fail('SITE_BACKUP_MANIFEST_MISMATCH');
   state.stage='EXTRACTED';save(journal,state);
  }
  if(state.stage==='EXTRACTED'){
+  await progress('INSTALLING');
   if(fs.existsSync(c.node.base)){if(!fs.existsSync(c.node.base+'/restore-owner.json')||read(c.node.base+'/restore-owner.json').jobId!==job.id)fail('SITE_EXISTING_DATA_REFUSED_USE_VERIFY');}
   else{fs.mkdirSync(c.node.base,{mode:0o700});save(c.node.base+'/restore-owner.json',{jobId:job.id,snapshotId:snapshot.id});}
   if(fs.existsSync(d+'/stage/site'))fs.renameSync(d+'/stage/site',c.node.base+'/site');
@@ -93,13 +97,13 @@ async function restore(c,job,snapshot){
   if(!c.legacy)save(path.join(c.dir,'site-standby.json'),{schema:1,scope:P33_SCOPE,siteId:SITE,nodeId:c.id.nodeId,clusterId:c.a.clusterId,keyFlavor:'N1'});
   try{php(c,'install',content);}finally{if(fs.existsSync(c.node.base+'/db-client.cnf'))c.node.revoke();}state.stage='INSTALLED';save(journal,state);
  }
- if(state.stage==='INSTALLED'){try{php(c,'import',content);}finally{c.node.revoke();}state.stage='IMPORTED';save(journal,state);}
+ if(state.stage==='INSTALLED'){await progress('RESTORING_DATABASE');try{php(c,'import',content);}finally{c.node.revoke();}state.stage='IMPORTED';save(journal,state);}
  php(c,'check',content);
  if(!fs.existsSync(c.node.base+'/dataset.json')){
   const files=['site/wp-config.php','db-client.cnf','php/php-fpm.conf','nginx/nginx.conf','site/wp-content/themes/p33lab/index.php'].map(p=>({path:p,sha256:hash(fs.readFileSync(c.node.base+'/'+p))}));
   save(c.node.base+'/dataset.json',{schema:3,datasetId:SITE,preparedAt:new Date().toISOString(),originalCredentialsCopied:false,restoreVerified:true,sourceSnapshot:{id:snapshot.id,sha256:snapshot.sha256,nodeId:snapshot.nodeId},files});
  }
- await ensureService(c);const evidence=await verifyLocalSite(c);state.stage='VERIFIED';save(journal,state);return {evidence};
+ await progress('VERIFYING_SITE');await ensureService(c);const evidence=await verifyLocalSite(c);state.stage='VERIFIED';save(journal,state);return {evidence};
 }
 async function retry(fn){for(let i=0;i<4;i++)try{return await fn();}catch(e){if(i===3||!/(UNREACHABLE|UNAVAILABLE|API_FAILED)/.test(e.message))throw e;await sleep(500*(i+1));}}
 let task=null,nextPoll=0;

@@ -595,7 +595,8 @@ async function standbyOpen(id){
  standbyRender(s);
 }
 function standbyRender(s){const box=$('#standbyProgress');if(!box)return;const r=s.readiness,j=s.job;state.standbyJob=j;
- box.innerHTML='<p>'+Object.entries(r.states).map(([k,v])=>'<span class="badge '+(v?'good':'bad')+'">'+esc(k)+': '+(v?'OK':'CHƯA')+'</span>').join(' ')+'</p><p>'+r.blockers.map(b=>esc(standbyReason(b))).join('<br>')+'</p><p>Tác vụ: '+esc(j?j.type+' · '+j.status+' · '+j.stage:'chưa có')+(j?.errorCode?'<br>'+esc(standbyReason(j.errorCode)):'')+'</p>';
+ const labels={QUEUED:'Chờ Agent',DOWNLOADING:'Đang tải backup',VERIFYING_CHECKSUM:'Kiểm checksum',EXTRACTING:'Giải nén đã kiểm tra',INSTALLING:'Chuẩn bị website và tài khoản riêng',RESTORING_DATABASE:'Phục hồi nội dung database',VERIFYING_SITE:'Kiểm HTTP/PHP/SQL và Standby',DONE:'Hoàn tất',FAILED:'Cần xử lý lỗi',UPLOADING_BACKUP:'Đang gửi backup'};
+ box.innerHTML='<p>'+Object.entries(r.states).map(([k,v])=>'<span class="badge '+(v?'good':'bad')+'">'+esc(k)+': '+(v?'OK':'CHƯA')+'</span>').join(' ')+'</p><p>'+r.blockers.map(b=>esc(standbyReason(b))).join('<br>')+'</p><p>Tác vụ: '+esc(j?j.type+' · '+(labels[j.stage]||j.stage):'chưa có')+(j?.progress?' · '+fmtBytes(j.progress.done)+' / '+fmtBytes(j.progress.total):'')+(j?.errorCode?'<br>'+esc(standbyReason(j.errorCode)):'')+'</p>';
 }
 async function standbyClick(type){
  const id=state.standbyTarget;if(!id)return;

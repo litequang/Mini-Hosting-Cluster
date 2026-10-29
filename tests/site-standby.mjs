@@ -43,6 +43,12 @@ try{
  await call('site-result',{jobId:job.id,envelope:sign(b,job.id,{backup})},'agent',b); // lost response is idempotent
  object=new ClusterAuthority(ctx,env); // DO recreation, payload and jobs retained
  const restore=(await start(c,'restore',{snapshotId:job.id})).site.job;const polled=await poll(c);assert.equal(polled.site.snapshot.sha256,backup.sha256);
+ await assert.rejects(call('site-progress',{jobId:restore.id,stage:'DOWNLOADING',done:0,total:bytes.length},'panel',c),/ROLE_DENIED/);
+ await call('site-progress',{jobId:restore.id,stage:'DOWNLOADING',done:1,total:bytes.length},'agent',c);assert.equal((await call('site-job',{targetNodeId:c})).site.job.progress.done,1);
+ await assert.rejects(call('site-progress',{jobId:restore.id,stage:'DOWNLOADING',done:bytes.length+1,total:bytes.length},'agent',c),/PROGRESS_INVALID/);
+ await call('site-result',{jobId:restore.id,envelope:sign(c,restore.id,{errorCode:'SITE_TRANSFER_INTERRUPTED'})},'agent',c);
+ const paused=await siteAction({ctx,env,action:'site-poll',body:{},nodeId:c,authorize:async()=> 'agent',now:now+180000});assert.equal(paused.job,null);assert.equal(storage.data.get('site-nodes')[c].job.id,restore.id);
+ await start(c,'restore',{snapshotId:job.id,requestId:restore.id,resume:true});await poll(c);
  await assert.rejects(call('site-download',{jobId:restore.id,index:0},'agent',d),/JOB_MISMATCH/);
  assert.deepEqual(Buffer.from((await call('site-download',{jobId:restore.id,index:0},'agent',c)).site.data,'base64'),chunks[0]);
  const tampered=sign(c,restore.id,{evidence:prepared});tampered.proof.evidence.php=false;await assert.rejects(call('site-result',{jobId:restore.id,envelope:tampered},'agent',c),/SIGNATURE/);

@@ -1,5 +1,15 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## N1.3 — dữ liệu11T đã phục hồi, chốt runtime guard (29/10/2026, IN PROGRESS)
+
+- Ba LAB đã APPLIED/VERIFIED93/93 source c493337, manifest cc2c50ad30bbfe0350d1e1573c09de719ba2ff4183e9d4a21f0bae567a3530a1. VM tx-20261029021838169-05ee6e;11T tx-20261029021946733-e16eab;XZ3 tx-20261029021958297-0d37a4. Config/admin/credentials/SSH/site cũ khớp hash; SSH/MariaDB/Tunnel PID không đổi. Vsmart upgrade không đổi Authority/route/lease.
+- Restore11T job21e1a558-09e3-45a5-b94b-5f0f03e44a7e đã download/checksum/extract/provision/import/check canonical8 bảng nội dung, tạo credentials riêng, dataset b91b14b85d598efbdc4b1c2aed6df637e03cdb8bd1cd7118d20f1047295590db. Local journal IMPORTED; còn hoàn tất proof. Đích có4 wp_posts; SQL UPDATE thực bị từ chối, MariaDB skip_networking=1, guard chạy Standby.
+- Guard SHOW GRANTS cũ không tính inherited PUBLIC test/test_% trong grant appuser nên fail-closed sau import. Không thay grants/data để làm test xanh; bản sửa chỉ bỏ khỏi kiểm quyền managed-site các grant test không khớp mhc_p33_lab; global/managed/role/unknown vẫn chặn. Actual probe mới trong staging11T PASS HTTP/PHP/SQL/files/writerGate/writeDenied; dataset/checksum/credentials không đổi.
+- Source mới giữ FAILED restore job cho UI retry cùng journal, báo phase/bytes tải→checksum→extract→install→DB→verify; updater reload cả managed P33 guard khi đang Standby để không chạy mã cũ trong process sau nâng source. Fixture auth/bytes bounds/retention/resume/N-node/P33/upgrader PASS (28 Windows,29 Android gồm symlink).
+- Full-suite thử ở fixture Android cách ly dừng do harness thiếu tools/configure-cloudflare-n1.mjs sau45 PASS; chưa phải lỗi runtime. Cần đóng gói đủ fixture rồi chạy lại, không coi là full suite PASS.
+- Commit kết quả đã push:c493337; source sửa ở commit chứa checkpoint này. Việc tiếp theo: rollout cùng package, resume đúng job21e1... trên11T, xác nhận cả sáu trạng thái và Manual proof qua relay không SSH; đóng gói fresh04 bất biến. Fresh04/điện thoại sạch thứ tư/reboot/Doze/mất mạng thật PHYSICAL_NOT_RUN. Chưa đổi DNS/lease, Auto=false.
+
+
 ## N1.3 — guard Termux thực tế (29/10/2026, IN PROGRESS)
 
 - Commit đã push44da248: XZ3/11T APPLIED93/93 source44da248, manifest03a0daa38171ae6245f3d4d125e2aab92dca62dbfb233b223f1a2045fb246769; giữ config/credentials/SSH/site cũ. Worker deploy a642db27-d3a1-4874-b113-2424c2695088 cùng namespace/state; cần kiểm source DO thực trước nghiệm thu.

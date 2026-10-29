@@ -87,11 +87,12 @@ export class SourceUpgrade{
   }
   return upgradeAuthoritySnapshot(s,this.nodeId,this.managementOnlyNode===true,quiesced);
  }
- async baseline(){const services=Object.fromEntries(['amh-panel','mhc-authority-agent'].map(n=>[n,this.services.status(n)]));if(Object.values(services).some(s=>!s.running))fail('MANAGEMENT_NOT_HEALTHY_BEFORE_UPGRADE');return {services,shared:this.fixture?null:this.shared()};}
+ reloadServices(){const names=['amh-panel','mhc-authority-agent'];if(exists(path.join(this.prefix,'var/service/mhc-lab-p33/run'))&&this.services.status('mhc-lab-p33').running)names.push('mhc-lab-p33');return names;}
+ async baseline(){const services=Object.fromEntries(this.reloadServices().map(n=>[n,this.services.status(n)]));if(Object.values(services).some(s=>!s.running))fail('MANAGEMENT_NOT_HEALTHY_BEFORE_UPGRADE');return {services,shared:this.fixture?null:this.shared()};}
  async realHealth(before,expected){
   const end=Date.now()+60000;let last='MANAGEMENT_HEALTH_FAILED';
   while(Date.now()<end){try{
-   for(const n of ['amh-panel','mhc-authority-agent']){const s=this.services.status(n);if(!s.running||s.pid===before.services[n].pid)fail('PROCESS_NOT_RELOADED_'+n);}
+   for(const n of Object.keys(before.services)){const s=this.services.status(n);if(!s.running||s.pid===before.services[n].pid)fail('PROCESS_NOT_RELOADED_'+n);}
    const root=await fetch('http://127.0.0.1:9090/',{signal:AbortSignal.timeout(4000)});if(root.status!==200)fail('PANEL_HTTP_FAILED');
    const asset=await fetch('http://127.0.0.1:9090/app.js',{signal:AbortSignal.timeout(4000)});if(asset.status!==200||digest(Buffer.from(await asset.arrayBuffer()))!==expected)fail('PANEL_ASSET_MISMATCH');
    const s=this.shared();if(s.clusterId!==before.shared.clusterId||s.revision!==before.shared.revision||s.epoch!==before.shared.epoch||s.ownership!==before.shared.ownership)fail('SHARED_STATE_CHANGED');
@@ -124,9 +125,9 @@ export class SourceUpgrade{
  lock(){this.safe(this.state);privateDir(this.state);const l=path.join(this.state,'lock');try{fs.mkdirSync(l,{mode:0o700});}catch(e){if(e.code==='EEXIST')fail('UPGRADE_LOCKED_REVIEW_PENDING_TRANSACTION');throw e;}save(path.join(l,'owner.json'),{pid:process.pid,at:new Date().toISOString()});return ()=>fs.rmSync(l,{recursive:true});}
  snapshot(tx,targets){const entries=[];targets.forEach((target,i)=>{this.safe(target);const st=exists(target),e={target:path.relative(this.home,target),exists:!!st};if(st){if(!st.isFile())fail('BACKUP_NOT_REGULAR_FILE');e.mode=st.mode&0o777;e.sha256=digest(fs.readFileSync(target));fs.copyFileSync(target,path.join(tx,'file-'+i));fs.chmodSync(path.join(tx,'file-'+i),0o600);}entries.push(e);});return entries;}
  async restore(tx,record){
-  for(const n of ['mhc-authority-agent','amh-panel'])this.services.set(n,false);
+  for(const n of Object.keys(record.before.services).reverse())this.services.set(n,false);
   record.entries.forEach((e,i)=>{const p=this.safe(path.join(this.home,e.target));if(e.exists){const bytes=fs.readFileSync(path.join(tx,'file-'+i));if(digest(bytes)!==e.sha256)fail('BACKUP_HASH_MISMATCH');atomic(p,bytes,e.mode);}else if(exists(p))fs.unlinkSync(p);});
-  for(const n of ['amh-panel','mhc-authority-agent'])this.services.set(n,record.before.services[n].running);
+  for(const n of Object.keys(record.before.services))this.services.set(n,record.before.services[n].running);
   for(let i=0;i<record.entries.length;i++){const e=record.entries[i],p=path.join(this.home,e.target);if(e.exists?(!exists(p)||digest(fs.readFileSync(p))!==e.sha256):!!exists(p))fail('ROLLBACK_FILE_VERIFY_FAILED');}
   const app=path.join(this.home,'android-hosting-panel/public/app.js');await this.health(record.before,digest(fs.readFileSync(app)));
   record.phase='ROLLED_BACK';record.rolledBackAt=new Date().toISOString();save(path.join(tx,'transaction.json'),record);
@@ -140,14 +141,14 @@ export class SourceUpgrade{
    const targets=p.manifest.files.map(e=>this.destination(e)).concat([p.retired,path.join(this.state,'current.json')]);
    record={schema:1,version:p.manifest.version,commit:p.manifest.commit,manifestSha256:p.hash,phase:'BACKED_UP',before,entries:this.snapshot(tx,targets)};
    const configBackup=path.join(tx,'management-config');privateDir(configBackup);
-   for(const n of ['amh-panel','mhc-authority-agent','sshd','mhc-panel-tunnel'])for(const f of ['run','finish','down','log/run']){const src=path.join(this.prefix,'var/service',n,f);if(exists(src)?.isFile()){const out=path.join(configBackup,n,f);privateDir(path.dirname(out));fs.copyFileSync(src,out);fs.chmodSync(out,0o600);}}
+   for(const n of ['amh-panel','mhc-authority-agent','mhc-lab-p33','sshd','mhc-panel-tunnel'])for(const f of ['run','finish','down','log/run']){const src=path.join(this.prefix,'var/service',n,f);if(exists(src)?.isFile()){const out=path.join(configBackup,n,f);privateDir(path.dirname(out));fs.copyFileSync(src,out);fs.chmodSync(out,0o600);}}
    const bootDir=path.join(this.home,'.termux/boot');if(exists(bootDir))for(const n of fs.readdirSync(bootDir)){const src=path.join(bootDir,n);if(exists(src)?.isFile()){privateDir(path.join(tx,'boot-before'));fs.copyFileSync(src,path.join(tx,'boot-before',n));}}
    save(path.join(tx,'transaction.json'),record);await this.hook('backed-up');
    record.phase='APPLYING';save(path.join(tx,'transaction.json'),record);
-   for(const n of ['mhc-authority-agent','amh-panel'])this.services.set(n,false);
+   for(const n of Object.keys(before.services).reverse())this.services.set(n,false);
    for(const e of p.manifest.files){atomic(this.destination(e),fs.readFileSync(e.stage),e.mode);await this.hook('file-written',e);}
    if(exists(p.retired))fs.unlinkSync(p.retired);
-   for(const n of ['amh-panel','mhc-authority-agent'])this.services.set(n,true);
+   for(const n of Object.keys(before.services))this.services.set(n,true);
    record.phase='VERIFYING';save(path.join(tx,'transaction.json'),record);
    if(this.mismatches(p).length)fail('APPLIED_FILES_MISMATCH');
    const shared=await this.health(before,p.manifest.files.find(e=>e.area==='panel'&&e.path==='public/app.js').sha256);

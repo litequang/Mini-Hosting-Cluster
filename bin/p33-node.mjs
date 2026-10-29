@@ -13,7 +13,8 @@ export function validManagedLease(s,nodeId,now=Date.now()){
  const r=s?.p33,l=r?.lease;
  return !!s?.clusterId&&r?.enabled===true&&r.scope===P33_SCOPE&&l?.scope===P33_SCOPE&&r.targetNodeId===nodeId&&l.nodeId===nodeId&&l.epoch===r.epoch&&l.operationId===r.operationId&&Number.isSafeInteger(l.expiresAt)&&now<l.expiresAt&&l.expiresAt-now<=92000&&['ACTIVATING','ACTIVE','DNS_REQUESTED','AWAITING_PUBLIC','COMMITTED'].includes(r.phase);
 }
-export function readOnlyGrants(lines){return lines.some(l=>/^GRANT SELECT ON `mhc_p33_lab`\.\* TO /.test(l))&&lines.every(l=>/^GRANT (USAGE ON \*\.\*|SELECT ON `mhc_p33_lab`\.\*) TO /.test(l)&&!l.includes('WITH GRANT OPTION'));}
+export function testDatabaseGrant(line){const m=/^GRANT [A-Z ,]+ ON `([^`]+)`\.\* TO /.exec(line);return !!m&&!line.includes('WITH GRANT OPTION')&&(m[1]==='test'||m[1].replaceAll('\\','')==='test_%');}
+export function readOnlyGrants(lines){lines=lines.filter(l=>!testDatabaseGrant(l));return lines.some(l=>/^GRANT SELECT ON `mhc_p33_lab`\.\* TO /.test(l))&&lines.every(l=>/^GRANT (USAGE ON \*\.\*|SELECT ON `mhc_p33_lab`\.\*) TO /.test(l)&&!l.includes('WITH GRANT OPTION'));}
 export class ManagedNode{
  constructor(o={}){this.home=path.resolve(o.home||os.homedir());this.prefix=o.prefix||process.env.PREFIX||'';this.fixture=o.fixture===true;this.now=o.now||Date.now;this.authority=o.authority||(()=>sharedStatus('agent'));this.renew=o.renew||sharedManagedRequest;this.command=o.command||((cmd,args)=>spawnSync(cmd,args,{encoding:'utf8',timeout:8000,maxBuffer:65536}));this.fetch=o.fetch||fetch;this.base=path.join(this.home,'.local/share/mhc-p33-lab');this.dir=path.join(this.home,'.local/state/mhc-p33-node');this.file=path.join(this.dir,'state.json');this.childrenFile=path.join(this.dir,'children.json');this.candidate=new CandidateNode({home:this.home,prefix:this.prefix,fixture:this.fixture});}
  config(){
@@ -37,7 +38,7 @@ export class ManagedNode{
   return {verified:true,datasetId:m.datasetId,preparedAt:m.preparedAt,restoreVerified:true,manifestSha256:hash(fs.readFileSync(path.join(this.base,'dataset.json'))),replication:false};
  }
  database(fenced=false,writeTest=false){
-  const grants=this.sql('SHOW GRANTS').split('\n');
+  const grants=this.sql('SHOW GRANTS').split('\n').filter(l=>!testDatabaseGrant(l));
   if(fenced){
    if(!readOnlyGrants(grants))fail('P33_SQL_READ_ONLY_NOT_VERIFIED');
    const deny=this.command('mariadb',['--defaults-file='+path.join(this.base,'db-client.cnf'),'-e',"UPDATE wp_options SET option_value=option_value WHERE option_name='blogname'"]);

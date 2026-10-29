@@ -48,6 +48,7 @@ function fixture(options={}){
 }
 let scenarios=0;
 try{
+ const guard=fixture();write(path.join(guard.prefix,'var/service/mhc-lab-p33/run'),'KEEP_GUARD');guard.services.set('mhc-lab-p33',true);const guardPid=guard.states['mhc-lab-p33'].pid;guard.calls.length=0;const guardApply=await guard.u.apply(guard.pkg);assert(guard.states['mhc-lab-p33'].running);assert.notEqual(guard.states['mhc-lab-p33'].pid,guardPid);const newGuardPid=guard.states['mhc-lab-p33'].pid;await guard.u.rollback(guardApply.transaction);assert(guard.states['mhc-lab-p33'].running);assert.notEqual(guard.states['mhc-lab-p33'].pid,newGuardPid);guard.protect();scenarios++;
  for(const kind of ['download','missing','hash','syntax','manifest','engine']){
   const x=fixture();if(kind==='download')x.u.acquire=async()=>{throw Error('INJECT_DOWNLOAD_FAILED');};
   if(kind==='missing')fs.unlinkSync(path.join(x.pkg,x.manifest.files[0].source));
