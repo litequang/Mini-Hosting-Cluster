@@ -59,3 +59,9 @@ bash "$HOME/.local/state/mhc-source-upgrade/incoming/release.ebWFlF/update.sh" -
 ```
 
 Chỉ dùng khi maintenance/preflight cho phép và transaction vẫn khớp current.json; không rollback mù node có writer. Backup file/process private giữ trên node. **Rollback code không xóa/restore DB/site đã chuẩn bị**, không rollback DNS/lease. Release01/02/03/04 giữ nguyên; fresh installer không phải công cụ nâng node hiện có.
+
+## P4 SQL gate prerequisite — source-only Standby upgrade
+
+MHC-LAB-20261029-P4-FENCE source1d1d0f3f7ce6065e81a3f5310df7d393212bf6ed/96files, manifest68d18e21ca71257fa6426f0e7bc987ec2b904546e30061e820a28cf7d60e84e6, tarSHAcbb28096ecdc38f1b37123c3d664649c6c2e79051cc45d9ddd4b01903938db2f. Fresh signed FENCED proof allows a managed Standby upgrade beside a different leased Primary; own active writer, transition and site/sync jobs remain blocked. Use --node-id for N1 nodes. This package is not Auto enablement or a fresh installer. Live deployment/acceptance only in LIVE-PROGRESS.
+
+On11T the final transaction is tx-20261029100747460-616c32. Rollback uses its retained package update.sh --rollback TRANSACTION --node-id UUID after Standby/Authority preflight; baseline5e still supports the installed SQL keeper. Do not downgrade to a pre-gate runtime and expect managed writes to work. Source rollback does not remove SQL triggers or restore database/data; removal needs its own verified Standby maintenance, not ad-hoc DROP/restore. Keep the private SQL/config backup and old releases.
