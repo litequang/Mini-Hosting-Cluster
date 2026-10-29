@@ -1,0 +1,922 @@
+{
+  "format": "mhc-new-node-v1",
+  "version": "MHC-N1-20261029-05",
+  "commit": "bd5bcfda59e3b26c944da3ffa14cd4a0c637cb14",
+  "files": [
+    {
+      "path": "bin/android-acceptance.mjs",
+      "sha256": "79a8a32c75aa81d059c76d5f308a3cb688f673b777be194c45863df73211b0db",
+      "mode": 448
+    },
+    {
+      "path": "bin/auto-primary.mjs",
+      "sha256": "3e9951f719e86622fa56426abf4eac07b0df7ad74a2c8781abbf5156b6b079a1",
+      "mode": 448
+    },
+    {
+      "path": "bin/backup-verify.sh",
+      "sha256": "267b1e804153b8d602212525e1b81a0fe943d1830f271c21dfa3ae327cc9d935",
+      "mode": 448
+    },
+    {
+      "path": "bin/cluster-authority.mjs",
+      "sha256": "4c9597972b357d79b9a8f762aeac37cc291f648f0629bcfbff7cd831989c63b5",
+      "mode": 448
+    },
+    {
+      "path": "bin/cluster-summary.mjs",
+      "sha256": "c99c345326b705edf902d0a661243babd3345cafbcfd4f8d98ea83e59d7c0e98",
+      "mode": 448
+    },
+    {
+      "path": "bin/control-configure.mjs",
+      "sha256": "cac37d6b9c396a00f4a6eec843f12b74edae0997a4f2e8473aefa24900eeaf76",
+      "mode": 448
+    },
+    {
+      "path": "bin/control-node.mjs",
+      "sha256": "8f66c274bcf8157a27c2e8d054a339846e80a8757097b97878b748cd4ff5317e",
+      "mode": 448
+    },
+    {
+      "path": "bin/control-peer.mjs",
+      "sha256": "afcc9b117342b86e616a900ce11b5eaeed5ef815857cb9fb04487985c4fae2fb",
+      "mode": 448
+    },
+    {
+      "path": "bin/daily-backup.sh",
+      "sha256": "be4ffe80f36d8e4de317d493c343422c3d19ca599b47bd33ba69e4defb06249c",
+      "mode": 448
+    },
+    {
+      "path": "bin/doctor.sh",
+      "sha256": "170e045d081c492ac6d708ee0e0c85362c84d221e79a02fbd904281249abf017",
+      "mode": 448
+    },
+    {
+      "path": "bin/fencing-lease-lab.mjs",
+      "sha256": "5170fadd35e1a343a68a983dd48c2f3f5e2a25074a1246ed99a5f7b0080c0081",
+      "mode": 448
+    },
+    {
+      "path": "bin/field-lab-coordinator.mjs",
+      "sha256": "e9b04c954a78aadc2b1a43df11c442df80dc40131b50e4f6991e3015fe3072b3",
+      "mode": 448
+    },
+    {
+      "path": "bin/field-recovery-drill.mjs",
+      "sha256": "5adbfe8b6d4241ddfbe3a8e2d53ad2d87e9d87c0abfaf1bee38bb24b64664e51",
+      "mode": 448
+    },
+    {
+      "path": "bin/file-consistent-lab.mjs",
+      "sha256": "411ed7d585c877812c8975c626d6cc93ebe2c4cef6fb1572b43c8fc28d7062df",
+      "mode": 448
+    },
+    {
+      "path": "bin/file-delta-lab.mjs",
+      "sha256": "d2e9ccd437682fdd3779c894a6f648e0d2314937cf85d92a0584100c3b0d1f03",
+      "mode": 448
+    },
+    {
+      "path": "bin/file-peer-lab.mjs",
+      "sha256": "1c377250dc51cb8492c3eed911a83e55c9c9e75b70cc4ec3ab4c1f6ca5f7dd90",
+      "mode": 448
+    },
+    {
+      "path": "bin/gtid-acceptance.mjs",
+      "sha256": "9737a3cf614b07dfbc3c20ca2fe8ef9fa75b8889187f55af22eac3df496ea118",
+      "mode": 448
+    },
+    {
+      "path": "bin/gtid-lab.mjs",
+      "sha256": "4cd177ca1916e4e7f65d41f3c22d56e440454a13471e39cfc02641abf05bf901",
+      "mode": 448
+    },
+    {
+      "path": "bin/gtid-replica.mjs",
+      "sha256": "f1cc15747f7abd9ca30c3082309945355ac6d92dee0f3b0f2cb26e873da2d845",
+      "mode": 448
+    },
+    {
+      "path": "bin/gtid-seed.mjs",
+      "sha256": "5d70ea3af30b9d1384ee78d289ebce4b1f36bec49d455a4a826d1b7759c0a92d",
+      "mode": 448
+    },
+    {
+      "path": "bin/join-input.mjs",
+      "sha256": "988247d4de3c303ee614cbc3cf75342a9858cfba0510206ea3cc55f6c78cbc25",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-acceptance-gate.mjs",
+      "sha256": "b39ee6a089cc61c7f171a082545ffc3a305d28657e0a55ec9bd0e92b2e8ea40b",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-app-database-gate.mjs",
+      "sha256": "15986e8197b25c0ed720f07494bea5b9b3f8a0af76cabe30d5da49e77d541bb1",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-fence-probe.mjs",
+      "sha256": "3915b50963e52e6eddaf87e19448e19a4e5dc5a1e4be7a23c31a86705cdb1d76",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-http-write-gate.mjs",
+      "sha256": "ece8a5bd4008f1c7ad279b079c20f7decbcc44e465e1e86418d5446ffca3fcbd",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-recover.sh",
+      "sha256": "89e70bd0da17567c9444d0ad0e770447a30f67794afd2dd10a79d85892369478",
+      "mode": 448
+    },
+    {
+      "path": "bin/lab-wp-router.php",
+      "sha256": "416af5427ea4fe760d6bd85bba5734a087730e24cef7fc19d2b43e699a4460e9",
+      "mode": 448
+    },
+    {
+      "path": "bin/lease-witness-lab.mjs",
+      "sha256": "5dfa644df2302854de3e14e097149187dac7f0c1fb2e262b89b43c14a6c1cf24",
+      "mode": 448
+    },
+    {
+      "path": "bin/legacy-panel-src/public/app.js",
+      "sha256": "0f99bca4e8e204cacb1c5327f6738a6e9762c4893e95430dee84dbdb3c257ca4",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/public/index.html",
+      "sha256": "3a9c0e1773f339a3acf3c1ebb4407a8364fd957c256f06ed9d99fae20625ad4c",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/public/style.css",
+      "sha256": "f95f4bb92063bd65e23c657108789241c71f0d1459c05c2602a71b1dd8abf50c",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/src/mhc-integration.mjs",
+      "sha256": "c38483860f53deeb2dbddafc8ef68f4a9d2d05a4ac16ab5bede6b0492aa0955e",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/src/mhc-remote-access.mjs",
+      "sha256": "a646e4418d2572e3849415d42e0586acb2b6cc087aa91e4dbf99269b19cc0ab0",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/src/server.mjs",
+      "sha256": "7ce1a83a7f174e93b2e3023873ee9961ac1ea0048e5a4a48c1506ef3043de30b",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel-src/src/system.mjs",
+      "sha256": "9c3b1e2795d5d7352760793d2d0666f1d048261c34e708f623c93dadaabb94aa",
+      "mode": 384
+    },
+    {
+      "path": "bin/legacy-panel.sh",
+      "sha256": "31642d12dbe4e69fb34c7a6e7376cfde3c16c4199d0ab0bfb1f13ea2d80941aa",
+      "mode": 448
+    },
+    {
+      "path": "bin/local-panel.mjs",
+      "sha256": "106e6a636d3d9091a54a794484fcdf883024ccffedec3b1ad0b24fb39d35427b",
+      "mode": 448
+    },
+    {
+      "path": "bin/manual-primary.mjs",
+      "sha256": "b539e57daf0055d7a06268506ff2beefcd3959de375e7c4231ffacb6b04aedcf",
+      "mode": 448
+    },
+    {
+      "path": "bin/manual-switchover-e2e-lab.mjs",
+      "sha256": "a4f0b10ecb6ba8d0bffbe43bab0f4d04d9437dc574fb096ff49ef57444b9adb2",
+      "mode": 448
+    },
+    {
+      "path": "bin/manual-switchover-lab.mjs",
+      "sha256": "854a2b042727643f04b468292c302f447c922a98949ae01d8d4499a5d37119af",
+      "mode": 448
+    },
+    {
+      "path": "bin/member-telemetry.mjs",
+      "sha256": "87970ccbc52b311c812981d41ad88696d6cd30826e65b9f896fca9c0b3277418",
+      "mode": 448
+    },
+    {
+      "path": "bin/mhc-full-wrapper",
+      "sha256": "c37c209e173cfd941671ffd55f3e16050d76013b0c46cb4a0f65ed0db1784d90",
+      "mode": 448
+    },
+    {
+      "path": "bin/n1-self-service.mjs",
+      "sha256": "a96ec57601385dbedf02d11bc91bae5c902c703c8fb44dd78de8b180fcedb767",
+      "mode": 448
+    },
+    {
+      "path": "bin/new-node-install.mjs",
+      "sha256": "94b49915f761c77a46f1077b89509138b29dbd81598c773719e3dc3b2a5c8bab",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-boot-entry.sh",
+      "sha256": "95522e6eea8ced68045adec0c7a51a3e88d730fc347642bdbcb7da36aa868ffb",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-boot.sh",
+      "sha256": "cbeb5a824cbcd4e5509b4d4247b4b613ab49880a92758c7410fe070fdef88f3a",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-clone.mjs",
+      "sha256": "54b80982d52c6cc975aa6200a68975f2a8536a27d284cda438fce37d424b271f",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-doctor.sh",
+      "sha256": "df1e351a0b34061e8950f6cef0fbb569916b572214931c3d3fdf9931116c5eb7",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-enroll.mjs",
+      "sha256": "e923fbbd63695e11de546420d8dc56a62a3e8da71a9f45b05285c86b5c30d672",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-enroll.sh",
+      "sha256": "b85b5be68a557a1a97311b5d928a95a3da219af1126545cae1cc8f87fa1c530a",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-monitor.mjs",
+      "sha256": "19dde65008dd5352287f475b5611c6b8ae1a779be2e9cf9a7ade0363b2eb8a45",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-onboarding.mjs",
+      "sha256": "5c589d9a17e98c9b15d60958244490a8edb71336a6b66a341fc1fd288db9aff2",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-readiness.mjs",
+      "sha256": "e900def2a0bdef10522b254444a3730e82629fe19b3c0185322fe02e2b563326",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-role-guard.mjs",
+      "sha256": "3d978ab6fced7349e6e945ec6a9af06793d2da7f316dd0036c1287093f2dda93",
+      "mode": 448
+    },
+    {
+      "path": "bin/node-standby.mjs",
+      "sha256": "3a5611955372255e39a3312835429a9593de6890aba7b2fc6407350db4e5db6a",
+      "mode": 448
+    },
+    {
+      "path": "bin/p31-configure.mjs",
+      "sha256": "023e0ac58b32106b493c41a26dc9e4c5f41f15dd4e74c82ff12e7c3a1593bb7c",
+      "mode": 448
+    },
+    {
+      "path": "bin/p31-control.mjs",
+      "sha256": "e597b1b6f6e6a09d35bebe6e0d95cbb83223925fb387eb14216a742e1323b446",
+      "mode": 448
+    },
+    {
+      "path": "bin/p31-node.mjs",
+      "sha256": "c805039e01f20d2aae2c0bd04675f1ef6835fe68fab57cf5b01d98e8caedabda",
+      "mode": 448
+    },
+    {
+      "path": "bin/p33-control.mjs",
+      "sha256": "9dce74c78e03f25bb24616829ef006b1f19bc5c1ccac58da536ddf82add13256",
+      "mode": 448
+    },
+    {
+      "path": "bin/p33-node.mjs",
+      "sha256": "b72c25468956f51e8e2e29cbb9c89ac376843ce777fdccc60cd9b9dc9efe8351",
+      "mode": 448
+    },
+    {
+      "path": "bin/panel-theme.mjs",
+      "sha256": "61568d566f092cd057dbc6dee99929c6a0ba179427f650b152b889a6b15d0b21",
+      "mode": 448
+    },
+    {
+      "path": "bin/panel-tunnel-service.sh",
+      "sha256": "8b8e7c0003a4438b9130e5b91851c806d496d021960b9043a5979737908e7f91",
+      "mode": 448
+    },
+    {
+      "path": "bin/panel.sh",
+      "sha256": "331f4eca18a311a50aa2b42dfd20ee2286ed8277091ce4e1bde706b85d71b291",
+      "mode": 448
+    },
+    {
+      "path": "bin/peer-copy.sh",
+      "sha256": "2ea8b0de84a94d09661d74b92d406811736f96a02956b7691b79716ecf408022",
+      "mode": 448
+    },
+    {
+      "path": "bin/physical-lab-attest.mjs",
+      "sha256": "e2ef4481feac72b3538037c8d75dd55f1e92f2062bbef2d4c48db1ae20a1e93f",
+      "mode": 448
+    },
+    {
+      "path": "bin/prepare-panel-tunnel-token.sh",
+      "sha256": "c8eca12a8ce1713d911913f733ded5512ce5e88a2e1a8a948bcff410fddc27e7",
+      "mode": 448
+    },
+    {
+      "path": "bin/remote-panel.mjs",
+      "sha256": "2f15f73dbe9dff8919ad3c3198fafac6f4871e6a1657bb573ff25617b20d8f79",
+      "mode": 448
+    },
+    {
+      "path": "bin/replication-observer.mjs",
+      "sha256": "392f00cc952d1e792d371faca2ad2d5246053441a0387ab108f4be99a1df7355",
+      "mode": 448
+    },
+    {
+      "path": "bin/restore.sh",
+      "sha256": "98c02a94c022c53f2fab6f6ec7b0c8bf7ce4885a6dc52de97653def0561ff0e4",
+      "mode": 448
+    },
+    {
+      "path": "bin/safe-tar-inspect.py",
+      "sha256": "498f662b7adaaa90fe199684507bb16c57b56e326ee394d33f86186e0c9cb227",
+      "mode": 448
+    },
+    {
+      "path": "bin/safe-zip-extract.py",
+      "sha256": "9f72c4a5d8410a8a930f3255a4c248045f737984290560e68f648f20027cc2e6",
+      "mode": 448
+    },
+    {
+      "path": "bin/schedule.sh",
+      "sha256": "6ec399ac670b5396b3485275737516ae18d2644fb33ae12b438c1ee76aac620d",
+      "mode": 448
+    },
+    {
+      "path": "bin/self-test.sh",
+      "sha256": "7aff7bdbc77f740a733be217dc1f24068f57dbedbe83110ea09021e569f9afae",
+      "mode": 448
+    },
+    {
+      "path": "bin/server-observe.mjs",
+      "sha256": "1f124b24c8417936429162af299ab1e5826aceeedf53144cf21678805d16cda2",
+      "mode": 448
+    },
+    {
+      "path": "bin/site-serve.sh",
+      "sha256": "a78742bd4909f621847fed0cca479c2230a698451dc2d541d050a5d38d3e28e9",
+      "mode": 448
+    },
+    {
+      "path": "bin/site-standby-archive.py",
+      "sha256": "5335e26a24a8e8697d6ea276a9e876ded6e63d72f5dfd31c836c783ffd1af7dd",
+      "mode": 448
+    },
+    {
+      "path": "bin/site-standby-data.php",
+      "sha256": "479a1345405116db602b83c07e4db6e17f5186ffc3b3880c5739387907010a18",
+      "mode": 448
+    },
+    {
+      "path": "bin/site-standby.mjs",
+      "sha256": "2abd5b2e5d4232e12cedeacba34067066a2b21c6658485c2386b32d89631e9fd",
+      "mode": 448
+    },
+    {
+      "path": "bin/sites.sh",
+      "sha256": "8d690f97651618c1c919e360b83a2a63f3ece6dcfe3fabe6765cb1339d372d93",
+      "mode": 448
+    },
+    {
+      "path": "bin/source-upgrade.mjs",
+      "sha256": "eeffef4ae711ba04e38a95f62c81e31acbbc80a91df0f308d282c6e47eaaaea5",
+      "mode": 448
+    },
+    {
+      "path": "bin/switchover-readiness.mjs",
+      "sha256": "807b9464347299fa7bc1151620e1ceafcf1ed52e3d047a9aa8037b63b5a006f0",
+      "mode": 448
+    },
+    {
+      "path": "bin/system.sh",
+      "sha256": "3d7b59737496c762f18be5f125eaebbeadfd34da8efefb9f7f08b239c7a364b3",
+      "mode": 448
+    },
+    {
+      "path": "bin/wordpress.sh",
+      "sha256": "3508297c18bee6437276299712f5ca9f9c3aebb998e886e7e5197611cd1a6bdd",
+      "mode": 448
+    },
+    {
+      "path": "bin/write-path-gate-lab.mjs",
+      "sha256": "17c3fe75822cc6d62ee95e80311ce07fa7c637ad94a3c8cf3c1cdbd6069e4d92",
+      "mode": 448
+    },
+    {
+      "path": "bin/writer-path-audit.mjs",
+      "sha256": "31aaafbc1408d06904366efa66763d7c96c69d0872896ca68c8ee618b5ef60f8",
+      "mode": 448
+    },
+    {
+      "path": "install.sh",
+      "sha256": "15d35e18d66b86cf5d55fc43c1a26c70e83aa763176016e492085f34046e95ab",
+      "mode": 448
+    },
+    {
+      "path": "scripts/bootstrap-new-android-node.sh",
+      "sha256": "3880ac55d62bf30847eb8e56737682931c4a85a510249cc324e036bbd12e8f24",
+      "mode": 448
+    },
+    {
+      "path": "vendor/MHC-v1.0/CHANGELOG.md",
+      "sha256": "4b1c71ec68ae428dffc5da1ae054fbc49fd5ec9972dae7e47c00016260115254",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/README.md",
+      "sha256": "74a9233f8d4380fc808e9f5c4d903dbc58928af40c56992e6a028c0cc4f9abdd",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/agent/common.mjs",
+      "sha256": "c4be3a7108692a1989ee2ac6a14d7e5ec790a6686da55742fc2b5503b3f093e4",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/agent/daemon.mjs",
+      "sha256": "480f62711417a645c2ac36f16cdeba292e7d6ad308ba7a4940dda24fbf92b810",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/agent/gateway.mjs",
+      "sha256": "81bb07ae452ea479356dacf028f37a2986db39fd1e82e62cf6c31399d0f6363b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/coordinator/package.json",
+      "sha256": "06be442f7bfd1641fb9388c56d774c093dc4d0d579de87e8b0623138d8f70cc9",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/coordinator/src/dashboard.mjs",
+      "sha256": "b2872b74835d0fe027da2709fe31ceaa4b05c120e132c14da25c20e788fb698e",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/coordinator/src/policy.mjs",
+      "sha256": "6610a70ee5f36ad5d316cbd9a6438408afcab56d4de8b3fc2aade6d42e1085fb",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/coordinator/src/worker.mjs",
+      "sha256": "0be50cf03ec22539fc46c131a6da981d3bf66e7daa561a60e18b5d14183b1252",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/coordinator/wrangler.toml",
+      "sha256": "45ebbeb511e796176a3b1de22aa9affa881e9fc84b20bb2cc47a79b6bc278e39",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/docs/DEPLOY.md",
+      "sha256": "442aca9b816fd600aa0f9cfa5a19e730f3f7ae57b8c4c15bbfca0ac8fba42167",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/docs/REPLICATION-ROADMAP.md",
+      "sha256": "c547073cfa79af491f27b4e4c5e499a6436b254235c0c9a46922a0479eba81bc",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/tests/gateway.test.mjs",
+      "sha256": "b8ab20fe176a3c4905e81ed6c40a84165b169a11fdc1b48192130e4c4985417b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/tests/lease.test.mjs",
+      "sha256": "d00d8743b7a7fa72cafe812467fba84854a974d20758e505e1df29c0df69b833",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/tests/policy.test.mjs",
+      "sha256": "736bf2fdfc9526751b42b37c4f770a4c42f5067ee4b1928dfe0abe135ab632c1",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/control.mjs",
+      "sha256": "cd7bcdd54e14de5e3913fd2fc54a187c348d3ca2e904c10e47df85978d599651",
+      "mode": 384
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/health-check.sh",
+      "sha256": "8e69fd12f150d84395ee8a53d51c990f8ebff43f5ef104a22e7567566f13d86a",
+      "mode": 448
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/install-agent.sh",
+      "sha256": "2d8488c0b753fecd15627c19cdd580b19362b1918baeed7e9c0d97070ffe2e55",
+      "mode": 448
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/prepare-nginx.sh",
+      "sha256": "99ae612b8ada331cd4a0d2d9ee78e2ffe91153ba4469362a7d2f7c9bcfcb5636",
+      "mode": 448
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/replication-preflight.sh",
+      "sha256": "9348b88953a696dd3a0835840d568c45396b063cfaf0278013a8bbe7af50e3a8",
+      "mode": 448
+    },
+    {
+      "path": "vendor/MHC-v1.0/tools/set-armed.mjs",
+      "sha256": "edd9fb95065ea34213fccebf58c4fc0f97f1aff6bff09ef398d183f796195f0e",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/START-HERE.md",
+      "sha256": "b3a7658318e370575571ff693a72c1abff2d7376affc3b2b55eef3a64fd059b2",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/HA-V0.3-RUNBOOK.md",
+      "sha256": "8175def936389efabef8d4a8af44e4748750369698facc98501f9300e16c135d",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/ONLINE-MONITOR-SETUP.md",
+      "sha256": "4352ce3c6bac937cdcda17f30df24a76afc50831661f14e0f89e2618553821f5",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/README.md",
+      "sha256": "f5b52ed698564f33d4fde1af1909ddd22497f08715a63febf8954b94b3ecd28f",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/VERSION",
+      "sha256": "e7ab979408a7386568a6628f76685e03735678678f1b9c796541610338965ab6",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/bootstrap-new.sh",
+      "sha256": "deaaa36a6d4e6f8624047e53521af3f94a25ce797b8a1fd93eddd70ad62c7d27",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/install.sh",
+      "sha256": "a38d7ea04acd8cb472f77b75a51cb315657815e519ac2bc1c6d113b5f43ba3b7",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/join-standby.sh",
+      "sha256": "6cf5a283ba240cde040a3e11eb2cd535d477679dfbd7751eb6c7747c0332b986",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/pull-peer-backup.sh",
+      "sha256": "c910df681374eac4ee62339df11ff4cfa1bbb22426825bfa4ee9b5ff8a7d7587",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/setup-sync.sh",
+      "sha256": "fc9c52102c90524b43960624ec010b398ec318707ef478cf80decae18895bbef",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/bin/sync-assets.sh",
+      "sha256": "b425722628563a984f770f664e450085268d58d976b7fc1e558590df36f0fc96",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/ha-witness/package.json",
+      "sha256": "9d6ef0b81a391a35f4bfeefacbbd4c94dc243fffeece775e79feb5cbb0324c0e",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/ha-witness/src/worker.mjs",
+      "sha256": "fd22bccd2ad31ffb1ccbe0fcfe42bb690089620ef1036a6bf810d47e6258df49",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/ha-witness/tests/lease.test.mjs",
+      "sha256": "c4ddc4c749343fc088385f81cc74864744f231d60ee4f02ca931e3429a96aad9",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/ha-witness/wrangler.toml",
+      "sha256": "226448eb83888f102ecb8ddd29446e034b589367665cb8d58748576b8883649a",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/package.json",
+      "sha256": "9a969a0346154042590750a377c5b23dc119f3a0ae96bb3cd1aaab7b333aa9e8",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/src/ui.mjs",
+      "sha256": "f5be7d985d07cf6feb7a7b97abdafa20860e662030a399e189ec622ef20e5723",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/src/worker.mjs",
+      "sha256": "cf859151f3d418702bcadc6d3e460f8b7c57f94cf4554df842d314ec5dadf346",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/tests/ui.test.mjs",
+      "sha256": "1830510faf7908e7a415f13dacd467ee3c3f8d7fa2da7554354a9216bd822dec",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/tests/worker.test.mjs",
+      "sha256": "fdb6f3774e585194af128c43a5f1b2ab4a24925d0e292bfe7eab799493aca951",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/online-monitor/cloudflare/wrangler.toml",
+      "sha256": "e6cb419d8947da6c56ecd2d7ecf2e7f93192180586761b9741337cabef2eb416",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/asset-digest.mjs",
+      "sha256": "83856562de7717c42a4db968fe9179e2cc70925e1944cbf987ce0b358822cf2a",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/cli.mjs",
+      "sha256": "241115ad44bf67c44b961a1d617699bf3c484a0c8b027de9f3a050098366f8e5",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/dashboard.mjs",
+      "sha256": "abaa9df3a3f469f99155a71bec80ebff49e28deaf88cee97eea00bb79186cc3b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/ha-local.mjs",
+      "sha256": "330d0a03267aaa3df842738c9a9954468358387d5ec4e9d569189234ed2902f8",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/ha-policy.mjs",
+      "sha256": "98bac50e06a9d9630663abb4dda83b3a8df115161360411d0afe2bd83cdf0f2a",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/src/online-agent.mjs",
+      "sha256": "4e63d014c3c1abad02cbf34a175f7ffd6989cbe196e443b4bf8d85484a72eb07",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/sync/apply-snapshot.sh",
+      "sha256": "9a93160c9bce243be60db86faca415c93da55eebceea6b0ab3a2b57135a79b55",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/sync/status.sh",
+      "sha256": "d202713991a399b9b49c769f61569cf6991a20f62e690559d0b4e8df949788b7",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/sync/sync-once.sh",
+      "sha256": "bd08ee40e583a417c4aba4d81e9fe8c73d0b323ce2ddf7a9ea17a0621e58daf0",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/tests/ha-policy.test.mjs",
+      "sha256": "c1ba196845c4d6bacf5d2865cb9de4060536499220b65633259b59da2d550719",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/tests/online-agent.test.mjs",
+      "sha256": "7e891a111491115fe70a6eb45841855830687354033a32db0550d047b8b88749",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-cluster-v0.1/tests/smoke.test.mjs",
+      "sha256": "c883f051bcd40921e6c2b66ac5760c907f0ceb9c2997dc3518ba624c9a66b2d4",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/README.md",
+      "sha256": "caa2082d7311642a80964bd929ba74d686ecba9309d26fa7b2c12265cc66ed25",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/VERSION",
+      "sha256": "8d6396ee5aa17b78fa4593059574ad54b9d283cedcf82553e5ca79cddc34ef3d",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/backup/README.txt",
+      "sha256": "d684ba05187b3871436a9ea78c6f58b284a3e120ee81ec71db4e1db8645a6d47",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/backup/backup-now.sh",
+      "sha256": "4f27cce9f13d1f7a0dad58e03ae01a9da273f06c5255909423e51e8088a378cd",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/backup/install.sh",
+      "sha256": "79652bb91aa3053fbab65357e4a2d5609c435719c9aab3bd93e5e0bb36aaa6ad",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/backup/scheduler.sh",
+      "sha256": "ba0d5dbf83f502ff8725440eb37614605de2313136d377b2e0c93abba713a17d",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/backup/verify-latest.sh",
+      "sha256": "a807722453b5fed3e99253feb11c9fed81f73c4c23cc41e2ba1b07d4442ef1d3",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/activate-tunnel.sh",
+      "sha256": "2c9b029c03cad9d11edab1dffe17df582eeafc84b4555543390d1eb3663063eb",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/export-on-m51.sh",
+      "sha256": "cd85b847693d49219561f84320f8f77cf8c27b463eb802f0467701cd6bc31a2b",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/export-snapshot-encrypted.sh",
+      "sha256": "4f4d0d5c9b062612383f8b32337a19cbc8d2006e6ac694bea6b22c844cf8912f",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/health-check.sh",
+      "sha256": "5939bd6b996280b5ccbfe7e1b2f29c0bc1b7755c5b368f6d9b2f88a78349fea8",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/install-new-phone.sh",
+      "sha256": "b7b461ceaa96465ffb54e39ff9bdbfc7ef67b45b8ce31b821ffeba005054ccc5",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/restore-new-phone.sh",
+      "sha256": "139579d51ef5510e4bda497c345f23702fb3b1d2061bddd9b455beee9eed516d",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/secure-file.mjs",
+      "sha256": "afecebed4065732f4903cd8c9e2a14db783f5a4329403791cd0f6bdac35c1c9e",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/bin/unpack-encrypted-snapshot.sh",
+      "sha256": "9b93e78891114704e82a3040edbe25addd70079c2566cc5a9ae1ebe5e5f34d3c",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/docs/OPERATIONS.md",
+      "sha256": "e72db2b4add17d8ef144245076fbd3d898d46bfd29a1c02989424bf735141874",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/package.json",
+      "sha256": "d78fc79286323697416da76176089eadc9804e40034cfa5d64fd99f5bd7ca86f",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/public/app.js",
+      "sha256": "fa4202767fcd085c8c6ec079d6de4959db908782da4495ba8b1748720f7aa580",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/public/index.html",
+      "sha256": "3a9c0e1773f339a3acf3c1ebb4407a8364fd957c256f06ed9d99fae20625ad4c",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/public/style.css",
+      "sha256": "05f80c21570136c4091cb2154c727eb721727f27833f5dd58a1b205ea45d5b5b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/backups.mjs",
+      "sha256": "8e1967acdfb449e2ba4c2f3a9f007cedfe58d19a59157530d313dedd6e48c999",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/config.mjs",
+      "sha256": "e104363e505a74f25a7cc1d1ecd6bad39903848bd94d107f0aed00f3739584e1",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/databases.mjs",
+      "sha256": "b2714bbcf137075884ca2afa5f9ca651b074db04d610cc1bb30859861ba6720e",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/existing-site.mjs",
+      "sha256": "236c2e91e0f3ceca92236349c19e33c40e643f57a32620d5ee8638912ddf2f0c",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/mhc-integration.mjs",
+      "sha256": "86374e5acb56a771b07beda2358917fd452aac427ca0b0a415a65f451fb288fe",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/mhc-remote-access.mjs",
+      "sha256": "c9a2887eeb48ea873ea5787ee474e5c38c4e221e2afcf32d6b25a0c2d3f0c017",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/node-process-monitor.mjs",
+      "sha256": "f1ccf57f715a619f958b5a9395d2dbf7d15a647f6238f46e87382443508a853f",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/security.mjs",
+      "sha256": "2b2076f121e9eb7df1aa47c06f6ef38598fa3126144b4399fc9c06af528404c2",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/server.mjs",
+      "sha256": "4b76b97fdd9403a301b23b9c4eff397ddcfb1c369d70b463fe6cad1d95f02700",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/sites.mjs",
+      "sha256": "4a7da1c20f2a96d953571c08d52638c25e7a52c2d362f59750c848c77ba2bf3b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/system.mjs",
+      "sha256": "9c3b1e2795d5d7352760793d2d0666f1d048261c34e708f623c93dadaabb94aa",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/tpp-backup-manager.mjs",
+      "sha256": "b7ab8917442ab3014a7c3343885d0889f661db91ec7e09b2c17a3b873fe9ed70",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/src/zip.mjs",
+      "sha256": "9596e228a87db2f3cfd523c8861299f73e48cefdfb4c5935663d696b4d1331bc",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/tools/install-termux.sh",
+      "sha256": "995c0b31f5393eb832d2b84c2482d30e8ce378e0a1eb41d8cc0a2f647ef3b88a",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/tools/reset-password.mjs",
+      "sha256": "cf6fbd9100d4a5c6888d160a04de1b3cda23292b99e1af7f12d16563c8517fc4",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel/tools/setup.mjs",
+      "sha256": "28eb60993393c92f6575f2eefbf1f749772f46d09d30963b95d7b64de6245c21",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/README.md",
+      "sha256": "70378c425e2e92476f450a72b18b0f2b0ff670ad96e63ab2fd2214467ac2520b",
+      "mode": 384
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/bin/apply-snapshot.sh",
+      "sha256": "651e8b7dc22fd9fb3387c7bc380ebb5c781fcbb3591d477f34118ba3d0f3d8a3",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/bin/promote-standby.sh",
+      "sha256": "dc7e650f694cf17b552151b75a72b552ae429861c53dd25f7cfe298ce4afb169",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/bin/setup-standby.sh",
+      "sha256": "442070eb10b64ff7563280f832c4b4c91bc2de5af060b7b7eaa74861a5f6a953",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/bin/status.sh",
+      "sha256": "d202713991a399b9b49c769f61569cf6991a20f62e690559d0b4e8df949788b7",
+      "mode": 448
+    },
+    {
+      "path": "vendor/mini-hosting-warm-standby-v1/mini-hosting-standby-sync-v1/bin/sync-once.sh",
+      "sha256": "579e0e9e3f06b976e9f57674205103ab1474559da38e315d8db42ded8bbc8b0a",
+      "mode": 448
+    }
+  ]
+}

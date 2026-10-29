@@ -46,16 +46,16 @@ Test bắt buộc: `tests/source-upgrade.mjs` fault/security/process scenarios, 
 
 N1 management-only: dùng cùng package builder/update.sh, truyền --node-id UUID cụ thể cho plan/apply/verify/rollback. Upgrader xác thực member bằng credentials hiện có, completed N1 journal và fresh telemetry; không thay identity/password/Tunnel token. Khi node có managed site/config, lease của cluster vẫn chặn source upgrade; cần kế hoạch maintenance/quiesce. Thay đổi chỉ source không đồng nghĩa physical reboot hoặc public Control đã nghiệm thu.
 
-## N1.3 — gói source04 và rollback
+## N1.3 — gói source05 và rollback
 
-Gói công khai [MHC-LAB-20261029-N13-04.tar](../releases/MHC-LAB-20261029-N13-04.tar) chỉ chứa source từ d383b1619d4666ae38acb0981818ba2443b59ac8,93files; không chứa private config/site/SQL. Tar SHA256 **3b8ca941dd697aa75db0bcff37a6c78a85001c4f9a0b4ea7e4da4e2112ce92e7**, manifest **97975173c9aab4c5b4c2a95d18889d27d694c01d1e4b93f71da7fdf4287cae2b**. Worker/DO có vòng deploy độc lập, SHA thực ở LIVE-PROGRESS; không thay bằng một authority mới.
+Gói công khai [MHC-LAB-20261029-N13-05.tar](../releases/MHC-LAB-20261029-N13-05.tar) chỉ chứa source từ bd5bcfda59e3b26c944da3ffa14cd4a0c637cb14,93files; không chứa private config/site/SQL. Tar SHA256 **b9c1e4ac6da661d29d4cfaceddc43c9f93fef05e8c943205f5c3e047e5cea9f0**, manifest **87f12d2e76d910c9adbb778c0914338fa29b74c2960bbcb6411c55bc88134994**. Worker/DO có vòng deploy độc lập, SHA thực ở LIVE-PROGRESS; không thay bằng một authority mới.
 
 Khi node có managed site, vẫn chặn lease/writer/transition đang hoạt động. Recorded Primary chỉ được nâng khi có proof FENCED mới15s đúng pin/node/cluster/epoch/revision/operation, SQL denied/zero connections/HTTP và children stopped; không đổi role/route để vượt guard. Backup/restore site đang chạy cũng chặn updater, Agent hoãn job khi update lock. Nếu guard P33 đang Standby, apply/rollback reload và kiểm PID guard mới cùng Panel/Agent; không bật writer.
 
-Rollback source dùng package giữ trên chính node, thêm UUID cho N1. Ví dụ11T sau lần apply04:
+Rollback source dùng package giữ trên chính node, thêm UUID cho N1. Ví dụ11T sau lần apply05:
 
 ```sh
-bash "$HOME/.local/state/mhc-source-upgrade/incoming/release.TWjAK5/update.sh" --rollback tx-20261029025420705-09d06a --node-id c2a69fe8-6b97-4f42-a938-95d843c2b5d2
+bash "$HOME/.local/state/mhc-source-upgrade/incoming/release.ebWFlF/update.sh" --rollback tx-20261029033206477-d2ee6e --node-id c2a69fe8-6b97-4f42-a938-95d843c2b5d2
 ```
 
-Chỉ dùng khi maintenance/preflight cho phép và transaction vẫn khớp current.json; không rollback mù node có writer. Backup file/process private giữ trên node. **Rollback code không xóa/restore DB/site đã chuẩn bị**, không rollback DNS/lease. Release01/02/03 giữ nguyên; fresh installer không phải công cụ nâng node hiện có.
+Chỉ dùng khi maintenance/preflight cho phép và transaction vẫn khớp current.json; không rollback mù node có writer. Backup file/process private giữ trên node. **Rollback code không xóa/restore DB/site đã chuẩn bị**, không rollback DNS/lease. Release01/02/03/04 giữ nguyên; fresh installer không phải công cụ nâng node hiện có.
