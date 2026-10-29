@@ -1,3 +1,4 @@
+import {syncBusy} from './site-sync.mjs';
 // Manual ownership of one explicitly managed LAB WordPress site. Never fences root/shell.
 import {controlNodes,controlAdapter,verifyControlProof} from './control-nodes.mjs';
 import {siteEffectiveEnv,siteProfiles} from './site-standby.mjs';
@@ -68,6 +69,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
   if(previous){if(previous.digest!==digest)fail('P33_IDEMPOTENCY_CONFLICT');return {view:p33View(env,r,now)};}
   if(body.expectedRevision!==state.revision||body.expectedP33Revision!==r.revision)fail('P33_REVISION_CONFLICT');
   if(action==='p33-begin'){
+   if(syncBusy(await tx.get('site-sync')))fail('P33_SITE_PREPARATION_BUSY');
    if(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED')fail('P33_TRANSITION_PENDING');
    if(state.pending||routes.journal&&['DNS_REQUESTED','DNS_AWAITING_HTTP','ROLLBACK_DNS_AWAITING_HTTP'].includes(routes.journal.status))fail('P33_PREVIOUS_OPERATION_PENDING');
    if(!c.keys[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');

@@ -30,6 +30,7 @@ export class ManagedNode{
  sql(query,root=false){const args=root?['--no-defaults','-u','root']:['--defaults-file='+this.candidate.safe(path.join(this.base,'db-client.cnf'))];const r=this.command('mariadb',[...args,'--batch','--skip-column-names','-e',query]);if(r.status!==0||r.error)fail('P33_SQL_COMMAND_FAILED');return (r.stdout||'').trim();}
  management(){return {panel:this.candidate.statusService('amh-panel'),agent:this.candidate.statusService('mhc-authority-agent')};}
  dataset(){
+  if(fs.existsSync(path.join(this.base,'sync-maintenance.json')))fail('P33_SITE_MAINTENANCE');
   const m=json(this.candidate.safe(path.join(this.base,'dataset.json')),this.fixture);
   if(m.schema!==3||m.datasetId!=='mhc-p33-wordpress-v1'||m.originalCredentialsCopied!==false||m.restoreVerified!==true||!Number.isFinite(Date.parse(m.preparedAt))||!Array.isArray(m.files)||m.files.length<4||m.files.length>20)fail('P33_DATASET_INVALID');
   for(const f of m.files){if(!['site/wp-config.php','db-client.cnf','php/php-fpm.conf','nginx/nginx.conf','site/wp-content/themes/p33lab/index.php'].includes(f.path)||!hex.test(f.sha256))fail('P33_MANIFEST_INVALID');const p=this.candidate.safe(path.join(this.base,f.path));if(!fs.lstatSync(p).isFile()||hash(fs.readFileSync(p))!==f.sha256)fail('P33_DATASET_CHANGED');}

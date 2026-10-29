@@ -121,3 +121,7 @@
 ### N1.3: portable LAB content và relay hẹp
 
 Dùng chính Authority/DO hiện tại để giữ job và chunk backup có role/key pin, không cần LAN peer hoặc thêm R2. Chỉ hỗ trợ site WordPress LAB do MHC quản lý. Không chuyển wp-config/DB password/WP users/usermeta/options/salts/keys; đích tạo credentials riêng, chỉ phục hồi bảng nội dung đã allowlist. Không restore đè. Chuẩn bị site không đổi DNS/lease. Site candidate được thêm sau proof runtime và Tunnel riêng đúng LAB; tập participant đóng băng khi Manual begin, mọi participant phải FENCED trước cấp writer. Fingerprint P32 gốc giữ ổn định, không nới sandbox read-only cũ.
+
+## 29/10/2026 — P4.0 lịch qua original Panel
+
+User chọn cả chu kỳ và giờ cố định: chọn một kiểu interval phút/giờ hoặc HH:mm hằng ngày, Asia/Ho_Chi_Minh. Không yêu cầu PC bật; dùng Cron/DO/Agent hiện có. Lịch mặc địnhOFF60phút, chỉ enable sau manual applied verification. Không thêm scheduler nhiều tầng/cron tùy ý; không bật Auto Primary trong P4.0. Dữ liệu cũ của Standby có rollback checksum/journal, target chưa chứng minh rollback phải giữ khóa Manual Primary.

@@ -12,6 +12,7 @@ export function upgradeAuthoritySnapshot(s,nodeId,managementOnly=false,quiesced=
  const node=s.nodes.find(n=>n.nodeId===nodeId);if(!node)fail('AUTHORITY_NODE_MISSING');
  if(['backup','restore'].includes(node.standby?.job?.type)&&['QUEUED','RUNNING'].includes(node.standby.job.status))fail('SITE_PREPARATION_BLOCKS_UPGRADE');
  const r=s.p33;
+ if(s.siteSync?.run&&['CREATING','APPLYING','BLOCKED'].includes(s.siteSync.run.status))fail('SITE_SYNC_BLOCKS_UPGRADE');
  if(s.pending||r?.enabled&&(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED'))fail('AUTHORITY_TRANSITION_BLOCKS_UPGRADE');
  if(r?.lease?.nodeId===nodeId||node.role==='PRIMARY_MANAGED_SCOPE'||(s.declaredPrimary?.nodeId===nodeId||r?.primaryNodeId===nodeId)&&!(quiesced&&s.writeLeaseGranted===false&&r?.writerLeaseGranted===false&&!r.lease))fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
  if(s.writeLeaseGranted!==false&&!(managementOnly&&r?.enabled===true&&r.scope==='MHC_MANAGED_WORDPRESS_LAB'&&r.writerLeaseGranted===true&&r.lease?.scope===r.scope&&r.lease.nodeId!==nodeId&&r.primaryNodeId===r.lease.nodeId&&r.lease.epoch===s.epoch&&r.lease.expiresAt>Date.now()))fail('AUTHORITY_SAFETY_MISMATCH');

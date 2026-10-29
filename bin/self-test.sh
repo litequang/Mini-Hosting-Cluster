@@ -77,6 +77,8 @@ for f in sys.argv[1:]:
     ast.parse(open(f, encoding="utf8").read(), filename=f)
 PYAST
 node "$ROOT/tests/site-standby.mjs"
+node "$ROOT/tests/site-sync.mjs"
+node "$ROOT/tests/site-sync-node.mjs"
 node "$ROOT/tests/upgrade-quiescence.mjs"
 node "$ROOT/tests/site-public-grants.mjs"
 node "$ROOT/tests/site-job-retry.mjs"

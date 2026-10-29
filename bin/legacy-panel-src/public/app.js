@@ -1,3 +1,37 @@
+function syncTime(ms){return ms?new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',dateStyle:'short',timeStyle:'short'}).format(new Date(ms)):'Chưa có';}
+function syncPanel(d,nodes){
+ if(!d.siteSync)return '';const v=d.siteSync,a=v.lastApplied,s=v.schedule||{kind:'interval',minutes:60},source=d.p33.primaryNodeId;
+ state.syncContext={revision:v.revision,sourceNodeId:source,run:v.run};
+ const label=id=>nodes.find(n=>n.nodeId===id)?.label||id;
+ return `<div class="card"><h2>Đồng bộ dự phòng — WordPress LAB</h2><p>Nguồn: <b>${esc(label(source)||'Chưa có Primary')}</b>. Một Standby; giữ credentials riêng. Không đổi Primary/Control.</p>
+ <p><label>Node dự phòng <select id="syncTarget">${nodes.filter(n=>n.nodeId!==source&&(d.p33.siteNodeIds||[]).includes(n.nodeId)).map(n=>`<option value="${esc(n.nodeId)}" ${n.nodeId===v.targetNodeId?'selected':''}>${esc(n.label)}</option>`).join('')}</select></label></p>
+ <p><label><input id="syncEnabled" type="checkbox" ${v.enabled?'checked':''}> Bật lịch đồng bộ</label> · Chỉ bật sau một lượt Đồng bộ ngay đã áp dụng và xác minh thành công.</p>
+ <p><label>Kiểu lịch <select id="syncKind"><option value="interval" ${s.kind==='interval'?'selected':''}>Theo chu kỳ</option><option value="daily" ${s.kind==='daily'?'selected':''}>Giờ cố định hằng ngày</option></select></label></p>
+ <p><label>Chu kỳ <input id="syncMinutes" type="number" min="1" max="10080" value="${s.minutes&&s.minutes%60===0?s.minutes/60:Number(s.minutes)||60}" style="width:90px"> <select id="syncUnit"><option value="1" ${s.minutes%60!==0?'selected':''}>phút</option><option value="60" ${s.minutes&&s.minutes%60===0?'selected':''}>giờ</option></select></label> · <label>Giờ cố định <input id="syncAt" type="time" value="${esc(s.at||'02:00')}"></label></p>
+ <p>Giờ Việt Nam (UTC+7). Lịch: <b>${v.enabled?'Đang bật':'Đang tắt'}</b> · Lần tiếp theo: ${esc(syncTime(v.nextAt))}. PC có thể tắt; Authority và Agent thực hiện.</p>
+ <p>Lần gần nhất: ${esc(v.run?.status||'Chưa chạy')}${v.lastError?'<br>'+esc(v.lastError):''}. ${v.run&&['CREATING','APPLYING','BLOCKED'].includes(v.run.status)?'Đang khóa chuyển Primary để bảo vệ dữ liệu.':''}</p>
+ <p>Bản đã áp dụng &amp; xác minh: ${a?esc(label(a.targetNodeId))+' · dữ liệu nguồn '+esc(syncTime(a.sourceSnapshotAt))+' · phục hồi '+esc(syncTime(a.restoreAt))+'<br>RPO hiện tại: '+Math.floor(v.rpoAgeSeconds/60)+' phút · SHA256 '+esc(a.sha256.slice(0,16)):'Chưa có — backup tạo xong chưa được tính là đồng bộ thành công.'}</p>
+ <div class="btnrow">${btn('Lưu cấu hình lịch','sync-save')}${btn('Đồng bộ ngay','sync-run','primary')}${v.run?.status==='BLOCKED'?btn('Tiếp tục khôi phục tác vụ bị gián đoạn','sync-resume','warn'):''}</div>
+ <small>Chỉ core/theme/media và nội dung WordPress LAB được hỗ trợ; không phải bản sao đầy đủ cho website production. Standby được giữ bản cũ và journal rollback trước khi cập nhật.</small></div>`;
+}
+async function syncClick(type){
+ const c=state.syncContext;if(!c)throw Error('Tải lại Cluster trước');
+ const base={requestId:crypto.randomUUID(),expectedRevision:c.revision,confirm:true};let body;
+ if(type==='sync-save'){
+  const targetNodeId=$('#syncTarget').value,enabled=$('#syncEnabled').checked,kind=$('#syncKind').value;
+  const schedule=kind==='daily'?{kind,at:$('#syncAt').value}:{kind,minutes:Number($('#syncMinutes').value)*Number($('#syncUnit').value)};
+  if(!confirm('Lưu lịch cho website WordPress LAB và node Standby đã chọn? Đồng bộ sẽ cập nhật nội dung LAB trên Standby sau backup, checksum và kiểm tra; không đổi Primary/Control.'))return;
+  body={...base,action:'sync-configure',sourceNodeId:c.sourceNodeId,targetNodeId,enabled,schedule};
+ }else if(type==='sync-run'){
+  if(!confirm('Chạy theo cặp nguồn–Standby đã lưu. Nội dung LAB của Standby sẽ được cập nhật từ Primary; có backup riêng và rollback, giữ credentials của node đích. Tiếp tục?'))return;
+  body={...base,action:'sync-run'};
+ }else if(type==='sync-resume'){
+  if(!confirm('Tiếp tục đúng journal bị gián đoạn để phục hồi/xác minh Standby? Không tạo lượt đồng bộ mới.'))return;
+  body={...base,action:'sync-resume'};
+ }else return;
+ await req('/api/mhc/standby',{method:'POST',body});toast(type==='sync-save'?'Đã lưu lịch':'Agent tiếp tục tác vụ; có thể đóng PC.');await mhcClusterPage();
+}
+
 function standbyReason(code){return ({SITE_WEBSITE_DATABASE_MISSING:'Chưa có website/database LAB; chọn backup đã xác minh để phục hồi.',SITE_DATA_AND_WRITER_GATE_NOT_VERIFIED:'Chưa kiểm dữ liệu và writer gate.',SITE_CANDIDATE_NOT_APPROVED:'Chưa được Authority chấp thuận làm ứng viên website.',SITE_MANAGEMENT_OR_GUARD_NOT_RUNNING:'Panel/Agent hoặc writer gate chưa chạy.',SITE_STANDBY_GATE_NOT_CLOSED:'Writer gate chưa xác nhận Standby.',SITE_EXISTING_DATA_REFUSED_USE_VERIFY:'Đích đã có dữ liệu: giữ nguyên, dùng Kiểm tra lại; không restore đè.',MANAGEMENT_OFFLINE:'Agent/Panel không có báo cáo mới.',TUNNEL_ROUTE_NOT_VERIFIED:'Tunnel/đường truy cập chưa xác minh.'})[code]||code;}
 const state={user:null,csrf:'',authMode:null,tab:'dashboard',sites:[],selectedSite:'',dir:'',selectedFile:'',stats:null};
 const $=s=>document.querySelector(s);
@@ -331,6 +365,7 @@ ${readiness?.nodes?.map(n=>{const fresh=n.verified&&Date.now()<=n.expiresAt&&n.e
   ${recovery}
   ${enroll}
   ${selection}
+  ${managed?syncPanel(d,nodes):''}
   ${managed?`<div class="card"><h2>Chuyển Primary / Control — LAB</h2><p>Primary: ${esc(nodes.find(n=>n.nodeId===d.p33.primaryNodeId)?.label||'Chưa hoàn tất')} · ${d.p33.writerLeaseGranted?'Lease ghi đang hiệu lực':'Không có lease ghi hiệu lực'}<br>Control: ${esc(nodes.find(n=>n.nodeId===d.p32?.panelNodeId)?.label||'Chưa xác định')}<br>Trạng thái: ${esc(d.p33.phase)} · ${esc(d.p33.journal?.status||'')}</p><p>Áp dụng WordPress LAB tại <a href="https://preview-lab.giaouoc.com" target="_blank" rel="noopener">preview-lab.giaouoc.com</a>. Dùng dữ liệu sẵn có trên node đích; không tự đồng bộ DB. Node cũ phải liên lạc được để dừng ghi. Website khác giữ nguyên.</p><div class="toolbar"><select id="p33Target">${nodes.filter(n=>d.siteRelayEnabled?n.standby?.states.ELIGIBLE_PRIMARY:(d.p33.siteNodeIds||['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-4286-946a-a78b73e57b24']).includes(n.nodeId)).map(n=>`<option value="${esc(n.nodeId)}">${esc(n.label)}</option>`).join('')}</select><label>Control</label><select id="p33ControlTarget">${nodes.filter(n=>[...(d.p33.siteNodeIds||[]),...(d.p33.controlOnlyNodeIds||[])].includes(n.nodeId)).map(n=>`<option value="${esc(n.nodeId)}">${esc(n.label)}</option>`).join('')}</select></div><div class="btnrow">${((d.p31?.enabled||d.n1Control?.controllerReady)&&['IDLE','COMMITTED','CANCELLED'].includes(d.p33.phase)&&(!d.p33.journal||d.p33.journal.status==='VERIFIED'))?((d.p31?.enabled||d.n1Control?.siteControllerReady)?btn('Chuyển Primary + Control','p33-switch','primary'):'')+btn('Chỉ chuyển Control','p33-control'):''}${d.p31?.enabled||d.n1Control?.controllerReady?btn('Tiếp tục tác vụ','p33-resume'):''}${!d.p31?.enabled&&!d.n1Control?.controllerReady?'<p>Panel thiết bị này chưa đủ điều kiện điều khiển chuyển node. Xem các điều kiện còn thiếu trong mục Thêm điện thoại mới.</p>':''}${d.p33.journal?.status==='AWAITING_PUBLIC'?btn('Hoàn tất kiểm tra Internet','p33-confirm','primary'):''}${(d.p31?.enabled||d.n1Control?.controllerReady)&&['FENCING','ACTIVATING','ACTIVE'].includes(d.p33.phase)?btn('Dừng và hủy trước đổi DNS','p33-cancel','warn'):''}</div></div>`:''}
   ${p31}
   ${p32}
@@ -434,6 +469,7 @@ async function dynamicAction(key,element){let [type,...rest]=key.split(':');cons
  if(type==='cluster-overview'){state.clusterTechnical=false;await mhcClusterPage();return;}
  if(type==='cluster-advanced'){state.clusterTechnical=true;await mhcClusterTechnicalPage();if(state.tab==='cluster')$('#content').insertAdjacentHTML('afterbegin',`<div class='btnrow' style='margin:0 0 18px'>${btn('← Quay về tổng quan node','cluster-overview')}<span class='muted'>Các kiểm thử kỹ thuật LAB — không cấp quyền Primary</span></div>`);return;}
 
+ if(type.startsWith('sync-')){await syncClick(type);return;}
  if(type==='standby-open'){await standbyOpen(element.dataset.node);return;}
  if(['p33-switch','p33-control','p33-resume','p33-confirm','p33-cancel'].includes(type)){
   const id=$(type==='p33-control'?'#p33ControlTarget':'#p33Target')?.value,action=type.slice(4),live=await req('/api/mhc/primary-selection');

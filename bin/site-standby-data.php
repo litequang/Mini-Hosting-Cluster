@@ -2,13 +2,18 @@
 // Fixed MHC-managed LAB content only. No user/credential/options/SQL dump transfer.
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $base=getenv('MHC_SITE_BASE');$mode=$argv[1]??'';$content=getenv('MHC_SITE_CONTENT');
-if(!$base||!in_array($mode,['export','install','import','check'],true))throw new Exception('SITE_DATA_USAGE');
+if(!$base||!in_array($mode,['export','export-local','install','import','apply','check'],true))throw new Exception('SITE_DATA_USAGE');
 $tables=['wp_posts','wp_postmeta','wp_comments','wp_commentmeta','wp_terms','wp_termmeta','wp_term_taxonomy','wp_term_relationships'];
 function credentials($base){$c=parse_ini_file($base.'/db-client.cnf',true)['client'];return new mysqli('localhost',$c['user'],$c['password'],$c['database'],0,$c['socket']);}
-if($mode==='export'){
+if($mode==='export'||$mode==='export-local'){
  $db=credentials($base);$db->set_charset('utf8mb4');$db->begin_transaction(MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
- $data=['schema'=>1,'siteId'=>'mhc-p33-wordpress-v1','tables'=>[],'credentialsIncluded'=>false];
- foreach($tables as $table){$rows=$db->query('SELECT * FROM `'.$table.'`')->fetch_all(MYSQLI_ASSOC);foreach($rows as &$row){if($table==='wp_posts'){if($row['post_password']!=='')throw new Exception('SITE_PASSWORD_PROTECTED_POST_NOT_PORTABLE');$row['post_author']='1';}if($table==='wp_comments')$row['user_id']='0';}unset($row);$data['tables'][$table]=$rows;}
+ $data=['schema'=>1,'siteId'=>'mhc-p33-wordpress-v1','tables'=>[],'credentialsIncluded'=>false,'snapshotAt'=>(int)floor(microtime(true)*1000),'build'=>hash_file('sha256',$base.'/site/wp-includes/version.php')];
+ $columns=[];foreach($tables as $table){$engine=$db->query("SELECT ENGINE FROM information_schema.tables WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$table."'")->fetch_assoc()['ENGINE']??'';if($engine!=='InnoDB')throw new Exception('SITE_SYNC_INNODB_REQUIRED');$columns[$table]=$db->query('SHOW COLUMNS FROM `'.$table.'`')->fetch_all(MYSQLI_ASSOC);}
+ $data['tableSchema']=hash('sha256',json_encode($columns,JSON_THROW_ON_ERROR));
+ $options=$db->query("SELECT option_name,option_value FROM wp_options WHERE option_name IN ('page_on_front','show_on_front','active_plugins','stylesheet')")->fetch_all(MYSQLI_ASSOC);$opts=array_column($options,'option_value','option_name');
+ if(($opts['active_plugins']??'')!=='a:0:{}'||($opts['stylesheet']??'')!=='p33lab')throw new Exception('SITE_SYNC_FIXED_LAB_APPLICATION_REQUIRED');
+ if($mode==='export-local')$data['frontPage']=['page_on_front'=>$opts['page_on_front']??'0','show_on_front'=>$opts['show_on_front']??'posts'];
+ foreach($tables as $table){$rows=$db->query('SELECT * FROM `'.$table.'`')->fetch_all(MYSQLI_ASSOC);foreach($rows as &$row){if($mode!=='export-local'&&$table==='wp_posts'){if($row['post_password']!=='')throw new Exception('SITE_PASSWORD_PROTECTED_POST_NOT_PORTABLE');$row['post_author']='1';}if($mode!=='export-local'&&$table==='wp_comments')$row['user_id']='0';}unset($row);$data['tables'][$table]=$rows;}
  $db->commit();file_put_contents($content,json_encode($data,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE));chmod($content,0600);exit;
 }
 if($mode==='install'){
@@ -35,14 +40,21 @@ if($mode==='install'){
 $data=json_decode(file_get_contents($content),true,64,JSON_THROW_ON_ERROR);
 if($data['schema']!==1||$data['siteId']!=='mhc-p33-wordpress-v1'||$data['credentialsIncluded']!==false||array_keys($data['tables'])!==$tables)throw new Exception('SITE_CONTENT_INVALID');
 $db=credentials($base);$db->set_charset('utf8mb4');$root=null;
-if($mode==='import'){
+if($mode==='import'||$mode==='apply'){
+ if($mode==='apply'){
+  $socket=parse_ini_file($base.'/db-client.cnf',true)['client']['socket'];$db->close();$db=new mysqli('localhost','root','','mhc_p33_lab',0,$socket);$db->set_charset('utf8mb4');
+  $columns=[];foreach($tables as $table){$engine=$db->query("SELECT ENGINE FROM information_schema.tables WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='".$table."'")->fetch_assoc()['ENGINE']??'';if($engine!=='InnoDB')throw new Exception('SITE_SYNC_INNODB_REQUIRED');$columns[$table]=$db->query('SHOW COLUMNS FROM `'.$table.'`')->fetch_all(MYSQLI_ASSOC);}
+  if(($data['tableSchema']??'')!==hash('sha256',json_encode($columns,JSON_THROW_ON_ERROR)))throw new Exception('SITE_SYNC_SCHEMA_CHANGED');
+ }else{
  $socket=parse_ini_file($base.'/db-client.cnf',true)['client']['socket'];$root=new mysqli('localhost','root','','',0,$socket);$root->query("GRANT SELECT, INSERT, UPDATE, DELETE ON mhc_p33_lab.* TO 'mhc_p33_web'@'localhost'");
  $db->close();$db=credentials($base);$db->set_charset('utf8mb4');
+ }
  try{$db->begin_transaction();foreach($tables as $table){$columns=array_column($db->query('SHOW COLUMNS FROM `'.$table.'`')->fetch_all(MYSQLI_ASSOC),'Field');$db->query('DELETE FROM `'.$table.'`');foreach($data['tables'][$table] as $row){if(array_keys($row)!==$columns)throw new Exception('SITE_CONTENT_COLUMNS_INVALID');$values=[];foreach($row as $v){if(!is_string($v)&&$v!==null)throw new Exception('SITE_CONTENT_VALUE_INVALID');$values[]=$v===null?'NULL':"'".$db->real_escape_string($v)."'";}$db->query('INSERT INTO `'.$table.'` (`'.implode('`,`',$columns).'`) VALUES ('.implode(',',$values).')');}}
  $front=$db->query("SELECT ID FROM wp_posts WHERE post_title='MHC Manual Primary LAB'")->fetch_all(MYSQLI_ASSOC);if(count($front)!==1)throw new Exception('SITE_FRONT_PAGE_INVALID');
- $id=(int)$front[0]['ID'];$db->query("UPDATE wp_options SET option_value='$id' WHERE option_name='page_on_front'");$db->query("UPDATE wp_options SET option_value='page' WHERE option_name='show_on_front'");$db->commit();}
+ $id=(int)$front[0]['ID'];$frontOptions=$data['frontPage']??['page_on_front'=>(string)$id,'show_on_front'=>'page'];
+ foreach(['page_on_front','show_on_front'] as $option){$value=$db->real_escape_string($frontOptions[$option]);$db->query("UPDATE wp_options SET option_value='$value' WHERE option_name='$option'");}$db->commit();}
  catch(Throwable $e){$db->rollback();throw $e;}
- finally{$root->query("REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'mhc_p33_web'@'localhost'");$root->query("GRANT SELECT ON mhc_p33_lab.* TO 'mhc_p33_web'@'localhost'");}
+ finally{if($root){$root->query("REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'mhc_p33_web'@'localhost'");$root->query("GRANT SELECT ON mhc_p33_lab.* TO 'mhc_p33_web'@'localhost'");}}
 }
 // Content counts and canonical rows are checked through the target's read-only credentials.
 $db->close();$db=credentials($base);$db->set_charset('utf8mb4');$counts=[];

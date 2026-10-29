@@ -1,5 +1,17 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## P4.0 Snapshot Sync Lite — IN PROGRESS (29/10/2026)
+
+- **Source đã có, chưa deploy:** original Panel → Cluster → Đồng bộ dự phòng cho một WordPress LAB/một cặp; chọn lịch theo chu kỳ phút/giờ (mặc định60phút) hoặc HH:mm hằng ngày theo Asia/Ho_Chi_Minh, ON/OFF và Đồng bộ ngay. Shared DO giữ revision/CAS, một run, Cron phút hiện có; chỉ bật lịch sau một lượt manual APPLIED+VERIFIED của đúng cặp. Không mở Auto Primary.
+- Pipeline tái dùng N1.3 chunks/pinned Ed25519/Agent: snapshot SQL InnoDB nhất quán trên Primary có lease → relay checksum/provenance source snapshotAt/build/schema → Standby staging → backup riêng/checksum → transaction root scoped8bảng (app vẫn SELECT-only) → đổi site riêng/giữ wp-config của đích → HTTP/PHP/SQL verify. Có journal/rollback/resume, source timeout15phút và target timeout giữ reservation khi chưa chứng minh rollback. Manual Primary và source-upgrade bị chặn trong run; không đổi DNS/lease. Cache P4.0 hoàn tất giữ2bản mỗi loại trên node; không xóa N1.3 caches/release cũ.
+- **Windows mock PASS:** scheduler/auth/CAS/2loại lịch/UTC+7/chống overlap/provenance/receipt/failure-retention/lease hết hạn;6journal fixtures gồm rollback SQL/HTTP/crash/idempotence/own credentials. Regression N1.3 relay, P33, source-upgrade28cases, job-retry và UI PASS. UI P4 render/minutes-hours/daily/escaped errors PASS.
+- **Android fixture11T PASS:** PHP syntax; Authority/P4 journal/N1.3 relay/P33/UI cùng working source; archive credentials/checksum/path/resume PASS riêng sau sửa tham số runner. Không gọi đây là full suite hoặc sync giữa hai Android.
+- **Android thật chỉ đọc PASS:**11T export/check8bảng; XZ3 export-local/check8bảng và portable normalization đối chiếu PASS; build7513dacf…a04/schema381c90ee…ef6 khớp cả hai. Portable export đổi author/user references theo contract N1.3 nên check trực tiếp portable-vs-source XZ3 ban đầu FAIL; bản raw local + phép normalization xác minh đúng, không sửa dữ liệu. Payload chỉ nằm private trên phone.
+- **Runtime cần phục hồi trước test P4.0:** revision45/epoch9/COMMITTED/journalVERIFIED vẫn ghi Primary+Control11T nhưng **không còn lease**.11T tự self-fence lúc2026-10-29T06:39:49.353Z (13:39+07), event P33_RUNTIME_UNAVAILABLE; localSTANDBY/HTTPclosed/SQLdenied, Panel/Agent còn chạy trên cả3node. Không coi nhãn Primary là đang phục vụ; không tự sửa lease/route ở checkpoint source này.
+- **Android sync/apply/schedule thực: NOT RUN**, rollback PHP/SQL thực trên target và fresh installer mới NOT RUN. Để DONE: source rollout có bảo toàn, khôi phục11T qua Manual đúng pipeline,11T→XZ3 apply2lần sau data đổi, HTTP/PHP/SQL/Standby gates, fault/rollback và lịch thực. Không reset node để tạo test.
+- **SHA:** source và test ở commit chứa checkpoint này (git log -1 --format=%H -- docs/LIVE-PROGRESS.md). Worker/node đang chạy vẫn là N1.3 ghi dưới; chưa có artifact P4.0 phát hành. Blocker user: chưa cần token/quyền mới; public Access proof sẽ cần ở bước Manual recovery nếu thực hiện. **Một việc tiếp theo:** source rollout LAB và phục hồi Manual11T trước sync thực. Cập nhật lúc 2026-10-29T08:01:40.837Z.
+
+
 ## Chuyển Primary sang Xiaomi11T — DONE theo LAB scope (29/10/2026)
 
 - User yêu cầu chuyển Primary sang11T, dùng dữ liệu LAB đã restore/verified trên node đích. Đã gọi đúng HTTP API original Panel11T với session+CSRF: signed fence toàn bộ3site participants → CAS/epoch9 → lease90s/activation11T → đổi đúng route preview-lab sang ownTunnel11T. Control đã ở11T nên giữ nguyên. Không đổi panel.giaouoc.com/production.
@@ -17,7 +29,7 @@
 | Mốc | Trạng thái | Android hoạt động thật / source | Thiếu DoD / blocker | Việc tiếp theo |
 |---|---|---|---|---|
 | N1.3 site Standby | DONE theo LAB scope |11T restore23,172,996bytes, HTTP/PHP/SQL/files/gates và no-overwrite PASS; sáu readiness của11T/XZ3/Vsmart đều đạt tại hậu kiểm. Node source bd5bcfd; Worker source thực ghi dưới. | Backup/restore/readiness/Standby gates và cross-Panel relay đã PASS; fresh05/newTunnel/reboot/khác mạng vật lý vẫn NOT RUN, không suy thành production. | P4.0 một site/một Standby, safe verified snapshot apply. |
-| P4.0 Snapshot Sync Lite | NOT STARTED | DESIGN/PLANNED; chưa có lịch sync/runtime mới. | N1.3 đã PASS; P4.0 chưa có cập nhật Standby đã có dữ liệu an toàn. | Sau N1.3: một LAB site/một Standby,60phút + Đồng bộ ngay. |
+| P4.0 Snapshot Sync Lite | IN PROGRESS | Source pipeline/lịch/UI và fixtures PASS; runtime mới chưa deploy. | Sync/apply/schedule Android thực NOT RUN;11T lease đã hết hạn. | Rollout LAB và Manual recovery11T, rồi sync11T→XZ3. |
 | P4 Lite Auto Primary + Control | NOT STARTED | DESIGN/PLANNED; automaticFailover=false. | Old-offline/self-fence/mất mạng thật chưa nghiệm thu. | Sau P4.0: tái dùng P3.3 một cặp, không hai managed writers. |
 
 ### Runtime, dữ liệu và quyền thực

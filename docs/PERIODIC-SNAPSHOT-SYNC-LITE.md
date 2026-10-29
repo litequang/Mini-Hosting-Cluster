@@ -60,3 +60,7 @@ Authority phối hợp heartbeat + website/Tunnel; chứng minh old writer lease
 ### UI dự kiến, không bắt buộc toàn bộ cho MVP
 
 Original Panel per-site: Primary; Standby/online/SITE_READY/ELIGIBLE_PRIMARY; applied verified snapshot/RPO; lịch/Đồng bộ ngay; NEWEST_VERIFIED_DATA hoặc FIXED_PRIORITY/thứ tự; blocker; lịch sử chuyển và nút Manual. MVP chỉ cần điều khiển/status hữu dụng cho một cặp, mở rộng phần còn lại sau. Mọi mục trong phần này là DESIGN/PLANNED; IMPLEMENTED/PASS phải có bằng chứng ở LIVE-PROGRESS.
+
+## Tùy chọn lịch đã chốt 29/10/2026
+
+Original Panel → Cluster → Đồng bộ dự phòng của WordPress LAB: một kiểu lịch mỗi cấu hình, interval5..10080phút (UI chọn phút/giờ) hoặc HH:mm hằng ngày theo Asia/Ho_Chi_Minh; defaultOFF60phút. Có Đồng bộ ngay, trạng thái run/lỗi/nextAt và last verified applied/RPO. Bật lịch chỉ sau manual sync được verify đúng cặp. Không cần PC bật; Cron phút hiện có quyết định enqueue, Agent thực hiện, nên thời điểm thực tế có thể trễ khi offline/busy. Giữ2cache P4.0 hoàn tất mỗi loại trên node; relay tối đa2snapshots24h, bản đang apply/reserved giữ để recovery. Trạng thái source/runtime xem LIVE-PROGRESS.

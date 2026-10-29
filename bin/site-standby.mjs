@@ -2,6 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import nodeHttp from 'node:http';import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 import {sharedSiteRequest,sharedStatus} from './cluster-authority.mjs';
 import {ManagedNode,P33_SCOPE,validManagedLease} from './p33-node.mjs';
+import {atomicPrivate,applyStandbySnapshot,pruneSyncCache} from './site-sync.mjs';
 const SITE='mhc-p33-wordpress-v1',CHUNK=196608,MAX=64*1024*1024,home=()=>process.env.HOME||os.homedir(),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),fail=c=>{throw Error(c);};
 export function safePublicGrants(lines){return lines.every(v=>{
@@ -11,7 +12,7 @@ export function safePublicGrants(lines){return lines.every(v=>{
  return match[1]==='test'||match[1].replaceAll('\\','')==='test_%';
 });}
 const errorCode=e=>/^((AUTHORITY_)?SITE_|P33_|N1_)[A-Z0-9_]+$/.test(e.message)?e.message.replace(/^AUTHORITY_/,''):'SITE_PREPARATION_FAILED';
-function save(p,v){fs.mkdirSync(path.dirname(p),{recursive:true,mode:0o700});const tmp=p+'.'+crypto.randomUUID();fs.writeFileSync(tmp,JSON.stringify(v)+'\n',{mode:0o600,flag:'wx'});fs.renameSync(tmp,p);}
+function save(p,v){return atomicPrivate(p,v);}
 function read(p){const st=fs.lstatSync(p);if(st.isSymbolicLink()||!st.isFile()||(st.mode&0o077))fail('SITE_PRIVATE_FILE_UNSAFE');return JSON.parse(fs.readFileSync(p));}
 function context(){
  if(process.env.PREFIX!=='/data/data/com.termux/files/usr')fail('SITE_TERMUX_REQUIRED');
@@ -43,7 +44,7 @@ async function ensureService(c){
 export async function verifyLocalSite(c=context()){
  const s=await sharedStatus('agent');if(validManagedLease(s,c.id.nodeId)&&c.node.state().desired==='ACTIVE'){
   const p=(await c.node.proof(crypto.randomBytes(32).toString('hex'),'ACTIVE')).proof;
-  return {ready:true,siteId:SITE,dataset:p.dataset,http:p.httpServing,php:p.wordpress,sql:p.database.writeReadDelete,files:true,writerGate:true,writeDenied:false,activeWriter:true,activeLease:{epoch:p.epoch,operationId:p.operationId},management:Object.values(p.management).every(Boolean),credentialsCopied:false};
+  return {ready:true,syncProtocol:1,siteId:SITE,dataset:p.dataset,http:p.httpServing,php:p.wordpress,sql:p.database.writeReadDelete,files:true,writerGate:true,writeDenied:false,activeWriter:true,activeLease:{epoch:p.epoch,operationId:p.operationId},management:Object.values(p.management).every(Boolean),credentialsCopied:false};
  }
  await requireStandby(c);const n=c.node;if(!fs.existsSync(n.base+'/dataset.json'))fail('SITE_WEBSITE_DATABASE_MISSING');const dataset=n.dataset();if(!Object.values(n.management()).every(Boolean)||!n.candidate.statusService('mhc-lab-p33'))fail('SITE_MANAGEMENT_OR_GUARD_NOT_RUNNING');
  n.database(true);if(await n.httpProbe()||fs.existsSync(n.childrenFile))fail('SITE_STANDBY_GATE_NOT_CLOSED');
@@ -61,13 +62,16 @@ export async function verifyLocalSite(c=context()){
   for(let i=0;i<24;i++){try{const r=await new Promise((resolve,reject)=>{const req=nodeHttp.request({hostname:'127.0.0.1',port:18135,path:'/',headers:{host:'preview-lab.giaouoc.com'},timeout:1500},res=>{let body='';res.on('data',b=>{body+=b;if(body.length>524288){req.destroy();reject(Error('SITE_PROBE_TOO_LARGE'));}});res.on('end',()=>resolve({status:res.statusCode,node:res.headers['x-mhc-node'],body}));});req.on('error',reject);req.on('timeout',()=>req.destroy());req.end();});if(r.status===200&&r.node===c.id.nodeId&&r.body.includes('MHC Manual Primary LAB')&&!r.body.includes('<?php')){http=true;break;}}catch{}await sleep(250);}
   if(!http)fail('SITE_HTTP_PHP_CONTENT_FAILED');
  }finally{reap();}
- await sleep(200);n.database(true);return {ready:true,siteId:SITE,dataset,http,php:true,sql:true,files:true,writerGate:true,writeDenied:true,management:true,credentialsCopied:false};
+ await sleep(200);n.database(true);return {ready:true,syncProtocol:1,siteId:SITE,dataset,http,php:true,sql:true,files:true,writerGate:true,writeDenied:true,management:true,credentialsCopied:false};
 }
 async function backup(c,job){
- await requireStandby(c);c.node.dataset();c.node.database(true);
+ if(job.type==='sync-backup'){
+  const s=await sharedStatus('agent');if(!validManagedLease(s,c.id.nodeId)||s.p33.phase!=='COMMITTED'||s.p33.epoch!==job.sync?.epoch||s.p33.operationId!==job.sync?.operationId||s.siteSync?.run?.id!==job.sync?.runId||c.node.state().desired!=='ACTIVE')fail('SITE_SYNC_PRIMARY_LEASE_REQUIRED');
+  c.node.dataset();c.node.database(false);
+ }else{await requireStandby(c);c.node.dataset();c.node.database(true);}
  const d=path.join(c.work,job.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const file=d+'/backup.tar.gz',meta=d+'/backup.json',content=d+'/content.json';let b;
  if(fs.existsSync(meta)){b=read(meta);if(hash(fs.readFileSync(file))!==b.sha256)fail('SITE_LOCAL_BACKUP_CHANGED');}
- else{php(c,'export',content);const packed=archive('pack',c.node.base+'/site',file,content),bytes=fs.statSync(file).size;if(bytes>MAX)fail('SITE_BACKUP_TOO_LARGE');b={id:job.id,siteId:SITE,bytes,chunks:Math.ceil(bytes/CHUNK),sha256:hash(fs.readFileSync(file)),manifestSha256:packed.manifestSha256,credentialsIncluded:false};save(meta,b);}
+ else{php(c,'export',content);const packed=archive('pack',c.node.base+'/site',file,content),bytes=fs.statSync(file).size;if(bytes>MAX)fail('SITE_BACKUP_TOO_LARGE');b={id:job.id,siteId:SITE,bytes,chunks:Math.ceil(bytes/CHUNK),sha256:hash(fs.readFileSync(file)),manifestSha256:packed.manifestSha256,credentialsIncluded:false,...(job.type==='sync-backup'?{sourceSnapshotAt:JSON.parse(fs.readFileSync(content)).snapshotAt,sourceEpoch:job.sync.epoch,build:JSON.parse(fs.readFileSync(content)).build,schema:JSON.parse(fs.readFileSync(content)).tableSchema}:{})};save(meta,b);}
  const fd=fs.openSync(file,'r');try{for(let start=0;start<b.chunks;start+=3)await Promise.all(Array.from({length:Math.min(3,b.chunks-start)},async(_,offset)=>{const index=start+offset,bytes=Buffer.alloc(Math.min(CHUNK,b.bytes-index*CHUNK));fs.readSync(fd,bytes,0,bytes.length,index*CHUNK);await retry(()=>sharedSiteRequest('site-upload',{jobId:job.id,index,data:bytes.toString('base64'),sha256:hash(bytes)}));}));}finally{fs.closeSync(fd);}
  return {backup:b};
 }
@@ -122,11 +126,13 @@ export async function siteAgentTick(){
  if(fs.existsSync(path.join(home(),'.local/state/mhc-source-upgrade/lock')))return;
  if(task||Date.now()<nextPoll)return;nextPoll=Date.now()+2500;
  const c=context(),reply=await sharedSiteRequest('site-poll'),job=reply.site?.job;if(!job)return;
- task=(async()=>{let fields;try{if(job.type==='backup')fields=await backup(c,job);else if(job.type==='restore')fields=await restore(c,job,reply.site.snapshot);else if(job.type==='verify')fields={evidence:await verifyLocalSite(c)};else if(job.type==='manual')fields={request:job.request,envelope:await c.node.accept(job.request)};else fail('SITE_JOB_TYPE_INVALID');}catch(e){fields={errorCode:errorCode(e).startsWith('SITE_')?errorCode(e):'SITE_'+errorCode(e)};}
+ task=(async()=>{let fields;try{if(['backup','sync-backup'].includes(job.type))fields=await backup(c,job);else if(job.type==='sync-apply')fields=await applyStandbySnapshot(c,job,reply.site.snapshot,{read,php,archive,verify:verifyLocalSite,request:(a,b)=>retry(()=>sharedSiteRequest(a,b)),standby:requireStandby});else if(job.type==='restore')fields=await restore(c,job,reply.site.snapshot);else if(job.type==='verify')fields={evidence:await verifyLocalSite(c)};else if(job.type==='manual')fields={request:job.request,envelope:await c.node.accept(job.request)};else fail('SITE_JOB_TYPE_INVALID');}catch(e){fields={errorCode:errorCode(e).startsWith('SITE_')?errorCode(e):'SITE_'+errorCode(e)};}
   await retry(()=>sharedSiteRequest('site-result',{jobId:job.id,envelope:sign(c,job.id,fields)}));
+  if(!fields.errorCode&&['sync-backup','sync-apply'].includes(job.type))pruneSyncCache(c,job,job.type==='sync-backup'?'backup':'apply');
  })().catch(e=>console.error(errorCode(e))).finally(()=>{task=null;});
 }
 export async function sitePanelAction(body){
+ if(['sync-status','sync-configure','sync-run','sync-resume'].includes(body?.action))return sharedSiteRequest('site-sync',{...body,action:body.action.slice(5)});
  if(!['status','backup','restore','verify'].includes(body?.action))fail('SITE_PANEL_ACTION_INVALID');
  const action=body.action==='status'?'site-job':'site-start';return (action==='site-job'?sharedSiteRequest:enqueueSiteJob)(action,{targetNodeId:body.nodeId,...(body.action!=='status'?{type:body.action,requestId:body.requestId,confirm:body.confirm===true,resume:body.resume===true,preserveExisting:body.preserveExisting===true,snapshotId:body.snapshotId||null}:{})});
 }

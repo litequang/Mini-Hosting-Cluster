@@ -68,3 +68,5 @@ N1 self-service: reference/cluster-authority/n1-onboarding.mjs giữ approval t�
 - Tests: `tests/site-standby.mjs`, `tests/site-standby-archive.py`, `tests/site-job-retry.mjs`, bổ sung UI và regression P33/N1. Independent site health chỉ dời deadline sau verify/restore, không theo Manual polling; runtime/test thực ở LIVE-PROGRESS.
 
 P33 receiver clock: bin/p33-control.mjs chỉ sau signature/nonce/context hợp lệ mới chờ tối đa2giây rồi kiểm lại strict future2s/TTL15s; không sửa timestamps/lease/Authority checks. tests/p33-peer-clock.mjs kiểm boundary/expiry/large skew/time-jump; đã thêm self-test.
+
+P4.0 source: reference/cluster-authority/site-sync.mjs giữ một policy/run/CAS và lịch interval/daily UTC+7 trong cùng DO; site-standby.mjs dùng sync-backup/sync-apply trên relay hiện có. bin/site-sync.mjs thực hiện target staging/journal/checksum/local rollback và cache bounded, p33-node dataset từ chối maintenance. Original Panel Cluster dùng endpoint standby hiện có/session+CSRF. tests/site-sync.mjs và site-sync-node.mjs nằm trong self-test; runtime/test thực chỉ ở LIVE-PROGRESS.
