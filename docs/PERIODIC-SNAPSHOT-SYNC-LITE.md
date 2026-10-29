@@ -64,3 +64,9 @@ Original Panel per-site: Primary; Standby/online/SITE_READY/ELIGIBLE_PRIMARY; ap
 ## Tùy chọn lịch đã chốt 29/10/2026
 
 Original Panel → Cluster → Đồng bộ dự phòng của WordPress LAB: một kiểu lịch mỗi cấu hình, interval5..10080phút (UI chọn phút/giờ) hoặc HH:mm hằng ngày theo Asia/Ho_Chi_Minh; defaultOFF60phút. Có Đồng bộ ngay, trạng thái run/lỗi/nextAt và last verified applied/RPO. Bật lịch chỉ sau manual sync được verify đúng cặp. Không cần PC bật; Cron phút hiện có quyết định enqueue, Agent thực hiện, nên thời điểm thực tế có thể trễ khi offline/busy. Giữ2cache P4.0 hoàn tất mỗi loại trên node; relay tối đa2snapshots24h, bản đang apply/reserved giữ để recovery. Trạng thái source/runtime xem LIVE-PROGRESS.
+
+## Dùng bản LAB P4.0
+
+Source package: releases/MHC-LAB-20261029-P40.tar, commit a29eb272043910b464c6d681bf8ddb4e78efdfb9,94files; dùng quy trình source-only ở NODE-SOURCE-UPGRADE.md. Fresh06 là release thống nhất184files ở releases/new-node/MHC-N1-20261029-06; checksum kèm bootstrap, fresh physical chưa nghiệm thu. Không dùng fresh installer cho máy đã cài.
+
+Sau khi Primary COMMITTED có lease và cả cặp đã full verify: https://panel-lab.giaouoc.com → Cluster → Đồng bộ dự phòng — WordPress LAB → chọn Standby → để lịchOFF, Lưu cấu hình → Đồng bộ ngay. Chỉ khi runVERIFIED và có source snapshotAt/restoreAt/checksum/RPO mới bật lịch; chọn chu kỳ phút/giờ hoặc giờ hằng ngày rồi Lưu. BACKUP/UPLOADING không là APPLIED. Nếu BLOCKED/rollback chưa chứng minh, dùng tiếp tục đúng tác vụ, không chuyển Primary/xóa journal. Scope content8tables/core/theme/mediaLAB, credentials/users/options riêng trên mỗi node; không dùng nghiệm thu production.
