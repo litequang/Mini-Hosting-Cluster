@@ -32,6 +32,13 @@ export function siteReadiness(env,s,id,row,n1,now=Date.now()){
  return {siteId:SITE_ID,states:{INSTALLED:!!installed,JOINED:joined,MANAGEMENT_READY:!!management,ROUTE_READY:!!route,SITE_READY:!!site,ELIGIBLE_PRIMARY:!!site&&!!route&&approved},blockers,lastCheckedAt:evidence?.checkedAt||null,preparedAt:evidence?.dataset?.preparedAt||null,dataset:evidence?.dataset||null,job:row?.job?publicJob(row.job):null};
 }
 function publicJob(j){return {id:j.id,nodeId:j.nodeId,type:j.type,status:j.status,stage:j.stage||j.status,createdAt:j.createdAt,updatedAt:j.updatedAt,errorCode:j.errorCode||null,snapshotId:j.snapshotId||null,...(j.result?{result:j.result}:{}),...(j.request?{request:j.request}:{})};}
+async function cleanup(tx,now){
+ const snapshots=await tx.get('site-snapshots')||[],pending=await tx.get('site-upload-jobs')||[],rows=await tx.get('site-nodes')||{};
+ const expired=snapshots.filter(v=>now-v.createdAt>=86400000),abandoned=pending.filter(v=>now-v.createdAt>=86400000||rows[v.nodeId]?.job?.id!==v.id||rows[v.nodeId]?.job?.status==='FAILED');
+ for(const v of [...expired,...abandoned])for(let i=0;i<(v.chunks||Math.ceil(MAX_BYTES/CHUNK_BYTES));i++)await tx.delete('site-chunk:'+v.id+':'+i);
+ const keep=snapshots.filter(v=>!expired.includes(v)),uploads=pending.filter(v=>!abandoned.includes(v));await tx.put('site-snapshots',keep);await tx.put('site-upload-jobs',uploads);return {snapshots:keep,uploads};
+}
+export async function siteCleanup(ctx,now=Date.now()){await ctx.storage.transaction(tx=>cleanup(tx,now));}
 export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Date.now(),fetcher=fetch}){
  if(env.MHC_P33_ENABLED!=='MANUAL_MANAGED_SITE')fail('SITE_LAB_NOT_ENABLED',403);
  let enable=null;
@@ -59,7 +66,10 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
     request=body.request;if(!request||!['p33-ready','p33-fence','p33-activate','p33-active'].includes(request.action)||request.nodeId!==target||!hex.test(request.nonce||'')||request.epoch!==r?.epoch||request.revision!==r?.revision||request.operationId!==r?.operationId)fail('SITE_MANUAL_REQUEST_INVALID');
     if(!siteProfiles(env).keys[target])fail('SITE_CANDIDATE_NOT_APPROVED');
    }
-   if(type==='backup'&&job?.type==='backup'&&!snapshots.some(v=>v.id===job.id))for(let i=0;i<Math.ceil(MAX_BYTES/CHUNK_BYTES);i++)await tx.delete('site-chunk:'+job.id+':'+i);
+   if(type==='backup'){
+    const clean=await cleanup(tx,now);if(clean.uploads.length>=2)fail('SITE_TWO_BACKUPS_IN_PROGRESS');
+    await tx.put('site-upload-jobs',[...clean.uploads,{id:body.requestId,nodeId:target,createdAt:now}]);
+   }
    job={id:body.requestId,nodeId:target,type,status:'QUEUED',createdAt:now,updatedAt:now,snapshotId:body.snapshotId||null,...(request?{request}:{})};
    rows[target]={...row,job};await tx.put('site-nodes',rows);await tx.put('site-audit:'+job.id,{action:type,target,createdBy:nodeId,at:now,siteId:SITE_ID});return {job:publicJob(job)};
   }
@@ -67,7 +77,7 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
   if(action==='site-poll'){
    if(!job||!['QUEUED','RUNNING'].includes(job.status)||now-job.createdAt>86400000){
     if(now-(row.nextCheckAt||0)<0)return {job:null};
-    if(r?.lease?.nodeId===target&&r.lease.expiresAt>now||!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase||'IDLE'))return {job:null};
+    if(!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase||'IDLE'))return {job:null};
     job={id:crypto.randomUUID(),nodeId:target,type:'verify',status:'QUEUED',createdAt:now,updatedAt:now,snapshotId:null};row.nextCheckAt=now+120000;
    }
    job={...job,status:'RUNNING',updatedAt:now};rows[target]={...row,job};await tx.put('site-nodes',rows);return {job:publicJob(job),snapshot:snapshots.find(v=>v.id===job.snapshotId)||null};
@@ -95,10 +105,11 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
    let bytes=0;for(let i=0;i<b.chunks;i++){const c=await tx.get('site-chunk:'+job.id+':'+i);if(!c||c.size!==(i===b.chunks-1?b.bytes-i*CHUNK_BYTES:CHUNK_BYTES))fail('SITE_BACKUP_INCOMPLETE');bytes+=c.size;}if(bytes!==b.bytes)fail('SITE_BACKUP_INCOMPLETE');
    // Keep at most two snapshots (24h). Erase expired/evicted chunks, including private payloads.
    const keep=snapshots.filter(v=>now-v.createdAt<86400000).slice(-1);for(const v of snapshots.filter(v=>!keep.includes(v)))for(let i=0;i<v.chunks;i++)await tx.delete('site-chunk:'+v.id+':'+i);
-   const snapshot={...b,nodeId,createdAt:now,status:'VERIFIED'};await tx.put('site-snapshots',[...keep,snapshot]);job={...job,status:'DONE',updatedAt:now,result:{snapshotId:job.id,bytes:b.bytes,sha256:b.sha256}};
+   const snapshot={...b,nodeId,createdAt:now,status:'VERIFIED'};await tx.put('site-snapshots',[...keep,snapshot]);await tx.put('site-upload-jobs',(await tx.get('site-upload-jobs')||[]).filter(v=>v.id!==job.id));job={...job,status:'DONE',updatedAt:now,result:{snapshotId:job.id,bytes:b.bytes,sha256:b.sha256}};
   }else{
    const e=p.evidence;
-   if(e?.ready!==true||e.siteId!==SITE_ID||e.dataset?.verified!==true||!hex.test(e.dataset.manifestSha256||'')||e.http!==true||e.php!==true||e.sql!==true||e.files!==true||e.writerGate!==true||e.writeDenied!==true||e.management!==true||e.credentialsCopied!==false)fail('SITE_EVIDENCE_INCOMPLETE');
+   const active=e?.activeWriter===true&&r?.lease?.nodeId===nodeId&&r.lease.expiresAt>now&&e.activeLease?.epoch===r.epoch&&e.activeLease?.operationId===r.operationId;
+   if(e?.ready!==true||e.siteId!==SITE_ID||e.dataset?.verified!==true||!hex.test(e.dataset.manifestSha256||'')||e.http!==true||e.php!==true||e.sql!==true||e.files!==true||e.writerGate!==true||!(e.writeDenied===true||active)||e.management!==true||e.credentialsCopied!==false)fail('SITE_EVIDENCE_INCOMPLETE');
    row.evidence={...e,checkedAt:p.checkedAt};job={...job,status:'DONE',updatedAt:now,result:{ready:true,dataset:e.dataset}};
    if(management[nodeId])enable={nodeId,entry:management[nodeId],evidence:row.evidence};
   }

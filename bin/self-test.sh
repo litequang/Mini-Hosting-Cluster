@@ -77,5 +77,6 @@ for f in sys.argv[1:]:
     ast.parse(open(f, encoding="utf8").read(), filename=f)
 PYAST
 node "$ROOT/tests/site-standby.mjs"
+node "$ROOT/tests/upgrade-quiescence.mjs"
 python3 "$ROOT/tests/site-standby-archive.py" "$ROOT/bin/site-standby-archive.py"
 echo 'PASS: all TEST 0.5.0C-REMOTE-PANEL source self-tests (device runtime untested)'

@@ -11,6 +11,7 @@ try{
  await assert.rejects(node.proof(nonce,'ACTIVE'),/REQUEST_INVALID/);checks++;
  await assert.rejects(node.proof(nonce,'PUBLIC_PANEL',{host:'panel-lab.giaouoc.com',accessVerified:false}),/PUBLIC_ACCESS/);checks++;
  const publicEnvelope=await node.proof(nonce,'PUBLIC_PANEL',{host:'panel-lab.giaouoc.com',accessVerified:true});await verifyControlProof(publicEnvelope,entry,state,state.p33,{nodeId:id,nonce,kind:'PUBLIC_PANEL'});checks++;
+ state.p33.controlOnlyNodeIds=[];state.p33.siteNodeIds=[id];await verifyControlProof(await node.proof(nonce),entry,state,state.p33,{nodeId:id,nonce,kind:'READY'});state.p33.siteNodeIds=[];state.p33.controlOnlyNodeIds=[id];checks++;
  await assert.rejects(new ControlNode({home,fixture:true,service:()=>false,authority:async()=>state}).proof(nonce),/MANAGEMENT_NOT_READY/);checks++;
  await assert.rejects(new ControlNode({home,fixture:true,service:()=>true,authority:async()=>{throw Error('AUTHORITY_UNREACHABLE');}}).proof(nonce),/UNREACHABLE/);checks++;
  let reads=0;await assert.rejects(new ControlNode({home,fixture:true,service:()=>true,authority:async()=>{const s=structuredClone(state);s.p33.revision+=reads++;return s;}}).proof(nonce),/CHANGED_DURING/);checks++;

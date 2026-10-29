@@ -1,4 +1,4 @@
-import {SITE_ACTIONS,siteAction,siteEffectiveEnv,siteReadiness} from './site-standby.mjs';
+import {SITE_ACTIONS,siteAction,siteEffectiveEnv,siteReadiness,siteCleanup} from './site-standby.mjs';
 import {p33Action,p33View,p33Enabled,P33_ACTIONS} from './p33-manual.mjs';
 import {N1_ACTIONS,n1Action,n1EffectiveEnv,n1PublicView,verifyN1Enrollment} from './n1-onboarding.mjs';
 import {p3Config,p3SwitchDns,p3SwitchPanelDns} from './p3-route.mjs';
@@ -125,7 +125,7 @@ export class ClusterAuthority {
  constructor(ctx,env){this.ctx=ctx;this.env=env;}
  async fetch(req){
   if(new URL(req.url).pathname==='/p33-maintenance'&&req.method==='POST'){
-   try{return reply({p33:await p33Action({ctx:this.ctx,env:this.env,action:'p33-recover-control',internal:true})});}catch(e){return reply({error:e.status?e.message:'P33_CONTROL_RECOVERY_UNAVAILABLE'},e.status||503);}
+   try{await siteCleanup(this.ctx);return reply({p33:await p33Action({ctx:this.ctx,env:this.env,action:'p33-recover-control',internal:true})});}catch(e){return reply({error:e.status?e.message:'P33_CONTROL_RECOVERY_UNAVAILABLE'},e.status||503);}
   }
   if(new URL(req.url).pathname==='/maintenance'&&req.method==='POST')return this.recoverPanel();
   if(new URL(req.url).pathname==='/p32-maintenance'&&req.method==='POST'){

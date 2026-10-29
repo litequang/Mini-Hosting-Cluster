@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';import crypto from 'node:crypto';
 import worker,{ClusterAuthority} from '../reference/cluster-authority/worker.mjs';
 import {authorityRequest} from '../bin/cluster-authority.mjs';
-import {SITE_ID,CHUNK_BYTES,siteAction,siteReadiness,siteEffectiveEnv,siteProfiles} from '../reference/cluster-authority/site-standby.mjs';
+import {SITE_ID,CHUNK_BYTES,siteAction,siteReadiness,siteEffectiveEnv,siteProfiles,siteCleanup} from '../reference/cluster-authority/site-standby.mjs';
 import {p33Action} from '../reference/cluster-authority/p33-manual.mjs';
 import {LAB_NODES} from '../reference/cluster-authority/p32-lab.mjs';
 class Storage{data=new Map();tail=Promise.resolve();transaction(fn){const job=this.tail.then(async()=>{const m=new Map(structuredClone([...this.data])),value=await fn({get:async k=>structuredClone(m.get(k)),put:async(k,v)=>m.set(k,structuredClone(v)),delete:async k=>m.delete(k)});this.data=m;return value;});this.tail=job.catch(()=>{});return job;}}
@@ -65,5 +65,6 @@ try{
  await p33Action({ctx,env,action:'p33-fenced',body:{requestId:crypto.randomUUID(),expectedRevision:storage.data.get('state').revision,expectedP33Revision:r.revision,operationId:r.operationId,envelopes},nodeId:a,authorize:async()=> 'panel',now});assert.equal(storage.data.get('p33').lease.nodeId,c);
  // Oversized body is rejected before storage; no credentials or payload appear in status.
  await assert.rejects(call('site-upload',{data:'A'.repeat(280000)},'agent',b),/BODY_TOO_LARGE/);assert.ok(!JSON.stringify(await call('status')).includes(chunks[0].toString('base64').slice(0,80)));
- console.log('PASS N1.3 relay: roles/pinned signatures/confirmation/checksums/resume/idempotence/DO restart/private chunks/four-node readiness/expiry/missing-site denial/dynamic three-site all-fence/manual lease; no SSH, no DNS during preparation (fixtures).');
+ await siteCleanup(ctx,now+86460000);assert.equal(storage.data.get('site-snapshots').length,0);assert.equal(storage.data.get('site-chunk:'+job.id+':0'),undefined);
+ console.log('PASS N1.3 relay: roles/pinned signatures/confirmation/checksums/resume/idempotence/DO restart/private chunks/retention cleanup/four-node readiness/expiry/missing-site denial/dynamic three-site all-fence/manual lease; no SSH, no DNS during preparation (fixtures).');
 }finally{globalThis.fetch=originalFetch;}

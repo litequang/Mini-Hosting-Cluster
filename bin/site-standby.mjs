@@ -1,7 +1,7 @@
 // Original Agent/Panel bridge for one MHC-managed LAB site. No LAN peer or SSH transport.
-import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
+import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import nodeHttp from 'node:http';import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
 import {sharedSiteRequest,sharedStatus} from './cluster-authority.mjs';
-import {ManagedNode,P33_SCOPE} from './p33-node.mjs';
+import {ManagedNode,P33_SCOPE,validManagedLease} from './p33-node.mjs';
 const SITE='mhc-p33-wordpress-v1',CHUNK=196608,MAX=64*1024*1024,home=()=>process.env.HOME||os.homedir(),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),fail=c=>{throw Error(c);};
 const errorCode=e=>/^((AUTHORITY_)?SITE_|P33_|N1_)[A-Z0-9_]+$/.test(e.message)?e.message.replace(/^AUTHORITY_/,''):'SITE_PREPARATION_FAILED';
@@ -15,7 +15,7 @@ function context(){
  fs.mkdirSync(node.candidate.safe(path.join(h,'.local/state/mhc-site-standby')),{recursive:true,mode:0o700});
  return {h,node,dir,id,a,key,legacy,work:path.join(h,'.local/state/mhc-site-standby')};
 }
-function command(cmd,args,options={}){const r=spawnSync(cmd,args,{encoding:'utf8',timeout:120000,maxBuffer:1024*1024,stdio:['ignore','pipe','pipe'],...options});if(r.status!==0||r.error)fail('SITE_'+(cmd==='php'?'PHP_DATA_FAILED':cmd==='python'?'ARCHIVE_FAILED':'COMMAND_FAILED'));return r.stdout;}
+function command(cmd,args,options={}){const r=spawnSync(cmd,args,{encoding:'utf8',timeout:120000,maxBuffer:1024*1024,stdio:['ignore','pipe','pipe'],...options});if(r.status!==0||r.error)fail((r.stderr||'').match(/\bSITE_[A-Z0-9_]{1,80}\b/)?.[0]||'SITE_'+(cmd==='php'?'PHP_DATA_FAILED':cmd==='python'?'ARCHIVE_FAILED':'COMMAND_FAILED'));return r.stdout;}
 function php(c,mode,content){return command('php',[fileURLToPath(new URL('./site-standby-data.php',import.meta.url)),mode],{env:{...process.env,MHC_SITE_BASE:c.node.base,MHC_SITE_CONTENT:content,MHC_SITE_SOCKET:c.node.sql('SELECT @@socket',true)}});}
 function archive(mode,site,file,content){return JSON.parse(command('python',[fileURLToPath(new URL('./site-standby-archive.py',import.meta.url)),mode,site,file,content]));}
 function sign(c,jobId,fields){const st=fs.lstatSync(c.key);if(st.isSymbolicLink()||(st.mode&0o077))fail('SITE_SIGNING_KEY_UNSAFE');const proof={schema:1,scope:'MHC_SITE_STANDBY_LAB',siteId:SITE,clusterId:c.a.clusterId,nodeId:c.id.nodeId,jobId,checkedAt:Date.now(),...fields};return {proof,signature:crypto.sign(null,Buffer.from(JSON.stringify(proof)),fs.readFileSync(c.key)).toString('base64url')};}
@@ -35,6 +35,10 @@ async function ensureService(c){
  command(path.join(process.env.PREFIX,'bin/sv-enable'),['mhc-lab-p33'],{env:{...process.env,SVDIR:path.dirname(service)}});command('sv',['-w','10','up',service]);
 }
 export async function verifyLocalSite(c=context()){
+ const s=await sharedStatus('agent');if(validManagedLease(s,c.id.nodeId)&&c.node.state().desired==='ACTIVE'){
+  const p=(await c.node.proof(crypto.randomBytes(32).toString('hex'),'ACTIVE')).proof;
+  return {ready:true,siteId:SITE,dataset:p.dataset,http:p.httpServing,php:p.wordpress,sql:p.database.writeReadDelete,files:true,writerGate:true,writeDenied:false,activeWriter:true,activeLease:{epoch:p.epoch,operationId:p.operationId},management:Object.values(p.management).every(Boolean),credentialsCopied:false};
+ }
  await requireStandby(c);const n=c.node;if(!fs.existsSync(n.base+'/dataset.json'))fail('SITE_WEBSITE_DATABASE_MISSING');const dataset=n.dataset();if(!Object.values(n.management()).every(Boolean)||!n.candidate.statusService('mhc-lab-p33'))fail('SITE_MANAGEMENT_OR_GUARD_NOT_RUNNING');
  n.database(true);if(await n.httpProbe()||fs.existsSync(n.childrenFile))fail('SITE_STANDBY_GATE_NOT_CLOSED');
  command('php-fpm',['-t','-y',path.join(n.base,'php/php-fpm.conf')]);command('nginx',['-t','-p',path.join(n.base,'nginx')+'/', '-c',path.join(n.base,'nginx/nginx.conf')]);
@@ -48,7 +52,7 @@ export async function verifyLocalSite(c=context()){
  let http=false;
  try{
   for(const [cmd,args]of [['php-fpm',['-y',probe+'/php.conf','-F']],['nginx',['-p',n.base+'/nginx/','-c',probe+'/nginx.conf','-g','daemon off;']]]){const p=spawn(path.join(process.env.PREFIX,'bin',cmd),args,{detached:true,stdio:'ignore'});p.on('error',()=>{});if(!p.pid)fail('SITE_PROBE_PROCESS_FAILED');children.push(p);save(childFile,children.map(v=>({pid:v.pid,start:fs.readFileSync('/proc/'+v.pid+'/stat','utf8').split(') ').slice(1).join(') ').split(' ')[19]})));}
-  for(let i=0;i<24;i++){try{const r=await fetch('http://127.0.0.1:18135/',{headers:{host:'preview-lab.giaouoc.com'},redirect:'manual',signal:AbortSignal.timeout(1500)}),body=await r.text();if(r.status===200&&r.headers.get('x-mhc-node')===c.id.nodeId&&body.includes('MHC Manual Primary LAB')&&!body.includes('<?php')){http=true;break;}}catch{}await sleep(250);}
+  for(let i=0;i<24;i++){try{const r=await new Promise((resolve,reject)=>{const req=nodeHttp.request({hostname:'127.0.0.1',port:18135,path:'/',headers:{host:'preview-lab.giaouoc.com'},timeout:1500},res=>{let body='';res.on('data',b=>{body+=b;if(body.length>524288){req.destroy();reject(Error('SITE_PROBE_TOO_LARGE'));}});res.on('end',()=>resolve({status:res.statusCode,node:res.headers['x-mhc-node'],body}));});req.on('error',reject);req.on('timeout',()=>req.destroy());req.end();});if(r.status===200&&r.node===c.id.nodeId&&r.body.includes('MHC Manual Primary LAB')&&!r.body.includes('<?php')){http=true;break;}}catch{}await sleep(250);}
   if(!http)fail('SITE_HTTP_PHP_CONTENT_FAILED');
  }finally{reap();}
  await sleep(200);n.database(true);return {ready:true,siteId:SITE,dataset,http,php:true,sql:true,files:true,writerGate:true,writeDenied:true,management:true,credentialsCopied:false};

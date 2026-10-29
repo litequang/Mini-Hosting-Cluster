@@ -1,5 +1,16 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## Checkpoint N1.3 — backup relay thật và canary (29/10/2026, IN PROGRESS)
+
+- Source checkpoint9021520 đã push. XZ3 và11T APPLIED/VERIFIED93/93 file, manifest f9308f4925a01157d8119a4fef16979df59ed17bd4896afe40e0d840439c9bb5; transactions XZ3 tx-20261029015616692-c0a441,11T tx-20261029015735140-909463. Config/admin/credentials/SSH/site files cũ hash khớp; SSH/MariaDB/Tunnel PID không đổi.
+- Worker/DO thực nhận source9021520, version f0648a38-d522-4c06-aa96-7d2fcceca94c, cùng namespace/state. Authority vẫn rev39/epoch8/COMMITTED, lease hết hạn, Control11T, site Vsmart; không chuyển DNS/lease.
+- PASS Android XZ3→Authority backup từ original Panel11T: snapshot acac1fbe-967c-45cf-8bd5-5a3d398c749c, 23,172,996 bytes, SHA256 f95cc2b5b5493eafd84df5e97eb491dad4ce6f7cf356df854727189261050898, manifest b434cffda8a9e4b1b42311491d87c555d251e45404ec8621139c237df8731845. Chỉ nội dung LAB/core/theme/media, không credentials; payload không vào PC/Git/log. Restore11T NOT RUN tại checkpoint này.
+- Probe cũ trên Node26 Android gửi Host sai qua fetch → HTTP301; sửa dùng node:http với Host cố định. PASS probe bản sửa trong staging XZ3 thật: HTTP200/PHP/SQL/dataset/files/writer gate/SQL denied. Không sửa DB/site để làm test xanh.
+- Vsmart upgrade bị gate chặn vì recordedPrimary còn Vsmart dù lease hết hạn; không bypass/chuyển role. Kiểm trực tiếp FENCED ký bằng pin cũ PASS: SQL writeDenied,0 connections, HTTP/children stopped, local Standby. Source upgrader mới chỉ cho trường hợp này khi có proof mới15s; live lease/active writer vẫn bị chặn. Windows và Android fixture PASS.
+- Source bổ sung: Control vẫn ký proof sau khi node có site; readiness theo active lease thực; cleanup chunk24h và giới hạn2 backup đang chạy. N1.3 vẫn IN PROGRESS: còn rollout bản sửa, restore11T thật, readiness/Manual relay N-node, unified04/rollback. PHYSICAL_NOT_RUN: fresh Termux thứ tư, reboot/Doze/mất mạng thật.
+- Commit gần nhất chứa kết quả đã push:9021520; các sửa nghiệm thu nằm trong commit chứa checkpoint này. Việc tiếp theo: rollout bản sửa có backup, phục hồi snapshot đã xác minh vào11T trống và kiểm Standby/eligibility. Không cần user thao tác cho bước này.
+
+
 ## Checkpoint 29/10/2026 — N1.3 site Standby (IN PROGRESS)
 
 - Source mới: original Panel → chọn node → Chuẩn bị website dự phòng; sáu mức readiness có TTL; backup nội dung WordPress LAB loại credentials/user/options, relay có xác thực và checksum, restore vào đích trống, journal/retry, kiểm HTTP/PHP/SQL/Standby, mở rộng ứng viên site theo key đã phê duyệt. Chưa triển khai checkpoint này lên runtime.
