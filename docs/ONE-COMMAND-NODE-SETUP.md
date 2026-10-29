@@ -6,10 +6,10 @@ Runbook cài đặt; trạng thái triển khai và PASS/FAIL/NOT RUN chỉ tạ
 
 Chuẩn bị Termux, Termux:Boot và Termux:API có chữ ký tương thích. Mở Termux:Boot một lần; cho ba ứng dụng chạy nền/battery unrestricted và bật tự khởi động nếu Android yêu cầu. Installer không thể tự cấp các quyền Android này bằng shell.
 
-Release **MHC-N1-20261029-05** dùng đúng source **bd5bcfda59e3b26c944da3ffa14cd4a0c637cb14**,183file. Manifest SHA256: b9964183bb3dc1f497ba60893aef331515474505008a2462f346659cb59501f0. Lệnh dưới kiểm hash bootstrap trước khi thực thi, kể cả khi URL nhánh thay đổi; bootstrap ghim source và kiểm toàn bộ manifest. Không bỏ bước hash.
+Release **MHC-N1-20261029-06** dùng đúng source **a29eb272043910b464c6d681bf8ddb4e78efdfb9**,184file. Manifest SHA256: e1b0caa96b4fd8300e85408559060b5521d052e4567a3fa64dd06af1d62ca591. Lệnh dưới kiểm hash bootstrap trước khi thực thi, kể cả khi URL nhánh thay đổi; bootstrap ghim source và kiểm toàn bộ manifest. Không bỏ bước hash.
 
 ```sh
-curl -fLsS 'https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/codex/m1-m2-foundation/releases/new-node/MHC-N1-20261029-05/bootstrap.sh' -o "$HOME/mhc-bootstrap-N1-05.sh" && printf '%s  %s\n' 'd4b43eb67320cebcd3e036270b3f6cbfd7cc876b3ef817341b7c773e6cd6b046' "$HOME/mhc-bootstrap-N1-05.sh" | sha256sum -c - && bash "$HOME/mhc-bootstrap-N1-05.sh" --install
+curl -fLsS 'https://raw.githubusercontent.com/litequang/Mini-Hosting-Cluster/codex/m1-m2-foundation/releases/new-node/MHC-N1-20261029-06/bootstrap.sh' -o "$HOME/mhc-bootstrap-N1-06.sh" && printf '%s  %s\n' 'a45fca622cc7a31acf41b11e51bf70bf4dccc20551309738c65c0ab42ee5e5ce' "$HOME/mhc-bootstrap-N1-06.sh" | sha256sum -c - && bash "$HOME/mhc-bootstrap-N1-06.sh" --install
 ```
 
 Chỉ dùng cho ARM64 Termux sạch. Không chạy trên Vsmart/XZ3/11T đã cài, node production hoặc node có dữ liệu. Nếu đã có MHC/website/database khác, bộ cài từ chối thay vì xóa. Cài source cùng release, phần mềm nền, original Panel9090, identity/key/credentials riêng, runit SSH/Panel/SQL và Boot. PHP/Nginx là nền hosting; chưa có website thì không tự tạo site/writer. Cloudflared được cài, nhưng cài binary chưa có nghĩa Tunnel hoặc Control đã sẵn sàng.
@@ -28,7 +28,7 @@ Panel phân biệt cài hệ thống, ghép, Panel/Agent, Tunnel và thiếu web
 
 Mỗi node phải có Tunnel token riêng0600, đúng Access/AUD/hostname và origin JWT; không copy token giữa các node, không đặt account API token trên phone. Control cần public-key/Tunnel registry được operator chấp nhận và proof quản trị mới. Kênh HTTPS Agent→Authority dùng role credentials/proof keys đã ghép; không mở SSH/MariaDB ra Internet. Legacy peer SSH nếu dùng vẫn phải có forced-command và host/proof pins.
 
-Source self-service mới dùng Agent → cùng Worker/DO để tự cấp Tunnel và đăng ký ứng viên Control sau mã ghép. Release05 phía trên chứa luồng này; trạng thái triển khai/nghiệm thu thật và blocker xem LIVE-PROGRESS, không dùng kiểm hash thay cho fresh install thực. Mỗi node giữ public pin được mã ghép phê duyệt, token Tunnel riêng và origin Access; readiness quản trị đi qua Authority, không cần nhập SSH peer thủ công cho node mới. Không tự đổi DNS hoặc nhận Control đang phục vụ chỉ vì join. N1.3 dùng authenticated HTTPS relay qua Authority cho site/Manual readiness, không cần IP LAN hoặc SSH peer. Legacy P31/P32 vẫn giữ sandbox cũ.
+Source self-service mới dùng Agent → cùng Worker/DO để tự cấp Tunnel và đăng ký ứng viên Control sau mã ghép. Release06 phía trên chứa luồng này; trạng thái triển khai/nghiệm thu thật và blocker xem LIVE-PROGRESS, không dùng kiểm hash thay cho fresh install thực. Mỗi node giữ public pin được mã ghép phê duyệt, token Tunnel riêng và origin Access; readiness quản trị đi qua Authority, không cần nhập SSH peer thủ công cho node mới. Không tự đổi DNS hoặc nhận Control đang phục vụ chỉ vì join. N1.3 dùng authenticated HTTPS relay qua Authority cho site/Manual readiness, không cần IP LAN hoặc SSH peer. Legacy P31/P32 vẫn giữ sandbox cũ.
 
 ### Cấp quyền Cloudflare một lần cho cả cluster
 
@@ -59,4 +59,6 @@ Node hiện hữu dùng [source-only package updater](NODE-SOURCE-UPGRADE.md), c
 
 N1.3 hiện chỉ chuyển content/core/theme/media và8bảng nội dung LAB, không WP users/usermeta/options/wp-config/credentials/salts/keys; đích có admin/DB credentials riêng. Giới hạn64MiB, hai backup/24h. Đây chưa là full-site WordPress production restore. Chuẩn bị không tự đổi DNS/Control/lease. Thêm node sau cấp quyền Cloudflare một lần không cần PC cấp token riêng; mỗi node tự nhận own Tunnel token. Thiếu quyền hiển thị blocker, không giả ROUTE_READY.
 
-Release05 đã kiểm native hash183/183/bootstrap/PHP; **fresh05 trên Termux sạch PHYSICAL_NOT_RUN**, không cài đè11T/XZ3/Vsmart để thử. Trạng thái hiện hành, clock/reboot/Doze và bằng chứng Android chỉ ở LIVE-PROGRESS.
+Release06 đã kiểm native hash184/184/bootstrap/PHP; **fresh06 trên Termux sạch PHYSICAL_NOT_RUN**, không cài đè11T/XZ3/Vsmart để thử. Trạng thái hiện hành, clock/reboot/Doze và bằng chứng Android chỉ ở LIVE-PROGRESS.
+
+Sau khi node đã có site LAB và eligible, cập nhật bản sao Standby có dữ liệu qua **Cluster → Đồng bộ dự phòng — WordPress LAB** (P4.0), không dùng nút restore đích trống để ghi đè. Chọn cặp đúng Primary hiện hành, lưu lịchOFF rồi Đồng bộ ngay; chỉ sau APPLIED+VERIFIED mới bật lịch phút/giờ hoặc giờ hằng ngày. Scope backup content/core/theme/mediaLAB; không tự coi website production đã được hỗ trợ.
