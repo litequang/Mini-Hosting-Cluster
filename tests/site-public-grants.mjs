@@ -1,0 +1,4 @@
+import assert from 'node:assert/strict';import {safePublicGrants} from '../bin/site-standby.mjs';
+assert(safePublicGrants([]));assert(safePublicGrants(['GRANT USAGE ON *.* TO PUBLIC']));assert(safePublicGrants(['GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP ON `test`.* TO PUBLIC','GRANT SELECT, INSERT, UPDATE ON `test\\\\_%`.* TO PUBLIC']));
+for(const grant of ['GRANT ALL PRIVILEGES ON *.* TO PUBLIC','GRANT UPDATE ON `mhc_p33_lab`.* TO PUBLIC','GRANT UPDATE ON `mhc%`.* TO PUBLIC','GRANT SELECT ON `%`.* TO PUBLIC','GRANT role_name TO PUBLIC','GRANT SELECT ON `test`.* TO PUBLIC WITH GRANT OPTION'])assert(!safePublicGrants([grant]));
+console.log('PASS N1.3 PUBLIC grants: fresh MariaDB test/test_% roles allowed without changing them; global/managed schema/wildcard/role/unknown privileges fail closed.');

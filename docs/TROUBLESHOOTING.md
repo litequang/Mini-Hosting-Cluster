@@ -126,3 +126,5 @@ N1_WORKER_SECRET_INSTALL_FAILED từ bản helper CLI cũ: token đã qua Tunnel
 - Node26 Android fetch có thể không gửi Host tùy chọn như HTTP proxy. Probe Standby dùng node:http, Host preview-lab.giaouoc.com, loopback18135/PHP19135, có timeout/cleanup và SQL SELECT-only; không sửa WP_HOME/database chỉ để qua probe.
 - Recorded Primary với lease hết hạn không chứng minh writer đã dừng. Upgrader yêu cầu proof FENCED mới15s ký đúng pin và khớp epoch/revision/operation, SQL denied/zero connections/HTTP+children stopped, local Standby; lease/role active hoặc proof thiếu vẫn từ chối. Không đổi Authority/DNS để vượt gate.
 - Restore báo SITE_EXISTING_DATA_REFUSED_USE_VERIFY: giữ nguyên site/schema/user; dùng Kiểm tra lại. Retry phải giữ cùng job/journal, không chạy install.sh hoặc xóa DB để tiếp tục.
+
+- N1.3 trên Termux sạch: MariaDB có PUBLIC grants mặc định chỉ cho test/test_% có thể giữ nguyên vì không khớp mhc_p33_lab. Guard chỉ allowlist đúng các schema test này; không nới global/managed-schema grants. Updater không được chạy khi node đang backup/restore; Agent hoãn bắt đầu job trong thời gian updater lock.

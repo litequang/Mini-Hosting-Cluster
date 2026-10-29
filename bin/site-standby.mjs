@@ -4,6 +4,12 @@ import {sharedSiteRequest,sharedStatus} from './cluster-authority.mjs';
 import {ManagedNode,P33_SCOPE,validManagedLease} from './p33-node.mjs';
 const SITE='mhc-p33-wordpress-v1',CHUNK=196608,MAX=64*1024*1024,home=()=>process.env.HOME||os.homedir(),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex'),fail=c=>{throw Error(c);};
+export function safePublicGrants(lines){return lines.every(v=>{
+ if(/^GRANT USAGE ON \*\.\* TO (`PUBLIC`|PUBLIC)$/.test(v))return true;
+ const match=/^GRANT [A-Z ,]+ ON `([^`]+)`\.\* TO (`PUBLIC`|PUBLIC)$/.exec(v);if(!match)return false;
+ // MariaDB fresh packages grant PUBLIC access to test/test_%. Those do not match mhc_p33_lab.
+ return match[1]==='test'||match[1].replaceAll('\\','')==='test_%';
+});}
 const errorCode=e=>/^((AUTHORITY_)?SITE_|P33_|N1_)[A-Z0-9_]+$/.test(e.message)?e.message.replace(/^AUTHORITY_/,''):'SITE_PREPARATION_FAILED';
 function save(p,v){fs.mkdirSync(path.dirname(p),{recursive:true,mode:0o700});const tmp=p+'.'+crypto.randomUUID();fs.writeFileSync(tmp,JSON.stringify(v)+'\n',{mode:0o600,flag:'wx'});fs.renameSync(tmp,p);}
 function read(p){const st=fs.lstatSync(p);if(st.isSymbolicLink()||!st.isFile()||(st.mode&0o077))fail('SITE_PRIVATE_FILE_UNSAFE');return JSON.parse(fs.readFileSync(p));}
@@ -67,7 +73,7 @@ async function backup(c,job){
 }
 async function restore(c,job,snapshot){
  await requireStandby(c);if(!snapshot||snapshot.id!==job.snapshotId||snapshot.siteId!==SITE||snapshot.credentialsIncluded!==false||snapshot.bytes>MAX)fail('SITE_BACKUP_INVALID');
- const publicGrants=c.node.sql('SHOW GRANTS FOR PUBLIC',true).split('\n').filter(Boolean);if(publicGrants.some(v=>!/^GRANT USAGE ON \*\.\* TO (`PUBLIC`|PUBLIC)$/.test(v)))fail('SITE_PUBLIC_DATABASE_PRIVILEGES_UNSAFE');
+ const publicGrants=c.node.sql('SHOW GRANTS FOR PUBLIC',true).split('\n').filter(Boolean);if(!safePublicGrants(publicGrants))fail('SITE_PUBLIC_DATABASE_PRIVILEGES_UNSAFE');
  const d=path.join(c.work,job.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const journal=d+'/restore.json',content=d+'/content.json',file=d+'/backup.tar.gz';let state=fs.existsSync(journal)?read(journal):null;
  if(!state){if(fs.existsSync(c.node.base)||c.node.sql("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='mhc_p33_lab'",true)!=='0'||c.node.sql("SELECT COUNT(*) FROM mysql.user WHERE User='mhc_p33_web'",true)!=='0')fail('SITE_EXISTING_DATA_REFUSED_USE_VERIFY');state={jobId:job.id,snapshotId:snapshot.id,sha256:snapshot.sha256,stage:'DOWNLOAD',createdAt:Date.now()};save(journal,state);}
  if(state.snapshotId!==snapshot.id||state.sha256!==snapshot.sha256)fail('SITE_RESTORE_JOURNAL_CONFLICT');
@@ -98,6 +104,7 @@ async function restore(c,job,snapshot){
 async function retry(fn){for(let i=0;i<4;i++)try{return await fn();}catch(e){if(i===3||!/(UNREACHABLE|UNAVAILABLE|API_FAILED)/.test(e.message))throw e;await sleep(500*(i+1));}}
 let task=null,nextPoll=0;
 export async function siteAgentTick(){
+ if(fs.existsSync(path.join(home(),'.local/state/mhc-source-upgrade/lock')))return;
  if(task||Date.now()<nextPoll)return;nextPoll=Date.now()+2500;
  const c=context(),reply=await sharedSiteRequest('site-poll'),job=reply.site?.job;if(!job)return;
  task=(async()=>{let fields;try{if(job.type==='backup')fields=await backup(c,job);else if(job.type==='restore')fields=await restore(c,job,reply.site.snapshot);else if(job.type==='verify')fields={evidence:await verifyLocalSite(c)};else if(job.type==='manual')fields={request:job.request,envelope:await c.node.accept(job.request)};else fail('SITE_JOB_TYPE_INVALID');}catch(e){fields={errorCode:errorCode(e).startsWith('SITE_')?errorCode(e):'SITE_'+errorCode(e)};}

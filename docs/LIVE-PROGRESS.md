@@ -1,5 +1,14 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## N1.3 — guard Termux thực tế (29/10/2026, IN PROGRESS)
+
+- Commit đã push44da248: XZ3/11T APPLIED93/93 source44da248, manifest03a0daa38171ae6245f3d4d125e2aab92dca62dbfb233b223f1a2045fb246769; giữ config/credentials/SSH/site cũ. Worker deploy a642db27-d3a1-4874-b113-2424c2695088 cùng namespace/state; cần kiểm source DO thực trước nghiệm thu.
+- Restore11T job08aa0e61-778b-4692-820f-f4dc205278b6 đã FAIL-CLOSED trước ghi dữ liệu: PUBLIC grant mặc định chỉ trên test/test_% nhưng guard quá chặt. Không sửa/revoke các grant đó. Source mới chỉ cho hai schema test không khớp mhc_p33_lab; global/managed/wildcard/role/unknown grant vẫn bị chặn; fixture PASS. Tiếp tục cùng job và backup đã xác minh, không tạo lại identity/DB.
+- Nâng Vsmart vẫn chưa áp dụng: child import main của p33-node bị nhận nhầm CLI khi argv[1] trùng module. Sửa sentinel argv; kiểm engine mới trong staging Vsmart thật PASS quiescedSnapshotVerified/rev39/epoch8; SQL/HTTP/proof không thay role. Upgrader chặn job backup/restore đang chạy; Agent hoãn job khi updater giữ lock.
+- N1.3 chưa DONE: còn apply bản guard đã kiểm, resume restore11T, kiểm dataset/HTTP/PHP/SQL deny và N-node Manual relay, release04. Không claim Auto hoặc fresh04 Android; thiết bị sạch thứ tư/reboot/Doze/mất mạng thật vẫn PHYSICAL_NOT_RUN.
+- Việc tiếp theo cụ thể: apply package source-only mới lên ba LAB có backup; resume đúng job11T, không đổi DNS/lease.
+
+
 ## Checkpoint N1.3 — backup relay thật và canary (29/10/2026, IN PROGRESS)
 
 - Source checkpoint9021520 đã push. XZ3 và11T APPLIED/VERIFIED93/93 file, manifest f9308f4925a01157d8119a4fef16979df59ed17bd4896afe40e0d840439c9bb5; transactions XZ3 tx-20261029015616692-c0a441,11T tx-20261029015735140-909463. Config/admin/credentials/SSH/site files cũ hash khớp; SSH/MariaDB/Tunnel PID không đổi.

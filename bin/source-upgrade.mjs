@@ -10,6 +10,7 @@ export const LAB_NODES=['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-42
 export function upgradeAuthoritySnapshot(s,nodeId,managementOnly=false,quiesced=false){
  if(s.mode!=='SHARED_AUTHORITY_PREPARE_ONLY'||!Array.isArray(s.nodes))fail('AUTHORITY_SAFETY_MISMATCH');
  const node=s.nodes.find(n=>n.nodeId===nodeId);if(!node)fail('AUTHORITY_NODE_MISSING');
+ if(['backup','restore'].includes(node.standby?.job?.type)&&['QUEUED','RUNNING'].includes(node.standby.job.status))fail('SITE_PREPARATION_BLOCKS_UPGRADE');
  const r=s.p33;
  if(s.pending||r?.enabled&&(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED'))fail('AUTHORITY_TRANSITION_BLOCKS_UPGRADE');
  if(r?.lease?.nodeId===nodeId||node.role==='PRIMARY_MANAGED_SCOPE'||(s.declaredPrimary?.nodeId===nodeId||r?.primaryNodeId===nodeId)&&!(quiesced&&s.writeLeaseGranted===false&&r?.writerLeaseGranted===false&&!r.lease))fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
@@ -79,8 +80,8 @@ export class SourceUpgrade{
   if(!this.fixture&&s.writeLeaseGranted===false&&s.p33?.writerLeaseGranted===false&&!s.p33.lease&&(s.p33.primaryNodeId===this.nodeId||s.declaredPrimary?.nodeId===this.nodeId)){
    // A recorded former Primary is not an active writer. Require a real fresh FENCED proof,
    // including SQL denial, zero app connections, stopped children/HTTP and management health.
-   const nonce=crypto.randomBytes(32).toString('hex'),code="import {pathToFileURL} from 'node:url';const {ManagedNode}=await import(pathToFileURL(process.argv[1]));console.log(JSON.stringify(await new ManagedNode().proof(process.argv[2],'FENCED')));";
-   const reply=this.command(process.execPath,['--input-type=module','--eval',code,path.join(bin,'p33-node.mjs'),nonce]);if(reply.status!==0)fail('P33_UPGRADE_QUIESCENCE_NOT_PROVEN');
+   const nonce=crypto.randomBytes(32).toString('hex'),code="import {pathToFileURL} from 'node:url';const {ManagedNode}=await import(pathToFileURL(process.argv[2]));console.log(JSON.stringify(await new ManagedNode().proof(process.argv[3],'FENCED')));";
+   const reply=this.command(process.execPath,['--input-type=module','--eval',code,'mhc-upgrade-proof',path.join(bin,'p33-node.mjs'),nonce]);if(reply.status!==0)fail('P33_UPGRADE_QUIESCENCE_NOT_PROVEN');
    const dir=path.join(this.home,'.config/mhc-full-installer'),file=exists(path.join(dir,'site-standby.json'))?'control-self-service.json':'p31/config.json',c=json(this.safe(path.join(dir,file))),key=c.publicKey||c.peers?.find(n=>n.nodeId===this.nodeId)?.publicKey;
    if(!key)fail('P33_UPGRADE_PUBLIC_PIN_MISSING');quiesced=verifyUpgradeQuiescence(JSON.parse(reply.stdout),key,s,this.nodeId,nonce);
   }
