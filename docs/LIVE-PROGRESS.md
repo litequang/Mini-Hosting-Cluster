@@ -1,5 +1,12 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## Checkpoint thiết kế P4 — DESIGN/PLANNED (29/10/2026)
+
+- Đã chốt docs: N1.3 → P4.0 → P4 Lite → HP1 → HP2 → HP3. P4.0/P4 Lite **NOT STARTED runtime**, Auto=false; không đưa scheduler vào N1.3.
+- NEWEST_VERIFIED_DATA mặc định theo source snapshotAt của dữ liệu APPLIED + VERIFIED sau bộ lọc an toàn; FIXED_PRIORITY tùy chọn per-site, không bypass readiness/fencing/RPO age. MVP một WordPress LAB/một Primary + một Standby; nhiều Standby và full policy UI sau MVP.
+- Test runtime mới cho thiết kế: **NOT RUN** vì chỉ cập nhật tài liệu. Kiểm nhất quán docs/source: PASS (Manual/N1.3 được tái dùng, không triển khai Auto). SHA docs checkpoint: git log -1 --format=%H -- docs/PERIODIC-SNAPSHOT-SYNC-LITE.md.
+- Không có blocker cần user cho cập nhật này. Việc tiếp theo duy nhất: quay lại chốt N1.3 đang triển khai, no-overwrite/relay thực và phát hành04, chưa bắt đầu P4.0.
+
 ## N1.3 — nghiệm thu relay/restore thực (29/10/2026, IN PROGRESS: đóng gói cuối)
 
 - Source/runtime hợp nhất6299134 đã push sau merge remote bd7f272 an toàn. Cả ba LAB APPLIED/VERIFIED93/93, manifest08673bec367bf7beb97df0fee64909fbd3b107c77e301fbae6fc596eb9231604; transactions11T tx-20261029023607886-058de2, XZ3 tx-20261029023619128-459163, VM tx-20261029023632267-6aba36. Guard P33 cũng được reload; config/admin/SSH/Tunnel/SQL/site files bảo toàn.

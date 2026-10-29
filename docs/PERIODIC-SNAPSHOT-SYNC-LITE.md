@@ -36,3 +36,27 @@ HP1 có tạo site/Upload prebuilt ZIP/SQL/Restore đơn giản, File Manager, s
 ## Để tránh Codex chạy sai roadmap
 
 Trước mỗi phase/checkpoint: đọc `AGENTS.md`, `docs/ROADMAP-TO-V1.md`, `docs/HOSTING-PANEL-ROADMAP.md`, `docs/PERIODIC-SNAPSHOT-SYNC-LITE.md` và `docs/LIVE-PROGRESS.md`. Nếu tài liệu cũ trái với quyết định này, lấy quyết định 29/10/2026 làm chuẩn. Không reset/rebase/force-push hoặc ngắt checkpoint Codex đang làm; cập nhật Git an toàn khi worktree đã sẵn sàng.
+
+## P4 Lite — contract chọn Standby (DESIGN/PLANNED, 29/10/2026)
+
+**MVP:** một website WordPress LAB, một Primary + một Standby đã xác minh. Không yêu cầu nhiều Standby/UI policy hoàn chỉnh để nghiệm thu MVP; dữ liệu có thể mở rộng sau. Giữ lịch60phút, Đồng bộ ngay và ON/OFF per-site; thành công chỉ khi created → transferred → restored → verified. Metadata bắt buộc: Site ID, source/target Node ID, source snapshotAt, restoreAt, checksum, build/schema khi có, verification và RPO thực. Lỗi giữ bản verified applied cũ.
+
+### Bộ lọc đủ điều kiện dùng chung
+
+Node phải online, có đúng site và dữ liệu, build/schema tương thích, bản sao **APPLIED + VERIFIED**, HTTP/API/PHP/SQL và writer gates đạt, own Tunnel/route khả dụng và đủ điều kiện Authority cấp quyền. Tuổi dữ liệu phải trong giới hạn cho phép của website; hiển thị RPO/staleness trước activation. Backup mới tạo hay truyền xong nhưng chưa restore/verify không là ứng viên mới hơn. Không biết source snapshotAt hoặc verification không hợp lệ thì không tự chọn.
+
+### NEWEST_VERIFIED_DATA — mặc định
+
+Sau bộ lọc, chọn **thời điểm snapshot dữ liệu nguồn mới nhất đã restore thành công**. Không dùng heartbeat, thời gian tạo file ZIP, truyền xong hay restoreAt để xếp độ mới. Snapshot nguồn bằng nhau thì configured priority của website, sau đó Node ID để phân xử ổn định.
+
+### FIXED_PRIORITY — tùy chọn theo website
+
+Thử Standby theo thứ tự quản trị cấu hình riêng cho từng site; bỏ qua node không eligible và tiếp tục node sau. Không vượt site/data readiness, giới hạn tuổi dữ liệu hoặc writer safety vì ưu tiên cao. Mở rộng lựa chọn chính sách/nhiều Standby sau khi MVP một cặp đã nghiệm thu; không xây scoring CPU/RAM/pin, hệ election, Controller hoặc Authority mới.
+
+### Auto và rejoin
+
+Authority phối hợp heartbeat + website/Tunnel; chứng minh old writer lease hết hiệu lực và managed write paths đã self-fence; lọc/chọn candidate rồi dùng lại P3.3 CAS/epoch, lease, activation và Cloudflare route. Sau đó kiểm public HTTPS/app/DB, ghi journal/audit và RPO dữ liệu được phục hồi. Authority unavailable hoặc fencing chưa đủ bằng chứng thì fail-closed. Không cho hai managed writers cùng hoạt động. Node cũ trở lại Standby/quarantine, không auto failback, không overwrite DB mới và phải sync lại trước khi eligible. Auto chỉ opt-in sau mất mạng thật trên hai Android; không dùng fixture thay nghiệm thu.
+
+### UI dự kiến, không bắt buộc toàn bộ cho MVP
+
+Original Panel per-site: Primary; Standby/online/SITE_READY/ELIGIBLE_PRIMARY; applied verified snapshot/RPO; lịch/Đồng bộ ngay; NEWEST_VERIFIED_DATA hoặc FIXED_PRIORITY/thứ tự; blocker; lịch sử chuyển và nút Manual. MVP chỉ cần điều khiển/status hữu dụng cho một cặp, mở rộng phần còn lại sau. Mọi mục trong phần này là DESIGN/PLANNED; IMPLEMENTED/PASS phải có bằng chứng ở LIVE-PROGRESS.

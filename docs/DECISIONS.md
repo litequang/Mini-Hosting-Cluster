@@ -1,5 +1,16 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 29/10/2026 — Chốt P4 Lite: dữ liệu đã áp dụng, một cặp máy trước
+
+**DESIGN/PLANNED**, không phải Auto runtime đã nghiệm thu. Hoàn tất N1.3 hiện hành trước; sau đó P4.0 → P4 Lite → HP1 → HP2 → HP3. Không đưa scheduler hay Auto vào N1.3.
+
+- **NEWEST_VERIFIED_DATA là mặc định.** Lọc node online, đúng site, build/schema tương thích, snapshot **APPLIED + VERIFIED**, HTTP/API/PHP/SQL và managed writer gates đạt, Tunnel/route khả dụng, đủ điều kiện Authority. Sau đó xếp theo **thời điểm snapshot nguồn đã restore thành công**, mới nhất trước. Không dùng heartbeat, mtime ZIP, lúc truyền xong hoặc restoreAt thay độ mới dữ liệu. Bằng nhau: ưu tiên cấu hình của website rồi Node ID để phân xử ổn định.
+- **FIXED_PRIORITY là tùy chọn theo website**: thử theo thứ tự cấu hình, bỏ qua node không đủ điều kiện. Không vượt readiness/fencing vì ưu tiên cao; hiển thị tuổi dữ liệu/RPO và từ chối tự chọn nếu quá giới hạn tuổi dữ liệu của website. Hai chính sách cùng dùng một bộ lọc an toàn.
+- **MVP một WordPress LAB, một Primary + một Standby.** Hoàn thành tự chuyển một cặp đã kiểm trước; mở rộng nhiều Standby và UI chọn hai chính sách sau nghiệm thu MVP. Contract có thể mở rộng nhưng không xây scoring CPU/RAM/pin, election, Controller hoặc Authority thứ hai.
+- P4.0 mặc định60phút, Đồng bộ ngay, ON/OFF theo website; chỉ thành công sau created → transferred → restored → verified. Lưu Site ID, source/target Node ID, source snapshotAt, restoreAt, checksum, build/schema khi có, verification và RPO thực. Lỗi giữ bản Standby đã xác minh trước; không ghi đè dữ liệu đang phục vụ hoặc đích chưa được xác nhận an toàn.
+- Auto dùng heartbeat + website/Tunnel, chứng minh lease cũ hết và self-fencing các đường ghi managed, lọc/chọn candidate rồi **tái dùng P3.3 CAS/epoch/lease/activation/route**, hậu kiểm public HTTPS/app/DB và ghi journal/RPO. Không chứng minh được fencing hoặc mất Authority thì fail-closed. Node cũ rejoin Standby/quarantine, không giành Primary/ghi đè DB; phải sync lại trước khi đủ điều kiện dự phòng.
+- Không GTID/binlog/CDC/đồng bộ hai chiều/file realtime. Không giảm bảo vệ chống hai managed writers. UI per-site đầy đủ là mở rộng, không chặn MVP. Contract tại [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md); bằng chứng IMPLEMENTED/PASS chỉ ở LIVE-PROGRESS.
+
 ## 29/10/2026 — GIỚI HẠN MVP: sync định kỳ đơn giản, không replication realtime
 
 - Quyết định mới nhất có ưu tiên cao hơn roadmap cũ: P3.3 Manual LAB đã DONE; Codex **hoàn tất N1.3 hiện hành trước, không ngắt**; tiếp đến **P4.0 Periodic Snapshot Sync Lite**, rồi **P4 Lite Auto Primary+Control**, HP1 Core/Restore, HP2 Cloudflare một zone, HP3 bảo trì nâng cao chỉ khi cần. Spec: [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md).

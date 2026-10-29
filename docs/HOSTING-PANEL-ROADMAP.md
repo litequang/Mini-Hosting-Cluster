@@ -59,3 +59,11 @@
 ## Definition of Done cho từng HP
 
 Source từ commit rõ ràng + test trên Windows/Android fixture + nghiệm thu Vsmart/XZ3 thật, login/CSRF/security, API lỗi fail-closed, giữ nguyên website cũ + rollback, cập nhật CODEMAP/ARCHITECTURE/DECISIONS/TROUBLESHOOTING/LIVE-PROGRESS. Chỉ đánh dấu DONE sau khi kiểm khả năng thao tác trình duyệt thật và backup có thể khôi phục, không dựa trên mock hoặc code presence.
+
+## P4 Lite — chính sách đã chốt 29/10/2026 (DESIGN/PLANNED)
+
+MVP chỉ một Primary + một Standby cho WordPress LAB sau N1.3 → P4.0. Mặc định **NEWEST_VERIFIED_DATA**, xếp source snapshotAt mới nhất **đã APPLIED + VERIFIED** sau lọc online/đúng site/build-schema/HTTP-API-PHP-SQL/writer gates/Tunnel/quyền Authority/tuổi dữ liệu. Hòa thì per-site priority rồi Node ID. Không dùng heartbeat/ZIPtime/transferAt/restoreAt thay độ mới dữ liệu. **FIXED_PRIORITY** là tùy chọn từng website, bỏ node không eligible theo thứ tự; không bypass fencing/readiness hoặc giới hạn tuổi dữ liệu.
+
+P4.0 lưu source snapshotAt/restoreAt/checksum/Site ID/source-target Node ID/build-schema/verification, hiển thị RPO thực; lịch60phút + Đồng bộ ngay + ON/OFF. Chỉ thành công sau truyền, restore và verify; lỗi giữ Standby verified cũ. Auto dùng lại P3.3, old lease expiry + scoped self-fence bắt buộc; public HTTPS/app/DB và journal/RPO sau route; old node quay lại Standby/quarantine, sync lại trước eligibility, không auto failback/overwrite DB.
+
+UI per-site dự kiến: Primary/Standby, online/SITE_READY/ELIGIBLE_PRIMARY, last applied verified snapshot/RPO, lịch/Sync Now, policy/priority, blockers, history/manual. Không bắt buộc toàn bộ UI hoặc nhiều Standby cho MVP; mở rộng sau cặp đầu. Không scoring CPU/RAM/pin, election/Controller/Authority mới hoặc realtime replication. IMPLEMENTED/PASS chỉ ở LIVE-PROGRESS; phần này không bật Auto hay đổi runtime.

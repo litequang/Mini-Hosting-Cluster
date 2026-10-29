@@ -51,12 +51,13 @@
 
 **Làm sau khi N1.3 đã nghiệm thu thực tế, không nhét vào N1.3.** Tận dụng snapshot/relay/restore + checksum và journal N1.3 hiện có. Một MHC-managed WordPress LAB nguồn và một Standby, mặc định 60 phút, nút Đồng bộ ngay, restore có kiểm và RPO theo last verified applied snapshot. Không tự ghi đè dữ liệu site đích không được xác minh, mất mạng thì retry bounded và báo lỗi. Xem [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md). **Không làm GTID, realtime replication, CDC, file watcher, delta engine tùy biến, distributed storage, bidirectional sync**. Phạm vi nhiều site/WordPress thực/Node.js chỉ mở khi hoàn tất một site LAB và có yêu cầu rõ.
 
-## P4 — Auto Primary healthy + newest verified snapshot
-- Heartbeat agent, active web probe, timestamp+hash verified backups, storage/capacity+online reliability scoring.
-- Election cooldown, tie breaker deterministic, durable epoch, multiple health checks; không tự bầu nếu authority unavailable.
-- Candidate có snapshot gần nhất, có thể stale so với node offline; hiển thị RPO/loss warning, không ép đồng bộ GTID trước khi bầu.
-- Route cutover + old node quarantine; test mất kết nối, reboot, mạng chập chờn, crash giữa update route/record state; không auto failback.
-- Production AUTO chỉ khi không thể có hai writers đồng thời (chặn direct paths) và đã test thực. Nếu chỉ có best effort, gắn nhãn rủi ro và giữ opt-in disabled by default.
+## P4 Lite — Auto Primary + Control (DESIGN/PLANNED)
+
+- MVP một WordPress LAB, một Primary + một Standby đã kiểm, sau N1.3 và P4.0; mở rộng nhiều Standby/UI hai chính sách sau nghiệm thu cặp đầu, không chặn MVP.
+- **NEWEST_VERIFIED_DATA mặc định:** lọc online/đúng site/build/schema tương thích/APPLIED + VERIFIED/HTTP/API/PHP/SQL/writer gates/Tunnel/quyền Authority trước; chọn source snapshotAt mới nhất đã restore thành công. Hòa: configured site priority rồi Node ID. Heartbeat/ZIP mtime/transferAt/restoreAt không thay độ mới dữ liệu.
+- **FIXED_PRIORITY tùy chọn theo site:** thử theo thứ tự và bỏ node không eligible; không bypass safety/readiness, hiển thị RPO và không tự chọn dữ liệu quá tuổi cho phép. Không scoring CPU/RAM/pin, election/Controller/Authority mới hoặc realtime replication.
+- Heartbeat + website/Tunnel → old lease hết và managed self-fence có bằng chứng → lọc/chọn → tái dùng P3.3 CAS/epoch/lease/activation/route → public HTTPS/app/DB proof → journal/RPO. Không có Authority hoặc chưa chứng minh fencing thì fail-closed; không hai managed writers.
+- Old node rejoin Standby/quarantine, không auto failback hoặc ghi đè DB mới; cần sync lại trước eligibility. Auto OFF mặc định, chỉ opt-in sau mất mạng thật hai Android, lease expiry/rejoin/public proof. Không bật production. Contract: [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md).
 
 ## P5 — Unified production migration M51 + X7b (sau khi user duyệt)
 - Đóng băng code version, audit các dịch vụ/domains/DB/sheet/static media của hệ cũ.
