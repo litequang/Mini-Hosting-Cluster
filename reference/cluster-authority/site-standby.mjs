@@ -28,8 +28,8 @@ export async function verifySiteEnvelope(envelope,key,{clusterId,nodeId,jobId,no
 export function siteReadiness(env,s,id,row,n1,now=Date.now()){
  const h=s.heartbeats?.[id],installed=h?.telemetry?.onboarding?.installPhase==='INSTALLED'||!!h?.telemetry&&!h.telemetry.onboarding,joined=!!h,management=fresh(s,id,now),legacy=!!JSON.parse(env.MHC_P32_PROOF_KEYS_JSON||'{}')[id];
  const route=management&&h.telemetry?.services?.['mhc-panel-tunnel']==='running'&&(legacy||n1?.phase==='CONTROL_REGISTERED'&&now-n1.verifiedAt<90000);
- const evidence=row?.evidence,maintenance=row?.job?.type==='sync-apply'&&!['DONE'].includes(row.job.status)&&row.job.rollbackVerified!==true,site=!maintenance&&management&&evidence?.ready===true&&now-evidence.checkedAt<180000,approved=legacy||!!JSON.parse(env.MHC_SITE_NODES_JSON||'{}')[id];
- const blockers=[];if(maintenance)blockers.push('SITE_SYNC_APPLY_IN_PROGRESS');if(!management)blockers.push('MANAGEMENT_OFFLINE');if(!route)blockers.push('TUNNEL_ROUTE_NOT_VERIFIED');if(!site)blockers.push(evidence?.errorCode||'SITE_DATA_AND_WRITER_GATE_NOT_VERIFIED');if(!approved)blockers.push('SITE_CANDIDATE_NOT_APPROVED');
+ const evidence=row?.evidence,maintenance=row?.job?.type==='fence-install'&&row.job.status!=='DONE'||row?.job?.type==='sync-apply'&&row.job.status!=='DONE'&&row.job.rollbackVerified!==true,site=!maintenance&&management&&evidence?.ready===true&&now-evidence.checkedAt<180000,approved=legacy||!!JSON.parse(env.MHC_SITE_NODES_JSON||'{}')[id];
+ const blockers=[];if(maintenance)blockers.push(row.job.type==='fence-install'?'SITE_FENCE_INSTALL_INCOMPLETE':'SITE_SYNC_APPLY_IN_PROGRESS');if(!management)blockers.push('MANAGEMENT_OFFLINE');if(!route)blockers.push('TUNNEL_ROUTE_NOT_VERIFIED');if(!site)blockers.push(evidence?.errorCode||'SITE_DATA_AND_WRITER_GATE_NOT_VERIFIED');if(!approved)blockers.push('SITE_CANDIDATE_NOT_APPROVED');
  return {siteId:SITE_ID,states:{INSTALLED:!!installed,JOINED:joined,MANAGEMENT_READY:!!management,ROUTE_READY:!!route,SITE_READY:!!site,ELIGIBLE_PRIMARY:!!site&&!!route&&approved},blockers,lastCheckedAt:evidence?.checkedAt||null,preparedAt:evidence?.dataset?.preparedAt||null,dataset:evidence?.dataset||null,job:row?.job?publicJob(row.job):null};
 }
 function publicJob(j){return {id:j.id,nodeId:j.nodeId,type:j.type,status:j.status,stage:j.status==='DONE'?'DONE':j.stage||j.status,progress:j.progress||null,createdAt:j.createdAt,updatedAt:j.updatedAt,errorCode:j.errorCode||null,snapshotId:j.snapshotId||null,...(j.result?{result:j.result}:{}),...(j.request?{request:j.request}:{}),...(j.sync?{sync:j.sync}:{})};}
@@ -60,12 +60,13 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
   if(action==='site-start'||action==='site-call'){
    const type=action==='site-call'?'manual':body.type;
    if(syncBusy(sync))fail('SITE_SYNC_BUSY');
-   if(!uuid.test(body.requestId||'')||!['backup','restore','verify','manual'].includes(type))fail('SITE_REQUEST_INVALID');
+   if(job?.type==='fence-install'&&job.status==='FAILED'&&job.id!==body.requestId)fail('SITE_FENCE_INSTALL_RESUME_REQUIRED');
+   if(!uuid.test(body.requestId||'')||!['backup','restore','verify','manual','fence-install'].includes(type))fail('SITE_REQUEST_INVALID');
    if(job?.id===body.requestId){if(job.type!==type||job.snapshotId!==(body.snapshotId||null))fail('SITE_IDEMPOTENCY_CONFLICT');if(job.status==='FAILED'&&body.resume===true&&body.confirm===true){job={...job,status:'QUEUED',errorCode:null,updatedAt:now};rows[target]={...row,job};await tx.put('site-nodes',rows);}return {job:publicJob(job)};}
    if(['RUNNING','QUEUED'].includes(job?.status))fail('SITE_NODE_BUSY');
    if(!fresh(s,target,now))fail('SITE_TARGET_OFFLINE');
    if(type!=='manual'&&(!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase||'IDLE')||r?.lease?.nodeId===target&&r.lease.expiresAt>now))fail('SITE_WRITER_OR_TRANSITION_ACTIVE');
-   if(type==='backup'&&body.confirm!==true||type==='restore'&&(body.confirm!==true||body.preserveExisting!==true))fail('SITE_EXPLICIT_CONFIRMATION_REQUIRED');
+   if(['backup','fence-install'].includes(type)&&body.confirm!==true||type==='restore'&&(body.confirm!==true||body.preserveExisting!==true))fail('SITE_EXPLICIT_CONFIRMATION_REQUIRED');
    if(type==='restore'){
     const snapshot=snapshots.find(v=>v.id===body.snapshotId&&v.status==='VERIFIED'&&now-v.createdAt<86400000);if(!snapshot||snapshot.siteId!==SITE_ID||snapshot.nodeId===target)fail('SITE_VERIFIED_BACKUP_REQUIRED');
    }
@@ -88,7 +89,7 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
    if(syncBusy(sync)&&[sync.run.sourceNodeId,sync.run.targetNodeId].includes(target)&&!['RUNNING','QUEUED'].includes(job?.status))return {job:null};
    // Preserve failed restore's job ID so the UI can resume its private on-node journal.
    // A background health check must never replace the operator's recoverable task.
-   if(job?.type==='restore'&&job.status==='FAILED')return {job:null};
+   if(['restore','fence-install'].includes(job?.type)&&job.status==='FAILED')return {job:null};
    if(!job||!['QUEUED','RUNNING'].includes(job.status)||now-job.createdAt>86400000&&!job.sync){
     if(now-(row.nextCheckAt||0)<0)return {job:null};
     if(!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase||'IDLE'))return {job:null};
@@ -115,7 +116,7 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
   }
   if(action!=='site-result')fail('SITE_ACTION_INVALID');
   const p=await verifySiteEnvelope(body.envelope,known(nodeId),{clusterId:env.MHC_CLUSTER_ID,nodeId,jobId:job.id,now});
-  if(p.errorCode){if(!/^SITE_[A-Z0-9_]{1,80}$/.test(p.errorCode))fail('SITE_ERROR_INVALID');if(job.type==='verify'||job.type==='restore'||job.type==='sync-apply'&&p.rollbackVerified!==true)row.evidence={ready:false,checkedAt:now,errorCode:p.errorCode};job={...job,status:'FAILED',errorCode:p.errorCode,updatedAt:now};}
+  if(p.errorCode){if(!/^SITE_[A-Z0-9_]{1,80}$/.test(p.errorCode))fail('SITE_ERROR_INVALID');if(job.type==='verify'||job.type==='restore'||job.type==='fence-install'||job.type==='sync-apply'&&p.rollbackVerified!==true)row.evidence={ready:false,checkedAt:now,errorCode:p.errorCode};job={...job,status:'FAILED',errorCode:p.errorCode,updatedAt:now};}
   else if(job.type==='manual'){
    if(!p.envelope||JSON.stringify(p.request)!==JSON.stringify(job.request))fail('SITE_MANUAL_RESULT_MISMATCH');job={...job,status:'DONE',updatedAt:now,result:{envelope:p.envelope}};
   }else if(['backup','sync-backup'].includes(job.type)){

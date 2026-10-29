@@ -1,5 +1,16 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## P4 Lite Auto Primary + Control — IN PROGRESS (29/10/2026)
+
+- **Checkpoint hiện tại:** SQL self-fencing foundation + nâng cấp Standby có proof; chưa phải Auto takeover. Auto vẫn OFF. Không làm lại P3.3/N1.3/P4.0.
+- **Có source:** gate SQL riêng cho fixed MHC WordPress LAB: BEFORE+AFTER INSERT/UPDATE/DELETE trên mọi bảng InnoDB đã kiểm; chỉ cho app autocommit, từ chối explicit transaction. Root giữ named lock bằng một kết nối không reconnect, wait_timeout8s; mỗi DML kiểm root keeper còn mới dưới5s. Guard chỉ pulse sau status Authority hợp lệ, tính lease budget theo serverNow + boot uptime, dừng sớm8s. PHP request bound10s + HTTP absolute10s. Không phải fencing root/same-UID/website khác hoặc bảo đảm toàn bộ Android.
+- **Cài đặt:** authenticated site job fence-install, Standby/no own lease/HTTP dừng/SQL SELECT-only, private SQL+config backup/journal, kiểm trigger definition và denial thật trước mark VERIFIED. Failed install chặn Manual/eligibility; resume cùng job ID, không bị health polling thay thế. Source-upgrade managed Standby bên cạnh Primary khác chỉ sau signed FENCED proof15s/zero app connections/HTTP+children dừng; active writer vẫn bị chặn.
+- **PASS Windows/fixture:** P4 gate/time budget/root-pipe, P33 node/manual, N1.3 four-node relay/failed-install readiness+resume, P4.0 scheduler/provenance/reservation, source-upgrader32fault/security/success cases. **PASS XZ3 Android thật:** MariaDB13.0.2 trên schema synthetic riêng:11 assertions gồm gate đóng/mở, explicit transaction/autocommit0 bị từ chối, UPDATE SLEEP6s bị AFTER trigger rollback, kết nối cũ không ghi được, root keeper tự hết hạn8s, app không thể tự làm keeper; persistent root CLI heartbeat/close PASS. Chưa cài trigger vào managed site tại checkpoint source này.
+- **Đối chiếu runtime mới:** Authority revision69/epoch13/P33revision54, COMMITTED/journalVERIFIED, Primary+Control/siteXZ3, lease đang renew; operation880b75d4-13c5-4c87-8cf6-95525c00e160/public verified2026-10-29T09:09:39.328Z.11T/Vsmart Standby; cả3Panel/Agent/guard còn chạy. Thay đổi role này đã tồn tại khi kiểm tra, không tự chuyển ngược về11T. Runtime vẫn a29/P40; source checkpoint chưa deploy Worker/node. Lịch P4.0 còn pin nguồn11T→XZ3 nên không tự coi đã phù hợp với PrimaryXZ3.
+- **NOT RUN / còn thiếu DoD:** guard managed site/Manual activation trên hai Android; offline takeover executor/CAS/HTTPS machine proof; cắt mạng thật, Doze/reboot, stale node rejoin, no-failback và Auto opt-in. SQL admission thử nghiệm chưa chứng minh mọi pause/commit/disk path được giới hạn; không lấy fixture làm bằng chứng writer offline. Không nới all-node fencing hiện có, không bật Auto.
+- **SHA:** kết quả nằm trong commit chứa checkpoint này (git log -1 --format=%H -- bin/p4-fence.mjs docs/LIVE-PROGRESS.md); baseline đã push557fee2. Không thay release01–06/production/M51/X7b/F3216.
+- **Blocker cần user:** chưa có yêu cầu thao tác hoặc token mới. **Một việc tiếp theo:** rollout nguyên package source vào11T đang Standby, cài/verify gate qua authenticated job, giữXZ3 phục vụ; sau đó kiểm Manual activation trước phần offline takeover.
+
 ## P4.0 Snapshot Sync Lite — DONE trong phạm vi một WordPress LAB/một cặp Android (29/10/2026)
 
 - **Hoạt động thật:** original Panel9090 → Cluster → Đồng bộ dự phòng — WordPress LAB. Một nguồn11T + một StandbyXZ3, Đồng bộ ngay hoặc lịch interval phút/giờ/daily HH:mm theo Asia/Ho_Chi_Minh. Shared DO giữ policy/CAS/run; Agent dùng HTTPS relay N1.3, không SSH peer LAN, không Controller/storage service mới. Chỉ signed APPLIED+VERIFIED mới cập nhật source snapshotAt/restoreAt/checksum/build/schema/RPO; backup/upload không được tính là sync thành công.
@@ -41,7 +52,7 @@
 |---|---|---|---|---|
 | N1.3 site Standby | DONE theo LAB scope |11T restore23,172,996bytes, HTTP/PHP/SQL/files/gates và no-overwrite PASS; sáu readiness của11T/XZ3/Vsmart đều đạt tại hậu kiểm. Node source bd5bcfd; Worker source thực ghi dưới. | Backup/restore/readiness/Standby gates và cross-Panel relay đã PASS; fresh05/newTunnel/reboot/khác mạng vật lý vẫn NOT RUN, không suy thành production. | P4.0 một site/một Standby, safe verified snapshot apply. |
 | P4.0 Snapshot Sync Lite | DONE theo một cặp LAB |11T→XZ3 manual2lượt, rollback/resume, scheduled daily và8bảng canonical PASS; ON60phút. | Physical network/Doze/disk/fresh06 NOT RUN; không suy thành Auto/production. | P4 Lite offline takeover/self-fencing dùng lại P3.3. |
-| P4 Lite Auto Primary + Control | NOT STARTED | DESIGN/PLANNED; automaticFailover=false. | Old-offline/self-fence/mất mạng thật chưa nghiệm thu. | Sau P4.0: tái dùng P3.3 một cặp, không hai managed writers. |
+| P4 Lite Auto Primary + Control | IN PROGRESS | SQL guard source + native synthetic XZ3 tests PASS; Auto OFF. | Managed rollout/activation/offline executor/mất mạng thật chưa nghiệm thu. | Xem checkpoint P4 đầu file. |
 
 ### Runtime, dữ liệu và quyền thực
 

@@ -70,6 +70,16 @@ try{
  assert.equal((await direct('site-poll',{},'agent',c)).job.type,'verify','overdue site health runs after Manual proof');
  const healthJob=storage.data.get('site-nodes')[c].job;
  await direct('site-result',{jobId:healthJob.id,envelope:sign(c,healthJob.id,{evidence:prepared})},'agent',c);
+ // A partial/failed guard installation never remains eligible or gets replaced by a periodic verify.
+ const fenceJob=(await direct('site-start',{targetNodeId:c,type:'fence-install',requestId:crypto.randomUUID(),confirm:true})).job;
+ let maintenance=(await direct('site-job',{targetNodeId:c})).readiness;assert.equal(maintenance.states.SITE_READY,false);assert(maintenance.blockers.includes('SITE_FENCE_INSTALL_INCOMPLETE'));
+ await direct('site-poll',{},'agent',c);
+ await direct('site-result',{jobId:fenceJob.id,envelope:sign(c,fenceJob.id,{errorCode:'SITE_P4_PRIVATE_BACKUP_FAILED'})},'agent',c);
+ assert.equal((await direct('site-poll',{},'agent',c)).job,null);
+ await assert.rejects(direct('site-start',{targetNodeId:c,type:'verify',requestId:crypto.randomUUID()}),/FENCE_INSTALL_RESUME/);
+ await direct('site-start',{targetNodeId:c,type:'fence-install',requestId:fenceJob.id,confirm:true,resume:true});await direct('site-poll',{},'agent',c);
+ await direct('site-result',{jobId:fenceJob.id,envelope:sign(c,fenceJob.id,{evidence:{...prepared,fence:{protocol:1,verified:true}}})},'agent',c);
+ assert.equal((await direct('site-job',{targetNodeId:c})).readiness.states.SITE_READY,true);
  // Missing fourth node cannot grant itself writer just because it enrolled / has Control.
  const missing=(await start(d,'verify')).site.job;await poll(d);await call('site-result',{jobId:missing.id,envelope:sign(d,missing.id,{errorCode:'SITE_WEBSITE_DATABASE_MISSING'})},'agent',d);assert.equal((await call('status')).nodes.find(n=>n.nodeId===d).standby.states.ELIGIBLE_PRIMARY,false);
  const req=()=>({requestId:crypto.randomUUID(),expectedRevision:storage.data.get('state').revision,expectedP33Revision:storage.data.get('p33').revision,targetNodeId:d,acceptTargetData:true});

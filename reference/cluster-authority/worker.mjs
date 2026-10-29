@@ -273,7 +273,7 @@ export class ClusterAuthority {
      metricsAt:s.heartbeats[n.nodeId]?.metricsAt?new Date(s.heartbeats[n.nodeId].metricsAt).toISOString():null,
      telemetry:s.heartbeats[n.nodeId]?.telemetry||null,n1:n1PublicView(await tx.get('n1-node:'+n.nodeId)),standby:siteReadiness(effective,s,n.nodeId,(await tx.get('site-nodes')||{})[n.nodeId],await tx.get('n1-node:'+n.nodeId),now),role:p33.enabled&&p33.lease?.nodeId===n.nodeId?'PRIMARY_MANAGED_SCOPE':'STANDBY_NO_WRITER_GRANT'})));
     const history=action==='history'?await tx.get('monitor-history:'+body.targetNodeId)||[]:null;
-    return {p33,siteRelayEnabled:true,n1Enabled:this.env.MHC_N1_ENABLED==='LAB_SELF_SERVICE',mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:p33.enabled?'MHC-P33-MANUAL-20261028':P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
+    return {serverNow:now,p33,siteRelayEnabled:true,n1Enabled:this.env.MHC_N1_ENABLED==='LAB_SELF_SERVICE',mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:p33.enabled?'MHC-P33-MANUAL-20261028':P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
      declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],

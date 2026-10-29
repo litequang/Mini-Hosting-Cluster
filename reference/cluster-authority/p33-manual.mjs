@@ -74,7 +74,7 @@ export async function p33Action({ctx,env,action,body={},nodeId,authorize,fetcher
    if(state.pending||routes.journal&&['DNS_REQUESTED','DNS_AWAITING_HTTP','ROLLBACK_DNS_AWAITING_HTTP'].includes(routes.journal.status))fail('P33_PREVIOUS_OPERATION_PENDING');
    if(!c.keys[body.targetNodeId]||!healthy(s,body.targetNodeId,now))fail('P33_TARGET_NOT_READY');
    if(body.acceptTargetData!==true)fail('P33_TARGET_DATA_ACCEPTANCE_REQUIRED',400);
-   const nodes=await tx.get('site-nodes')||{};for(const id of Object.keys(c.keys)){if(['RUNNING','QUEUED'].includes(nodes[id]?.job?.status)&&nodes[id].job.type!=='manual')fail('P33_SITE_PREPARATION_BUSY');}
+   const nodes=await tx.get('site-nodes')||{};if(Object.values(nodes).some(n=>n.job?.type==='fence-install'&&n.job.status!=='DONE'))fail('P33_FENCE_INSTALL_MUST_COMPLETE');for(const id of Object.keys(c.keys)){if(['RUNNING','QUEUED'].includes(nodes[id]?.job?.status)&&nodes[id].job.type!=='manual')fail('P33_SITE_PREPARATION_BUSY');}
    if(!base.keys[body.targetNodeId]){const evidence=nodes[body.targetNodeId]?.evidence;if(evidence?.ready!==true||now-evidence.checkedAt>180000)fail('P33_SITE_EVIDENCE_STALE');}
    r.participants=Object.keys(c.keys).sort();
    r.previousPrimaryNodeId=state.declaredPrimary?.nodeId||r.primaryNodeId||null;state.declaredPrimary=null;state.epoch++;r.epoch=state.epoch;r.operationId=body.requestId;r.targetNodeId=body.targetNodeId;r.primaryNodeId=null;r.lease=null;r.phase='FENCING';r.challenge=nonce();r.fingerprint=fingerprint;r.journal=null;

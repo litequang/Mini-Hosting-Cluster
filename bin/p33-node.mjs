@@ -1,6 +1,7 @@
 // One MHC-owned WordPress LAB site. Same-UID/root/out-of-band writers are outside scope.
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import http from 'node:http';
 import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
+import {LeaseDeadline,SqlFenceSession,readFenceConfig,inspectSqlFence,sqlFenceOpen,closeSqlFence} from './p4-fence.mjs';
 import {CandidateNode} from './p31-node.mjs';import {sharedStatus,sharedManagedRequest} from './cluster-authority.mjs';
 export const P33_SCOPE='MHC_MANAGED_WORDPRESS_LAB';
 const hex=/^[a-f0-9]{64}$/,uuid=/^[a-f0-9-]{36}$/;
@@ -52,6 +53,7 @@ export class ManagedNode{
   return {writeDenied:false,writeReadDelete:writeTest};
  }
  revoke(){
+  closeSqlFence(this);
   this.sql("REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'mhc_p33_web'@'localhost'; GRANT SELECT ON mhc_p33_lab.* TO 'mhc_p33_web'@'localhost';",true);
   const ids=this.sql("SELECT ID FROM information_schema.PROCESSLIST WHERE USER='mhc_p33_web'",true).split('\n').filter(Boolean);
   for(const id of ids){if(!/^\d+$/.test(id))fail('P33_SQL_CONNECTION_ID_INVALID');try{this.sql('KILL CONNECTION '+id,true);}catch{if(this.sql("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID="+id,true)!=='0')fail('P33_SQL_CONNECTION_DRAIN_FAILED');}}
@@ -73,7 +75,7 @@ export class ManagedNode{
   if(['ACTIVE','PUBLIC_SITE'].includes(kind)){if(!live)fail('P33_NO_ACTIVE_LEASE');database=this.database(false,kind==='ACTIVE');httpServing=await this.httpProbe();if(!httpServing)fail('P33_HTTP_NOT_SERVING');}
   if(kind==='PUBLIC_PANEL'&&(origin?.accessVerified!==true||origin.host!=='panel-lab.giaouoc.com'))fail('P33_PUBLIC_ACCESS_REQUIRED');
   const latest=await this.authorityState();if(latest.p33.revision!==r.revision||latest.p33.operationId!==r.operationId)fail('P33_AUTHORITY_CHANGED_DURING_PROOF');
-  const checkedAt=this.now(),p={schema:3,scope:P33_SCOPE,nodeId:c.nodeId,clusterId:c.clusterId,epoch:r.epoch,revision:r.revision,operationId:r.operationId,nonce,checkedAt,expiresAt:checkedAt+15000,kind,dataset,management,database,httpServing,httpStopped,childrenStopped,wordpress:true,leaseEpoch:live?r.epoch:null,nodeWritersFenced:false,...(kind==='PUBLIC_PANEL'?{host:origin.host,accessVerified:true}:{})};
+  const fence=inspectSqlFence(this);if(fence.verified&&kind==='FENCED'&&sqlFenceOpen(this))fail('P33_SQL_GATE_NOT_CLOSED');const checkedAt=this.now(),p={schema:3,scope:P33_SCOPE,nodeId:c.nodeId,clusterId:c.clusterId,epoch:r.epoch,revision:r.revision,operationId:r.operationId,nonce,checkedAt,expiresAt:checkedAt+15000,kind,dataset,management,database,fence,httpServing,httpStopped,childrenStopped,wordpress:true,leaseEpoch:live?r.epoch:null,nodeWritersFenced:false,...(kind==='PUBLIC_PANEL'?{host:origin.host,accessVerified:true}:{})};
   const key=this.candidate.safe(path.join(this.home,'.config/mhc-full-installer',c.keyFlavor==='N1'?'node-proof-key.pem':'p31/proof-key.pem')),st=fs.lstatSync(key);if(st.isSymbolicLink()||!this.fixture&&(st.mode&0o077))fail('P33_SIGNING_KEY_UNSAFE');return {proof:p,signature:crypto.sign(null,Buffer.from(JSON.stringify(p)),fs.readFileSync(key)).toString('base64url')};
  }
  async accept(request){
@@ -91,19 +93,21 @@ export class ManagedNode{
  }
  async watch(){
   const c=this.config();this.dataset();save(this.file,{desired:'STANDBY',generation:crypto.randomUUID(),reason:'RESTART_QUARANTINE'});this.reap();this.revoke();this.event('START_QUARANTINE');
-  let children=[],server=null,sockets=new Set(),generation=null,stopping=false;
-  const stop=async()=>{for(const socket of sockets)socket.destroy();if(server){server.close();server=null;}for(const p of children)try{process.kill(-p.pid,'SIGKILL');}catch{}children=[];this.reap();this.revoke();generation=null;};
+  let children=[],server=null,sockets=new Set(),generation=null,stopping=false,sqlSession=null;const deadline=new LeaseDeadline();
+  const stop=async()=>{if(sqlSession){await sqlSession.close();sqlSession=null;}deadline.clear();for(const socket of sockets)socket.destroy();if(server){server.close();server=null;}for(const p of children)try{process.kill(-p.pid,'SIGKILL');}catch{}children=[];this.reap();this.revoke();generation=null;};
   for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{if(!stopping){stopping=true;save(this.file,{desired:'STANDBY',generation:crypto.randomUUID(),reason:'SERVICE_STOP_QUARANTINE'});void stop().then(()=>process.exit(0)).catch(()=>process.exit(1));}});
   const record=()=>save(this.childrenFile,children.map((p,i)=>{if(!p.pid)fail('P33_CHILD_START_FAILED');const st=fs.readFileSync('/proc/'+p.pid+'/stat','utf8').split(') ').slice(1).join(') ').split(' ');return {pid:p.pid,start:st[19],kind:i?'nginx':'php'};}));
   while(!stopping){let state={};try{
-   state=this.state();if(state.desired!=='ACTIVE'){if(generation||children.length||server)await stop();await sleep(500);continue;}
-   let s=await this.authorityState();if(!validManagedLease(s,c.nodeId,this.now())||s.p33.epoch!==state.epoch||s.p33.operationId!==state.operationId||!Object.values(this.management()).every(Boolean))fail('P33_LEASE_OR_MANAGEMENT_LOST');
+   state=this.state();const fenceConfig=readFenceConfig(this.home);if(state.desired!=='ACTIVE'){if(generation||children.length||server)await stop();await sleep(500);continue;}
+   const leaseStarted=os.uptime()*1000;let s=await this.authorityState();if(!validManagedLease(s,c.nodeId,this.now())||s.p33.epoch!==state.epoch||s.p33.operationId!==state.operationId||!Object.values(this.management()).every(Boolean))fail('P33_LEASE_OR_MANAGEMENT_LOST');
    if(s.p33.lease.expiresAt-this.now()<45000)s=await this.renew('p33-renew',{epoch:state.epoch,operationId:state.operationId});
    if(!validManagedLease(s,c.nodeId,this.now()))fail('P33_RENEWAL_INVALID');
+   if(fenceConfig){const budget=deadline.observe(s,c.nodeId,leaseStarted);if(sqlSession)await sqlSession.heartbeat(budget);}
    if(children.some(p=>p.exitCode!==null||p.signalCode!==null))fail('P33_CHILD_EXITED');
    if(generation!==state.generation){
     await stop();this.dataset();
     const again=await this.authorityState();if(!validManagedLease(again,c.nodeId,this.now())||again.p33.operationId!==state.operationId)fail('P33_ACTIVATION_LEASE_CHANGED');
+    if(fenceConfig){inspectSqlFence(this,fenceConfig);const started=os.uptime()*1000,fresh=await this.authorityState();const budget=deadline.observe(fresh,c.nodeId,started);sqlSession=new SqlFenceSession(fenceConfig.lockName);await sqlSession.start(budget);}
     this.sql("GRANT SELECT, INSERT, UPDATE, DELETE ON mhc_p33_lab.* TO 'mhc_p33_web'@'localhost';",true);
     const php=spawn(path.join(this.prefix,'bin/php-fpm'),['-y',path.join(this.base,'php/php-fpm.conf'),'-F'],{detached:true,stdio:'ignore'});php.on('error',()=>{});children=[php];record();
     const nginx=spawn(path.join(this.prefix,'bin/nginx'),['-p',path.join(this.base,'nginx')+'/', '-c',path.join(this.base,'nginx/nginx.conf'),'-g','daemon off;'],{detached:true,stdio:'ignore'});nginx.on('error',()=>{});children.push(nginx);record();
@@ -119,12 +123,13 @@ export class ManagedNode{
      const headers={...req.headers,host:'preview-lab.giaouoc.com','x-forwarded-proto':'https'};for(const k of ['connection','proxy-connection','transfer-encoding','cf-access-jwt-assertion','authorization'])delete headers[k];
      if(headers.cookie)headers.cookie=headers.cookie.split(';').filter(v=>!/^\s*CF_Authorization=/.test(v)).join(';');
      const proxy=http.request({hostname:'127.0.0.1',port:18133,path:req.url,method:req.method,headers,timeout:10000},up=>{res.writeHead(up.statusCode,{...up.headers,'x-mhc-node':c.nodeId,'cache-control':'no-store'});up.pipe(res);});
+     const absolute=setTimeout(()=>{proxy.destroy();res.destroy();},10000);absolute.unref?.();res.on('close',()=>clearTimeout(absolute));
      let bytes=0;req.on('data',b=>{bytes+=b.length;if(bytes>8*1024*1024){proxy.destroy();res.destroy();}});req.on('aborted',()=>proxy.destroy());proxy.on('timeout',()=>proxy.destroy());proxy.on('error',()=>{if(!res.headersSent)res.writeHead(502);res.end('Backend unavailable');});req.pipe(proxy);
     })().catch(()=>{if(!res.headersSent)res.writeHead(503,{'cache-control':'no-store'});res.end('Primary authority unavailable');});});
     server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(18131,'127.0.0.1',resolve);});generation=state.generation;this.event('MANAGED_WRITER_ACTIVE',{epoch:state.epoch,operationId:state.operationId});
    }
-  }catch(e){try{await stop();}catch{}if(this.state().generation===state.generation)save(this.file,{desired:'STANDBY',generation:crypto.randomUUID(),reason:'AUTHORITY_OR_RUNTIME_FAILED_CLOSED'});this.event('MANAGED_WRITER_QUARANTINED',{reason:/^P33_[A-Z_]+$/.test(e.message)?e.message:'P33_RUNTIME_UNAVAILABLE'});}
+  }catch(e){try{await stop();}catch{}if(this.state().generation===state.generation)save(this.file,{desired:'STANDBY',generation:crypto.randomUUID(),reason:'AUTHORITY_OR_RUNTIME_FAILED_CLOSED'});this.event('MANAGED_WRITER_QUARANTINED',{reason:/^(P33|P4)_[A-Z_]+$/.test(e.message)?e.message:'P33_RUNTIME_UNAVAILABLE'});}
   await sleep(1000);}
  }
 }

@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';import {PassThrough,Writable} from 'node:stream';
+import {LeaseDeadline,SqlFenceSession,sqlFenceStatements,sqlFenceBody,inspectSqlFence} from '../bin/p4-fence.mjs';
+const name='mhc_p4_'+'a'.repeat(64),rows=sqlFenceStatements('mhc_p33_lab',['wp_posts','mhc_p33_probe'],name,'mhc_p33_web');
+assert.equal(rows.length,12);assert.equal(new Set(rows.map(r=>r.name)).size,12);assert(rows.some(r=>r.when==='AFTER'&&r.event==='UPDATE'));
+assert(sqlFenceBody(name,'mhc_p33_web').includes('@@in_transaction<>0'));assert(sqlFenceBody(name,'mhc_p33_web').includes('mhc_owner<>CONNECTION_ID()'));assert(sqlFenceBody(name,'mhc_p33_web').includes("USER='root'"));
+for(const x of ['bad-lock','mhc_p4_'+'z'.repeat(64)])assert.throws(()=>sqlFenceBody(x,'mhc_p33_web'),/CONFIG/);
+assert.throws(()=>sqlFenceStatements('mysql;DROP',[],name,'mhc_p33_web'),/IDENTIFIER/);
+let mono=100000;const clock=()=>mono,deadline=new LeaseDeadline(clock),state={serverNow:1000000,p33:{epoch:10,operationId:'op',lease:{nodeId:'node',epoch:10,operationId:'op',expiresAt:1090000}}};
+assert.equal(deadline.observe(state,'node',mono),189000);mono+=500;assert.equal(deadline.observe({...state,serverNow:1000500},'node',mono),189000,'same grant cannot extend deadline');
+assert.throws(()=>deadline.observe({...state,serverNow:undefined},'node',mono),/TIME_NOT_PROVEN/);
+assert.throws(()=>deadline.observe({...state,serverNow:0},'node',mono),/TIME_NOT_PROVEN/);
+mono=181001;assert.equal(deadline.valid(),false,'uptime advance expires budget regardless of Android wall clock');
+assert.throws(()=>deadline.observe(state,'node',mono-11000),/TIME_NOT_PROVEN/);
+mono=100000;const renewed=structuredClone(state);renewed.p33.lease.expiresAt+=30000;renewed.serverNow+=30000;mono+=30000;assert.equal(deadline.observe(renewed,'node',mono),219000);
+function childFactory(){const p=new EventEmitter();p.stdout=new PassThrough();p.stderr=new PassThrough();p.stdin=new Writable({write(b,e,done){const text=b.toString();queueMicrotask(()=>p.stdout.write(text.includes('GET_LOCK')?'MHC_GATE_READY\n':'MHC_GATE_ALIVE\n'));done();}});p.kill=()=>{p.killed=true;p.emit('exit',0);return true;};return p;}
+let child;const session=new SqlFenceSession(name,{clock,spawnProcess:(cmd,args)=>{assert.equal(cmd,'mariadb');assert(args.includes('--skip-reconnect'));return child=childFactory();}});
+await session.start(mono+90000);await session.heartbeat(mono+90000);assert.equal(child.killed,undefined);await session.close();assert.equal(child.killed,true);await assert.rejects(session.heartbeat(mono+90000),/NOT_AUTHORIZED/);
+assert.deepEqual(inspectSqlFence({home:'unused'},null),{protocol:0,verified:false,reason:'P4_SQL_GUARD_NOT_INSTALLED'});
+console.log('PASS P4 SQL gate source: before/after DML templates, explicit-transaction/self-keeper denial, private identifiers, authoritative expiry→boot-time budget, no same-grant extension, root pipe/no reconnect/close (fixtures). Native MariaDB behavior is tested separately.');

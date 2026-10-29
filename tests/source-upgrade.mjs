@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
-import {SourceUpgrade,upgradeAuthoritySnapshot,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA,supportedRuntime} from '../bin/source-upgrade.mjs';
+import {SourceUpgrade,upgradeAuthoritySnapshot,verifyUpgradeQuiescence,digest,LAB_NODES,PANEL_FILES,LEGACY_BOOT_SHA,supportedRuntime} from '../bin/source-upgrade.mjs';
 assert.equal(supportedRuntime('android','/data/data/com.termux/files/usr'),true);
 assert.equal(supportedRuntime('linux','/data/data/com.termux/files/usr'),true);
 assert.equal(supportedRuntime('win32','/data/data/com.termux/files/usr'),false);
@@ -75,13 +76,23 @@ try{
  write(path.join(n1.home,'.config/mhc-full-installer/node-identity.json'),JSON.stringify({nodeId:id,kind:'new-node-standby'}));n1.u.approvedNodeId=id;
  write(path.join(n1.home,'.local/state/mhc-new-node-install/progress.json'),JSON.stringify({nodeId:id,phase:'INSTALLED',version:'MHC-N1-fixture',commit:'a'.repeat(40),manifestSha256:'b'.repeat(64),completed:['packages','runtime','identity','panel-admin','services','verify']}));
  n1.u.shared=()=>({telemetryRecent:true});assert((await n1.u.plan(n1.pkg)).changes.length>0);n1.u.shared=()=>{throw Error('AUTHORITY_STATUS_FAILED');};await assert.rejects(n1.u.plan(n1.pkg),/AUTHORITY_STATUS_FAILED/);assert.equal(n1.calls.length,0);scenarios++;
- const shared={mode:'SHARED_AUTHORITY_PREPARE_ONLY',clusterId:'fixture',revision:36,epoch:8,pending:null,nodes:[{nodeId:id,role:'STANDBY_NO_WRITER_GRANT',telemetryRecent:true}],writeLeaseGranted:true,p33:{enabled:true,scope:'MHC_MANAGED_WORDPRESS_LAB',phase:'COMMITTED',journal:{status:'VERIFIED'},primaryNodeId:LAB_NODES[0],writerLeaseGranted:true,lease:{nodeId:LAB_NODES[0],scope:'MHC_MANAGED_WORDPRESS_LAB',epoch:8,expiresAt:Date.now()+90000}}};
+ const shared={mode:'SHARED_AUTHORITY_PREPARE_ONLY',clusterId:'fixture',revision:36,epoch:8,pending:null,nodes:[{nodeId:id,role:'STANDBY_NO_WRITER_GRANT',telemetryRecent:true}],writeLeaseGranted:true,p33:{enabled:true,scope:'MHC_MANAGED_WORDPRESS_LAB',epoch:8,revision:36,operationId:crypto.randomUUID(),phase:'COMMITTED',journal:{status:'VERIFIED'},primaryNodeId:LAB_NODES[0],writerLeaseGranted:true,lease:{nodeId:LAB_NODES[0],scope:'MHC_MANAGED_WORDPRESS_LAB',epoch:8,expiresAt:Date.now()+90000}}};
  assert.equal(upgradeAuthoritySnapshot(shared,id,true).epoch,8);scenarios++;
  assert.throws(()=>upgradeAuthoritySnapshot(shared,LAB_NODES[0]),/NODE_MISSING/);
  const own=structuredClone(shared);own.nodes[0].role='PRIMARY_MANAGED_SCOPE';assert.throws(()=>upgradeAuthoritySnapshot(own,id),/QUIESCE/);scenarios++;
  for(const phase of ['FENCING','ACTIVE','AWAITING_PUBLIC']){assert.throws(()=>upgradeAuthoritySnapshot({...shared,p33:{...shared.p33,phase}},id),/TRANSITION/);}scenarios++;
  assert.throws(()=>upgradeAuthoritySnapshot({...shared,p33:{...shared.p33,lease:{...shared.p33.lease,epoch:7}}},id,true),/SAFETY/);scenarios++;
  assert.throws(()=>upgradeAuthoritySnapshot(shared,id),/SAFETY/);scenarios++;
+ assert.equal(upgradeAuthoritySnapshot(shared,id,false,true).epoch,8,'fresh fenced managed Standby may upgrade beside another leased Primary');scenarios++;
+ const primary=structuredClone(shared);primary.nodes[0].nodeId=LAB_NODES[0];assert.throws(()=>upgradeAuthoritySnapshot(primary,LAB_NODES[0],false,true),/QUIESCE/);scenarios++;
+ const fenceBusy=structuredClone(shared);fenceBusy.nodes[0].standby={job:{type:'fence-install',status:'RUNNING'}};assert.throws(()=>upgradeAuthoritySnapshot(fenceBusy,id,false,true),/PREPARATION/);scenarios++;
+ const proofPair=crypto.generateKeyPairSync('ed25519'),proofNow=Date.now(),proofNonce='d'.repeat(64);
+ const proof={schema:3,scope:'MHC_MANAGED_WORDPRESS_LAB',kind:'FENCED',nodeId:id,clusterId:shared.clusterId,nonce:proofNonce,epoch:8,revision:shared.p33.revision,operationId:shared.p33.operationId,checkedAt:proofNow,expiresAt:proofNow+15000,database:{writeDenied:true,connections:0},httpStopped:true,childrenStopped:true,dataset:{verified:true},management:{panel:true,agent:true}};
+ const signed=p=>({proof:p,signature:crypto.sign(null,Buffer.from(JSON.stringify(p)),proofPair.privateKey).toString('base64url')});
+ assert.equal(verifyUpgradeQuiescence(signed(proof),proofPair.publicKey,shared,id,proofNonce,proofNow),true);
+ for(const patch of [{database:{writeDenied:true,connections:1}},{childrenStopped:false},{httpStopped:false},{nonce:'e'.repeat(64)},{expiresAt:proofNow-1},{epoch:9}])assert.throws(()=>verifyUpgradeQuiescence(signed({...proof,...patch}),proofPair.publicKey,shared,id,proofNonce,proofNow),/NOT_PROVEN/);
+ const tampered=signed(proof);tampered.proof={...proof,nodeId:LAB_NODES[0]};assert.throws(()=>verifyUpgradeQuiescence(tampered,proofPair.publicKey,shared,id,proofNonce,proofNow),/NOT_PROVEN/);scenarios++;
+
  const unknown=fixture();write(path.join(unknown.home,'.termux/boot/10-start-hosting'),'custom boot');await assert.rejects(unknown.u.plan(unknown.pkg),/UNKNOWN_LEGACY_BOOT/);scenarios++;
  if(process.platform!=='win32'){const symlink=fixture();fs.unlinkSync(symlink.dest(symlink.manifest.files[0]));fs.symlinkSync(path.join(symlink.home,'.config/mhc-full-installer/authority.json'),symlink.dest(symlink.manifest.files[0]));await assert.rejects(symlink.u.plan(symlink.pkg),/SYMLINK/);scenarios++;}
  // Real child processes retain the source hash from startup. Apply and rollback must reload both.

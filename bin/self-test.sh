@@ -79,6 +79,7 @@ PYAST
 node "$ROOT/tests/site-standby.mjs"
 node "$ROOT/tests/site-sync.mjs"
 node "$ROOT/tests/site-sync-node.mjs"
+node "$ROOT/tests/p4-fence.mjs"
 node "$ROOT/tests/upgrade-quiescence.mjs"
 node "$ROOT/tests/site-public-grants.mjs"
 node "$ROOT/tests/site-job-retry.mjs"

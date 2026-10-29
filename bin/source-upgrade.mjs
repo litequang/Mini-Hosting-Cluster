@@ -10,18 +10,18 @@ export const LAB_NODES=['4ed4c025-62ae-4c2a-8d68-65dd76ecf550','4a9672d1-bb62-42
 export function upgradeAuthoritySnapshot(s,nodeId,managementOnly=false,quiesced=false){
  if(s.mode!=='SHARED_AUTHORITY_PREPARE_ONLY'||!Array.isArray(s.nodes))fail('AUTHORITY_SAFETY_MISMATCH');
  const node=s.nodes.find(n=>n.nodeId===nodeId);if(!node)fail('AUTHORITY_NODE_MISSING');
- if(['backup','restore'].includes(node.standby?.job?.type)&&['QUEUED','RUNNING'].includes(node.standby.job.status))fail('SITE_PREPARATION_BLOCKS_UPGRADE');
+ if(['backup','restore','fence-install'].includes(node.standby?.job?.type)&&['QUEUED','RUNNING'].includes(node.standby.job.status))fail('SITE_PREPARATION_BLOCKS_UPGRADE');
  const r=s.p33;
  if(s.siteSync?.run&&['CREATING','APPLYING','BLOCKED'].includes(s.siteSync.run.status))fail('SITE_SYNC_BLOCKS_UPGRADE');
  if(s.pending||r?.enabled&&(!['IDLE','COMMITTED','CANCELLED'].includes(r.phase)||r.journal&&r.journal.status!=='VERIFIED'))fail('AUTHORITY_TRANSITION_BLOCKS_UPGRADE');
  if(r?.lease?.nodeId===nodeId||node.role==='PRIMARY_MANAGED_SCOPE'||(s.declaredPrimary?.nodeId===nodeId||r?.primaryNodeId===nodeId)&&!(quiesced&&s.writeLeaseGranted===false&&r?.writerLeaseGranted===false&&!r.lease))fail('P33_QUIESCE_MANAGED_WRITER_BEFORE_SOURCE_UPGRADE');
- if(s.writeLeaseGranted!==false&&!(managementOnly&&r?.enabled===true&&r.scope==='MHC_MANAGED_WORDPRESS_LAB'&&r.writerLeaseGranted===true&&r.lease?.scope===r.scope&&r.lease.nodeId!==nodeId&&r.primaryNodeId===r.lease.nodeId&&r.lease.epoch===s.epoch&&r.lease.expiresAt>Date.now()))fail('AUTHORITY_SAFETY_MISMATCH');
+ if(s.writeLeaseGranted!==false&&!((managementOnly||quiesced)&&r?.enabled===true&&r.scope==='MHC_MANAGED_WORDPRESS_LAB'&&r.writerLeaseGranted===true&&r.lease?.scope===r.scope&&r.lease.nodeId!==nodeId&&r.primaryNodeId===r.lease.nodeId&&r.lease.epoch===s.epoch&&r.lease.expiresAt>Date.now()))fail('AUTHORITY_SAFETY_MISMATCH');
  return {clusterId:s.clusterId,revision:s.revision,epoch:s.epoch,lastSeenAt:node.lastSeenAt,telemetryRecent:node.telemetryRecent,
   ownership:JSON.stringify({primary:r?.primaryNodeId||null,leaseNode:r?.lease?.nodeId||null,operation:r?.operationId||null,phase:r?.phase||null,panel:s.p32?.panelNodeId||null,site:s.p32?.siteNodeId||null})};
 }
 export function verifyUpgradeQuiescence(envelope,publicKey,s,nodeId,nonce,now=Date.now()){
  const p=envelope?.proof,r=s.p33;
- if(!p||p.schema!==3||p.scope!=='MHC_MANAGED_WORDPRESS_LAB'||p.kind!=='FENCED'||p.nodeId!==nodeId||p.clusterId!==s.clusterId||p.nonce!==nonce||p.epoch!==r?.epoch||p.revision!==r?.revision||p.operationId!==r?.operationId||p.checkedAt>now+2000||now>p.expiresAt||p.expiresAt!==p.checkedAt+15000||p.database?.writeDenied!==true||p.database?.connections!==0||p.httpStopped!==true||p.childrenStopped!==true||p.dataset?.verified!==true||p.management?.panel!==true||p.management?.agent!==true||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature||'','base64url')))fail('P33_UPGRADE_QUIESCENCE_NOT_PROVEN');
+ if(!p||p.schema!==3||p.scope!=='MHC_MANAGED_WORDPRESS_LAB'||p.kind!=='FENCED'||p.nodeId!==nodeId||p.clusterId!==s.clusterId||p.nonce!==nonce||p.epoch!==r?.epoch||p.revision!==r?.revision||p.operationId!==r?.operationId||p.checkedAt>now+2000||now>p.expiresAt||p.expiresAt!==p.checkedAt+15000||p.database?.writeDenied!==true||p.database?.connections!==0||p.httpStopped!==true||p.childrenStopped!==true||p.dataset?.verified!==true||p.management?.panel!==true||p.management?.agent!==true||!Number.isSafeInteger(p.checkedAt)||!Number.isSafeInteger(p.expiresAt)||!crypto.verify(null,Buffer.from(JSON.stringify(p)),publicKey,Buffer.from(envelope.signature||'','base64url')))fail('P33_UPGRADE_QUIESCENCE_NOT_PROVEN');
  return true;
 }
 export const PANEL_FILES=['src/server.mjs','src/system.mjs','src/mhc-integration.mjs','src/mhc-remote-access.mjs','public/index.html','public/app.js','public/style.css'];
@@ -78,8 +78,8 @@ export class SourceUpgrade{
  serviceStatus(n){const r=this.command('sv',['status',path.join(this.prefix,'var/service',n)]);const m=/^run:.*?\(pid (\d+)\)/.exec(r.stdout||'');return {running:!!m,pid:m?Number(m[1]):null};}
  shared(){
   const bin=path.join(this.home,'.local/share/mhc-full-installer/bin'),r=this.command(process.execPath,[path.join(bin,'cluster-authority.mjs'),'status']);if(r.status!==0)fail('AUTHORITY_STATUS_FAILED');const s=JSON.parse(r.stdout);let quiesced=false;
-  if(!this.fixture&&s.writeLeaseGranted===false&&s.p33?.writerLeaseGranted===false&&!s.p33.lease&&(s.p33.primaryNodeId===this.nodeId||s.declaredPrimary?.nodeId===this.nodeId)){
-   // A recorded former Primary is not an active writer. Require a real fresh FENCED proof,
+  if(!this.fixture&&fs.existsSync(path.join(this.home,'.local/share/mhc-p33-lab/dataset.json'))&&(s.p33?.lease?.nodeId!==this.nodeId)&&(s.writeLeaseGranted===true||s.p33?.primaryNodeId===this.nodeId||s.declaredPrimary?.nodeId===this.nodeId)){
+   // A managed Standby (or recorded former Primary without a lease) requires a fresh FENCED proof,
    // including SQL denial, zero app connections, stopped children/HTTP and management health.
    const nonce=crypto.randomBytes(32).toString('hex'),code="import {pathToFileURL} from 'node:url';const {ManagedNode}=await import(pathToFileURL(process.argv[2]));console.log(JSON.stringify(await new ManagedNode().proof(process.argv[3],'FENCED')));";
    const reply=this.command(process.execPath,['--input-type=module','--eval',code,'mhc-upgrade-proof',path.join(bin,'p33-node.mjs'),nonce]);if(reply.status!==0)fail('P33_UPGRADE_QUIESCENCE_NOT_PROVEN');

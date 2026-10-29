@@ -70,3 +70,8 @@ N1 self-service: reference/cluster-authority/n1-onboarding.mjs giữ approval t�
 P33 receiver clock: bin/p33-control.mjs chỉ sau signature/nonce/context hợp lệ mới chờ tối đa2giây rồi kiểm lại strict future2s/TTL15s; không sửa timestamps/lease/Authority checks. tests/p33-peer-clock.mjs kiểm boundary/expiry/large skew/time-jump; đã thêm self-test.
 
 P4.0 source: reference/cluster-authority/site-sync.mjs giữ một policy/run/CAS và lịch interval/daily UTC+7 trong cùng DO; site-standby.mjs dùng sync-backup/sync-apply trên relay hiện có. bin/site-sync.mjs thực hiện target staging/journal/checksum/local rollback và cache bounded, p33-node dataset từ chối maintenance. Original Panel Cluster dùng endpoint standby hiện có/session+CSRF. tests/site-sync.mjs và site-sync-node.mjs nằm trong self-test; runtime/test thực chỉ ở LIVE-PROGRESS.
+
+### P4 SQL admission gate (source checkpoint 29/10)
+
+- bin/p4-fence.mjs: private SQL trigger definitions/inspection, root keeper pipe, authoritative lease→boot-time deadline; bin/p4-fence-install.mjs: authenticated Standby job/private backup/resume. p33-node consumes gate only when installed, legacy Manual unchanged otherwise. site-standby dispatches installation and returns signed fence evidence; Worker blocks incomplete maintenance.
+- tests/p4-fence.mjs: time/pipe/template fixtures. tests/p4-fence-sql.php: opt-in separate synthetic MariaDB fixture only, no managed-site setup or credentials in source. tests/source-upgrade.mjs: signed FENCED Standby may source-upgrade beside another writer; active writer denied. Runtime/tests/DoD only in LIVE-PROGRESS.

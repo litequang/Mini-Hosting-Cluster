@@ -125,3 +125,7 @@ Dùng chính Authority/DO hiện tại để giữ job và chunk backup có role
 ## 29/10/2026 — P4.0 lịch qua original Panel
 
 User chọn cả chu kỳ và giờ cố định: chọn một kiểu interval phút/giờ hoặc HH:mm hằng ngày, Asia/Ho_Chi_Minh. Không yêu cầu PC bật; dùng Cron/DO/Agent hiện có. Lịch mặc địnhOFF60phút, chỉ enable sau manual applied verification. Không thêm scheduler nhiều tầng/cron tùy ý; không bật Auto Primary trong P4.0. Dữ liệu cũ của Standby có rollback checksum/journal, target chưa chứng minh rollback phải giữ khóa Manual Primary.
+
+### 29/10/2026 — P4 prerequisite: bounded managed SQL admission before offline takeover
+
+Keep the existing P3.3 Manual pipeline and Auto OFF. Test an optional root-keeper/BEFORE+AFTER InnoDB trigger gate for the fixed LAB site, reject app explicit transactions, and derive local lease budgets from authoritative server time plus boot uptime. It addresses lingering app grants/old connections when the JavaScript guard cannot revoke promptly; it does not by itself prove all database commit/pause paths or fence privileged writers. Install only through a recoverable, confirmed Standby job. A managed Standby may receive a source-only upgrade beside a different leased Primary only with a fresh pinned signed FENCED proof; active writer upgrades stay forbidden. No replication or second authority is introduced.
