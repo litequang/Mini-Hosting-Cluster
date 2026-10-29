@@ -60,6 +60,16 @@ try{
  assert.equal(storage.data.get('n1-node:'+c).siteEnabled,true);
  // Readiness expires, and offline never counts as eligible.
  const effective=await storage.transaction(tx=>siteEffectiveEnv(env,tx)),rows=storage.data.get('site-nodes');assert.equal(siteReadiness(effective,initialState,c,rows[c],storage.data.get('n1-node:'+c),now+180001).states.ELIGIBLE_PRIMARY,false);
+ // Repeated Manual readiness must not starve the independent site verification schedule.
+ const dueRows=storage.data.get('site-nodes');dueRows[c].nextCheckAt=now+30000;storage.data.set('site-nodes',dueRows);const nextCheckBefore=dueRows[c].nextCheckAt,manualRevision=storage.data.get('p33');
+ const manualId=crypto.randomUUID(),manualRequest={action:'p33-ready',nodeId:c,nonce:'b'.repeat(64),epoch:manualRevision.epoch,revision:manualRevision.revision,operationId:manualRevision.operationId};
+ await direct('site-call',{targetNodeId:c,requestId:manualId,request:manualRequest});await direct('site-poll',{},'agent',c);
+ await direct('site-result',{jobId:manualId,envelope:sign(c,manualId,{request:manualRequest,envelope:{proof:{kind:'READY'},signature:'fixture'}})},'agent',c);
+ assert.equal(storage.data.get('site-nodes')[c].nextCheckAt,nextCheckBefore,'Manual proof never moves the full site health deadline');
+ const siteRows=storage.data.get('site-nodes');siteRows[c].nextCheckAt=now-1;storage.data.set('site-nodes',siteRows);
+ assert.equal((await direct('site-poll',{},'agent',c)).job.type,'verify','overdue site health runs after Manual proof');
+ const healthJob=storage.data.get('site-nodes')[c].job;
+ await direct('site-result',{jobId:healthJob.id,envelope:sign(c,healthJob.id,{evidence:prepared})},'agent',c);
  // Missing fourth node cannot grant itself writer just because it enrolled / has Control.
  const missing=(await start(d,'verify')).site.job;await poll(d);await call('site-result',{jobId:missing.id,envelope:sign(d,missing.id,{errorCode:'SITE_WEBSITE_DATABASE_MISSING'})},'agent',d);assert.equal((await call('status')).nodes.find(n=>n.nodeId===d).standby.states.ELIGIBLE_PRIMARY,false);
  const req=()=>({requestId:crypto.randomUUID(),expectedRevision:storage.data.get('state').revision,expectedP33Revision:storage.data.get('p33').revision,targetNodeId:d,acceptTargetData:true});

@@ -1,5 +1,13 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## N1.3 — checkpoint lịch health độc lập (IN PROGRESS, 29/10/2026)
+
+- Node source d383b16 đã VERIFIED93/93 trên11T/XZ3/Vsmart, private config/admin/credentials/SSH/site hashes và SSH/SQL/Tunnel PID giữ nguyên. N1.3 no-overwrite thực PASS trên11T: từ chối SITE_EXISTING_DATA_REFUSED_USE_VERIFY, dataset/4posts không đổi, SQL ghi bị chặn và reverify eligible.
+- Manual readiness3node qua HTTPS relay, peer SSH bị cấm trong test: PASS từ Panel11T vàVsmart. TừXZ3 có lúc FAIL P33_PEER_PROOF_INVALID: VM proof hợp lệ chữ ký/epoch/revision nhưng timestamp ở tương lai sát/vượt2giây; giữ ngưỡng an toàn, chờ user bật giờ mạng tự động, không bypass guard.
+- Kiểm thực còn phát hiện Manual readiness đẩy row.nextCheckAt lùi liên tục, có thể làm SITE_READY hết hạn dù node online. Sửa Worker chỉ cập nhật deadline sau verify/restore; polling/manual/backup không trì hoãn health HTTP/PHP/SQL. Regression deadline/overdue check + relay/P33 Windows PASS; Android fixture/bản Worker thực còn NOT RUN tại checkpoint này.
+- Commit node/runtime d383b16, thiết kếP4 ffbae65 đã push. Bản sửa Worker trong commit chứa mục này; không cần nâng lại node vì bin không đổi. Release04 đã đóng gói từ d383b16 nhưng chưa công bố checkpoint artifacts. Việc tiếp theo: deploy Worker cùng DO/state, kiểm health thật và hoàn tất release04/runbook. P4.0/P4 Lite chưa triển khai, Auto=false.
+
+
 ## Checkpoint thiết kế P4 — DESIGN/PLANNED (29/10/2026)
 
 - Đã chốt docs: N1.3 → P4.0 → P4 Lite → HP1 → HP2 → HP3. P4.0/P4 Lite **NOT STARTED runtime**, Auto=false; không đưa scheduler vào N1.3.

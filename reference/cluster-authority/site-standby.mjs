@@ -120,7 +120,9 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
    row.evidence={...e,checkedAt:p.checkedAt};job={...job,status:'DONE',updatedAt:now,result:{ready:true,dataset:e.dataset}};
    if(management[nodeId])enable={nodeId,entry:management[nodeId],evidence:row.evidence};
   }
-  const {checkedAt,...stable}=p;job.resultDigest=await sha(text(JSON.stringify(stable)));row.nextCheckAt=now+120000;
+  const {checkedAt,...stable}=p;job.resultDigest=await sha(text(JSON.stringify(stable)));
+  // Readiness polling must not postpone independent HTTP/PHP/SQL verification forever.
+  if(job.type==='verify'||job.type==='restore')row.nextCheckAt=now+120000;
   rows[target]={...row,job};await tx.put('site-nodes',rows);return {job:publicJob(job)};
  });
  if(enable){
