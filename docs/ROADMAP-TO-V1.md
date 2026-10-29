@@ -37,15 +37,19 @@
 - Rejoin old node as standby/quarantine; nó không tự bật lại route/DB writer.
 - Nghiệm thu: switchover và rollback giữa hai LAB độc lập, cả khi Panel của Primary chết; một hostname Panel vẫn truy cập qua node dự phòng được bảo vệ Cloudflare Access trong chế độ recovery.
 
-## Thứ tự mới nhất — 28/10/2026: khôi phục WEBSITE trước, Hosting Panel sau
+## Thứ tự cập nhật 29/10/2026: ĐỒNG BỘ ĐỊNH KỲ LITE, không realtime replication
 
-**Đang làm: P3.3 Manual Primary + Control**. Codex tiếp tục hoàn thiện code/tests/live rollout hai Android hiện tại, **không dừng hay làm lại**. Sau nghiệm thu P3.3 thật trên Vsmart/XZ3: **N1 Unified New Node Installer → P4 Lite (Auto Primary + Control cho site LAB thuộc MHC quản lý) → HP1 (Hosting Panel Core) → HP2 (Domain & Automation / P2.5) → HP3 (Backup & Advanced Tools)**. N1 bổ sung cài mới/ghép nhiều node/kiểm eligibility từ nguồn động, không cấp Primary hoặc writer khi join; chi tiết tại [UNIFIED-NEW-NODE-INSTALLER.md](UNIFIED-NEW-NODE-INSTALLER.md). Production migration P5 chỉ sau khi user duyệt.
+**P3.3 Manual Primary + Control LAB đã nghiệm thu. Hiện Codex làm N1.3 backup relay / Restore / Standby**: tiếp tục đúng checkpoint và không ngắt/làm lại. Thứ tự mới nhất: **N1.3 (DONE khi real Android PASS) → [P4.0 Periodic Snapshot Sync Lite](PERIODIC-SNAPSHOT-SYNC-LITE.md) → P4 Lite (Auto Primary + Control, scoped writer safety) → HP1 (Hosting Panel thiết yếu, ZIP+SQL restore, prebuilt dist Node) → HP2 (một zone Cloudflare) → HP3 (bảo trì nâng cao, có thể hoãn)**. Chuyển website M51/X7b chỉ sau backup/restore thật và người dùng duyệt. **Tuyệt đối không xây MariaDB/file replication realtime, GTID/binlog, merge hai chiều hoặc hệ thống election phức tạp trong MVP.**
 
 - P4 Lite **tái dùng** Manual pipeline; Authority độc lập, CAS epoch và lease/fencing, health+HTTP site/Tunnel; kiểm dataset node đích; khi node cũ mất liên lạc, **chờ quyền ghi cũ hết và đảm bảo managed writer self-fence**, thay vì giả định mất mạng là SQL ngừng. Site/DB trên node đích có thể cũ hơn; chấp nhận RPO, không ép replication/GTID 100%. Chỉ auto chọn site MHC-managed đã được xác minh có guard HTTP/PHP/app-DB/jobs; nếu không fence được thì không auto promote, hiển thị yêu cầu can thiệp thủ công. Node cũ rejoin chỉ Standby/quarantine, không auto failback.
 - P3.2 tự khôi phục Panel/Control là tính năng quản trị phụ đã có, **không thay thế website failover**.
 - Manual P3.3 hiện yêu cầu liên lạc cả hai máy để fence; P4 Lite phải có bài nghiệm thu old-node offline dựa trên self-fencing lease đã kiểm chứng, không chỉ xóa check old-online.
 - Auto sau P3.3 vẫn **opt-in disabled by default** cho đến khi thử mất mạng, lease expiry, rejoin, public HTTPS và không hai managed writer trên hai Android. Không bật production.
 - Chi tiết scope và DoD tại [HOSTING-PANEL-ROADMAP.md](HOSTING-PANEL-ROADMAP.md). Source/runtime PASS/NOT RUN theo [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
+
+## P4.0 — Đồng bộ website theo lịch, tối giản
+
+**Làm sau khi N1.3 đã nghiệm thu thực tế, không nhét vào N1.3.** Tận dụng snapshot/relay/restore + checksum và journal N1.3 hiện có. Một MHC-managed WordPress LAB nguồn và một Standby, mặc định 60 phút, nút Đồng bộ ngay, restore có kiểm và RPO theo last verified applied snapshot. Không tự ghi đè dữ liệu site đích không được xác minh, mất mạng thì retry bounded và báo lỗi. Xem [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md). **Không làm GTID, realtime replication, CDC, file watcher, delta engine tùy biến, distributed storage, bidirectional sync**. Phạm vi nhiều site/WordPress thực/Node.js chỉ mở khi hoàn tất một site LAB và có yêu cầu rõ.
 
 ## P4 — Auto Primary healthy + newest verified snapshot
 - Heartbeat agent, active web probe, timestamp+hash verified backups, storage/capacity+online reliability scoring.
@@ -58,10 +62,10 @@
 - Đóng băng code version, audit các dịch vụ/domains/DB/sheet/static media của hệ cũ.
 - Full backups (mã/hình ảnh/DB/Panel/Cloudflare config), checksum và dry-run trên Vsmart/môi trường phụ.
 - Người dùng duyệt maintenance window, đổi tuyến có rollback, smoke-test TPP/WordPress, giám sát; node cũ giữ nguyên dự phòng cho tới khi qua hậu kiểm.
-- Khi được phép, cài cùng một unified MHC source lên M51/X7b không xóa cấu hình cũ trước verify; tham gia cluster như standby với từng site đã restore.
+- Sau khi website được backup độc lập, restore thành công và được user cho phép, có thể **cài mới** MHC lên M51/X7b qua N1 rồi join như Standby; không ép phát triển Adopt Existing Node hoặc cài đè dữ liệu production.
 
-## P6 — Sau MVP
-- Replication liên tục GTID/file (tùy chọn), backup policy replicas N, node scoring v0.7, alerting, battery/network watchdog, Android process lifecycle, performance, production hardening.
+## P6 — Sau MVP, chỉ khi có nhu cầu thực tế
+- Công việc tùy chọn: hardening Android/Boot/Doze, thông báo lỗi đơn giản, chính sách giữ backup và báo lỗi, đo hiệu năng thực tế. **Không mặc định phát triển** realtime replication GTID/file, auto sync hai chiều, scoring nhiều tầng, Raft/quorum, backup cloud riêng; chỉ quay lại khi có lý do và phê duyệt độc lập..
 
 ### Definition of done
 Đối với mỗi P: source + test tự động + bằng chứng **Android thật** + phiên bản ZIP/repo commit + changelog + rollback. Chỉ cần 1 release per milestone, không phát hành 5-10 bản nhỏ mà mục tiêu vẫn chưa usable.

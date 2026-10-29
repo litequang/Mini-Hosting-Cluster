@@ -1,5 +1,16 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 29/10/2026 — GIỚI HẠN MVP: sync định kỳ đơn giản, không replication realtime
+
+- Quyết định mới nhất có ưu tiên cao hơn roadmap cũ: P3.3 Manual LAB đã DONE; Codex **hoàn tất N1.3 hiện hành trước, không ngắt**; tiếp đến **P4.0 Periodic Snapshot Sync Lite**, rồi **P4 Lite Auto Primary+Control**, HP1 Core/Restore, HP2 Cloudflare một zone, HP3 bảo trì nâng cao chỉ khi cần. Spec: [PERIODIC-SNAPSHOT-SYNC-LITE.md](PERIODIC-SNAPSHOT-SYNC-LITE.md).
+- Snapshot backup→relay→restore có checksum/health; lịch mặc định 60 phút, một site nguồn–một Standby + Đồng bộ ngay, hiển thị Last Verified Applied/RPO. Dữ liệu có thể cũ, không đòi đồng nhất 100%, không merge dữ liệu hai chiều.
+- **Không làm trong MVP:** MariaDB/MySQL GTID/binlog live replication, CDC/change streams, Galera/master-master, filesystem watcher realtime, Raft/quorum mới, distributed filesystem, consensus phức tạp, scoring nhiều cấp, file/delta replication tự thiết kế, backup enterprise, cPanel mới, website source build trên Android mặc định.
+- P4 Lite chỉ một MHC-managed WordPress LAB và một cặp node đã được kiểm trước; tái sử dụng P3.3 Manual/Authority. Tuyệt đối giữ scoped writer self-fencing/lease expiry/CAS/signed public proof; không auto promote khi chưa chứng minh old writer đã ngừng nhận ghi trong site scope, không auto failback.
+- HP1 tối giản: Upload prebuilt dist.zip → triển khai → restart Node service; WordPress/PHP qua công cụ có sẵn; Restore ZIP + SQL + storage, health/rollback, chọn node. HP2 giai đoạn đầu giaouoc.com, Tunnel/Access đã có. HP3 không chặn MVP khi các khả năng thiết yếu đã hoạt động.
+- M51/X7b: giữ nguyên, backup dữ liệu website + SQL + storage; phục hồi trên node mới, nghiệm thu thật trước; chỉ cài lại node cũ/ghép Cluster sau phê duyệt. Không phát triển Adopt Existing Node tổng quát.
+- Codex đọc AGENTS + LIVE-PROGRESS + ROADMAP + spec mới ở checkpoint Git an toàn; không reset/rebase, không sửa worktree live chưa checkpoint, ghi PASS/FAIL/NOT RUN đúng runtime thật.
+
+
 ## 28/10/2026 — N1.1 cài mới có resume
 
 - Giữ fresh installer tách khỏi source upgrade trên node hiện có; dùng full manifest cùng Git commit. Không chạy legacy non-transactional installer rồi vá nhiều bản.
