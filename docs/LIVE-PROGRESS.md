@@ -1,5 +1,16 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## N1.3 — nghiệm thu relay/restore thực (29/10/2026, IN PROGRESS: đóng gói cuối)
+
+- Source/runtime hợp nhất6299134 đã push sau merge remote bd7f272 an toàn. Cả ba LAB APPLIED/VERIFIED93/93, manifest08673bec367bf7beb97df0fee64909fbd3b107c77e301fbae6fc596eb9231604; transactions11T tx-20261029023607886-058de2, XZ3 tx-20261029023619128-459163, VM tx-20261029023632267-6aba36. Guard P33 cũng được reload; config/admin/SSH/Tunnel/SQL/site files bảo toàn.
+- Worker/DO thực6299134 version8933ac4d-b13a-4326-8aac-132be9167e54, namespace/membership/secrets/state giữ nguyên. DO có khoảng trễ sau settings100%; đã kiểm source/capability thực, không reset để ép cập nhật.
+- PASS restore21e1a558-09e3-45a5-b94b-5f0f03e44a7e resume đúng journal sau các lần Agent reload: DONE, local VERIFIED,23,172,996/23,172,996 bytes. Dataset11T b91b14b85d598efbdc4b1c2aed6df637e03cdb8bd1cd7118d20f1047295590db; canon8 bảng/4 posts, HTTP/PHP/SQL/files/gate, UPDATE bị từ chối, credentials riêng. Sáu readiness11T đều true, không có blocker. VM/XZ3 cũng có proof site mới/eligible.
+- PASS original Panel11T → Manual readiness3 node ký qua Authority. Primary/Control/route/lease chưa chuyển trong vòng N1.3: rev39/epoch8/COMMITTED; recordedPrimary/site VM, Control11T, không lease hiệu lực, Auto=false.
+- Negative/no-overwrite và phép thử cấm SSH peer gặp race SITE_NODE_BUSY khi auto-verify đang chạy. Sửa client đợi bounded cho riêng read-only verify; không thay/preempt backup/restore/manual. Optional progress chịu được DO cũ trong thời gian rollout, không bỏ kiểm auth/checksum/data. Fixture mới cùng P33/relay PASS. Cần chạy lại hai kiểm thực này sau rollout helper.
+- Fresh04 staged183 file/native hash/bootstrap/PHP PASS ở source6299134; fresh physical clean install PHYSICAL_NOT_RUN. Full-source fixture đã tới96 PASS rồi SSH harness timeout trước xác nhận EXIT0; archive fixture độc lập PASS, không claim full EXIT0. Không để test legacy này chặn checkpoint sử dụng được; chỉ chạy focused regression liên quan cho helper cuối.
+- Commit gần nhất đã push6299134; bản sửa retry nằm trong commit chứa checkpoint này. Việc tiếp theo: chốt source/helper/release04, kiểm no-overwrite và HTTPS relay không SSH, cập nhật N1.3 DONE theo LAB scope. Sau đó P4.0 Snapshot Sync Lite rồi P4 Lite theo quyết định mới; chưa triển khai scheduler/replication/P4 trong N1.3.
+
+
 ## N1.3 — dữ liệu11T đã phục hồi, chốt runtime guard (29/10/2026, IN PROGRESS)
 
 - Ba LAB đã APPLIED/VERIFIED93/93 source c493337, manifest cc2c50ad30bbfe0350d1e1573c09de719ba2ff4183e9d4a21f0bae567a3530a1. VM tx-20261029021838169-05ee6e;11T tx-20261029021946733-e16eab;XZ3 tx-20261029021958297-0d37a4. Config/admin/credentials/SSH/site cũ khớp hash; SSH/MariaDB/Tunnel PID không đổi. Vsmart upgrade không đổi Authority/route/lease.

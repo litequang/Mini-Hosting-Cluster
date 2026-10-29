@@ -77,7 +77,7 @@ async function restore(c,job,snapshot){
  const d=path.join(c.work,job.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const journal=d+'/restore.json',content=d+'/content.json',file=d+'/backup.tar.gz';let state=fs.existsSync(journal)?read(journal):null;
  if(!state){if(fs.existsSync(c.node.base)||c.node.sql("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name='mhc_p33_lab'",true)!=='0'||c.node.sql("SELECT COUNT(*) FROM mysql.user WHERE User='mhc_p33_web'",true)!=='0')fail('SITE_EXISTING_DATA_REFUSED_USE_VERIFY');state={jobId:job.id,snapshotId:snapshot.id,sha256:snapshot.sha256,stage:'DOWNLOAD',createdAt:Date.now()};save(journal,state);}
  if(state.snapshotId!==snapshot.id||state.sha256!==snapshot.sha256)fail('SITE_RESTORE_JOURNAL_CONFLICT');
- const progress=(stage,done=snapshot.bytes)=>retry(()=>sharedSiteRequest('site-progress',{jobId:job.id,stage,done,total:snapshot.bytes}));
+ const progress=(stage,done=snapshot.bytes)=>retry(()=>siteProgress({jobId:job.id,stage,done,total:snapshot.bytes}));
  if(state.stage==='DOWNLOAD'){
   await progress('DOWNLOADING',0);
   for(let start=0;start<snapshot.chunks;start+=3){await Promise.all(Array.from({length:Math.min(3,snapshot.chunks-start)},async(_,offset)=>{const index=start+offset,p=d+'/chunk-'+index;if(fs.existsSync(p))return;const s=(await retry(()=>sharedSiteRequest('site-download',{jobId:job.id,index}))).site,bytes=Buffer.from(s.data,'base64');if(hash(bytes)!==s.sha256||bytes.length!==s.size)fail('SITE_DOWNLOAD_CHECKSUM_MISMATCH');const tmp=p+'.tmp';fs.writeFileSync(tmp,bytes,{mode:0o600});fs.renameSync(tmp,p);}));if(start%12===0)await progress('DOWNLOADING',Math.min(snapshot.bytes,(start+3)*CHUNK));}
@@ -106,6 +106,17 @@ async function restore(c,job,snapshot){
  await progress('VERIFYING_SITE');await ensureService(c);const evidence=await verifyLocalSite(c);state.stage='VERIFIED';save(journal,state);return {evidence};
 }
 async function retry(fn){for(let i=0;i<4;i++)try{return await fn();}catch(e){if(i===3||!/(UNREACHABLE|UNAVAILABLE|API_FAILED)/.test(e.message))throw e;await sleep(500*(i+1));}}
+export async function siteProgress(body,request=sharedSiteRequest){try{return await request('site-progress',body);}catch(e){if(!['AUTHORITY_INVALID_ACTION','AUTHORITY_NOT_FOUND'].includes(e.message))throw e;return {progressUnsupported:true};}}
+export async function enqueueSiteJob(action,body,request=sharedSiteRequest,delay=sleep){
+ // A periodic read-only check takes a few seconds. Wait for it instead of making a user click again.
+ // Never preempt backup/restore/manual work or replace its journal.
+ for(let i=0;i<12;i++)try{return await request(action,body);}catch(e){
+  if(e.message!=='AUTHORITY_SITE_NODE_BUSY')throw e;
+  const current=(await request('site-job',{targetNodeId:body.targetNodeId})).site?.job;
+  if(current?.type!=='verify'||!['QUEUED','RUNNING','DONE','FAILED'].includes(current.status)||i===11)throw e;
+  await delay(400);
+ }
+}
 let task=null,nextPoll=0;
 export async function siteAgentTick(){
  if(fs.existsSync(path.join(home(),'.local/state/mhc-source-upgrade/lock')))return;
@@ -117,10 +128,10 @@ export async function siteAgentTick(){
 }
 export async function sitePanelAction(body){
  if(!['status','backup','restore','verify'].includes(body?.action))fail('SITE_PANEL_ACTION_INVALID');
- return sharedSiteRequest(body.action==='status'?'site-job':'site-start',{targetNodeId:body.nodeId,...(body.action!=='status'?{type:body.action,requestId:body.requestId,confirm:body.confirm===true,resume:body.resume===true,preserveExisting:body.preserveExisting===true,snapshotId:body.snapshotId||null}:{})});
+ const action=body.action==='status'?'site-job':'site-start';return (action==='site-job'?sharedSiteRequest:enqueueSiteJob)(action,{targetNodeId:body.nodeId,...(body.action!=='status'?{type:body.action,requestId:body.requestId,confirm:body.confirm===true,resume:body.resume===true,preserveExisting:body.preserveExisting===true,snapshotId:body.snapshotId||null}:{})});
 }
 export async function siteManualEnvelope(targetNodeId,request){
- await sharedSiteRequest('site-call',{targetNodeId,requestId:request.requestId,request});
+ await enqueueSiteJob('site-call',{targetNodeId,requestId:request.requestId,request});
  for(let i=0;i<50;i++){const s=(await sharedSiteRequest('site-job',{targetNodeId})).site,j=s.job;if(j?.id!==request.requestId)fail('SITE_MANUAL_JOB_CHANGED');if(j.status==='FAILED')fail(j.errorCode);if(j.status==='DONE')return {envelope:j.result.envelope,publicKey:s.publicKey,clusterId:(await sharedStatus()).clusterId};await sleep(500);}
  fail('SITE_MANUAL_AGENT_TIMEOUT');
 }
