@@ -131,3 +131,10 @@ N1_WORKER_SECRET_INSTALL_FAILED từ bản helper CLI cũ: token đã qua Tunnel
 
 - SHOW GRANTS của appuser có thể bao gồm quyền PUBLIC thừa kế trên test/test_%. Kiểm quyền managed-site chỉ bỏ đúng các schema test này, vẫn phải thử UPDATE trên wp_options bị từ chối; không đánh đồng quyền ngoài scope với writer trên mhc_p33_lab. Không in SHOW GRANTS thô vì dòng USAGE có thể chứa authentication hash.
 - Nâng source khi mhc-lab-p33 đang Standby phải reload cả process guard; byte file mới không chứng minh process cũ đã nạp code mới. Source updater có backup/rollback trạng thái service này. Restore FAILED phải giữ job ID/journal, không để health check nền thay tác vụ của người dùng.
+
+
+### N1.3: readiness hết hạn hoặc proof lỗi do đồng hồ
+
+Manual readiness không thay bằng chứng HTTP/PHP/SQL của site. Nếu node online nhưng SITE_READY hết hạn, kiểm lastCheckedAt/job và independent verify; Worker từ7c82b5e không cho truy vấn Manual/backup đẩy lùi deadline health. Không tự đổi lease/route để làm badge xanh.
+
+P33_PEER_PROOF_INVALID có thể do chữ ký/pin/nonce/epoch/revision/TTL hoặc đồng hồ. Chỉ xuất boolean kiểm chứng và age/TTL, không private key/full config/raw logs. Bật giờ tự động do mạng trên Android, kiểm lại signed proof; không nới2giây future skew hoặc15giây TTL để qua test. Có thể SITE_READY hợp lệ tại Authority nhưng Panel khác từ chối proof vì đồng hồ của chính Panel lệch; coi chuyển Manual đó chưa đạt, không fake xác nhận.

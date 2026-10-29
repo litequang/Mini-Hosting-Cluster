@@ -1,6 +1,6 @@
 # N1 — Unified New Node Installer (MHC self-hosting / Android Termux)
 
-> Quyết định 28/10/2026. Đây là **spec/next milestone**, không phải tính năng đang chạy. Không ngắt P3.3 Manual Primary + Control đang Codex triển khai. N1 thực hiện **sau khi P3.3 LAB hai chiều đã nghiệm thu**, **trước P4 Lite Auto Primary** để tháo hardcode hai node. Trạng thái runtime thực tế chỉ tại [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
+> Quyết định 28/10/2026. Đây là **spec/next milestone**, không phải tính năng đang chạy. Không ngắt P3.3 Manual Primary + Control đang Codex triển khai. N1 thực hiện **sau khi P3.3 LAB hai chiều đã nghiệm thu**, **trước P4.0 Snapshot Sync Lite rồi P4 Lite Auto Primary** để tháo hardcode hai node. Trạng thái runtime thực tế chỉ tại [LIVE-PROGRESS.md](LIVE-PROGRESS.md).
 
 ## Mục tiêu sử dụng
 
@@ -15,7 +15,7 @@ Với điện thoại Android mới, người vận hành:
 
 ## Giữ lại / tái sử dụng code hiện có
 
-- scripts/bootstrap-new-android-node.sh và docs/ONE-COMMAND-NODE-SETUP.md hiện ghim source cũ 2f14deb, là fresh-only.
+- scripts/bootstrap-new-android-node.sh được builder ghim một commit/manifest; release04 và lệnh kiểm hash tại docs/ONE-COMMAND-NODE-SETUP.md, vẫn fresh-only. Source2f14deb là lịch sử, không dùng làm nền rồi chắp patch.
 - bin/cluster-authority.mjs đã có sharedInvite()/joinWithCode(), dùng Worker/DO hiện tại; mã một lần và agent heartbeat; node mới không tự nhận Primary.
 - Original Panel 9090, Node Agent, Termux:Boot, node doctor/monitor, source package transactional updater, Cloudflare origin JWT và Cloudflare worker/DO hiện hữu.
 - Bỏ giả định **chỉ hai node** trong các đường onboarding; source-upgrade.mjs LAB_NODES hardcoded, p31-configure.mjs yêu cầu đúng 2 peer và LAN IP 192.168.1.x, p32-lab.mjs proof/routes cố định 2 LAB, P3.3 current scoped MHC_MANAGED_WORDPRESS_LAB chỉ Vsmart/XZ3. **Không thay guards bằng cho phép toàn bộ node không xác thực; chuyển sang membership/allowlist/pinned proof keys có kiểm chứng từ authority/admin, không cho node mới tự được writer.**

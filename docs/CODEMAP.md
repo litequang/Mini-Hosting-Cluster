@@ -65,4 +65,4 @@ N1 self-service: reference/cluster-authority/n1-onboarding.mjs giữ approval t�
 - `reference/cluster-authority/site-standby.mjs`: job/backup chunk relay có role/key pin; site approval và sáu mức readiness, không đổi DNS/lease khi chuẩn bị.
 - `bin/site-standby.mjs`: Agent/Panel bridge, checksum/retry/journal, backup/restore vào đích trống và kiểm runtime; `site-standby-data.php` chỉ chuyển bảng nội dung LAB, tạo credentials riêng; `site-standby-archive.py` kiểm toàn bộ archive trước ghi.
 - Original Panel `/api/mhc/standby`: session + CSRF + mutation queue; UI Cluster/chọn node. Manual P33 dùng cùng relay để liên lạc N-node qua Internet, không SSH peer LAN.
-- Tests: `tests/site-standby.mjs`, `tests/site-standby-archive.py`, bổ sung UI và regression P33/N1.
+- Tests: `tests/site-standby.mjs`, `tests/site-standby-archive.py`, `tests/site-job-retry.mjs`, bổ sung UI và regression P33/N1. Independent site health chỉ dời deadline sau verify/restore, không theo Manual polling; runtime/test thực ở LIVE-PROGRESS.
