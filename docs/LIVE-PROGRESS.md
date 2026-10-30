@@ -1,5 +1,14 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
+## CF-OPT — IN PROGRESS (30/10/2026)
+
+- **Checkpoint A audit: DONE.** Read-only Git/source, actual three LAB metadata/services and Cloudflare GraphQL; details/calculation basis in CF-OPT-REQUEST-AUDIT.md. MEASURED UTC29: MHC149,790Worker/98,906DO, account151,322/99,719; other scripts1532Worker. Workers billing-plan permission403; plan/duration/SQLite rows UNAVAILABLE. No runtime/Cloudflare mutation.
+- **Runtime changed since yesterday:** actual Worker5e82677,11T1d1d0f3, XZ3/Vsmarta29eb27. All3services running and managed sites STANDBY; revision77/epoch14, Control11T, Primary recordXZ3 with **no writer lease**, Control journalAWAITING_PUBLIC. AutoOFF, sync runVERIFIED and policy unchanged. Do not infer a running website from Primary label.
+- **Tests:** audit/formulas ESTIMATED; actual GraphQL and SSH read-only PASS. Before/after workload tests and optimization deployment NOT RUN at A. Existing P4 source unchanged/worktree was clean; branch codex/m1-m2-foundation/fetch0ahead0behind at de03947. Audit SHA = commit containing this section.
+- **DoD missing:** B request reduction/security regression, C budget UI/three-node safe LAB acceptance and result report. Active1Hz safety reads alone exceed50k/day nominal; no Free-ready guarantee from idle telemetry changes.
+- **Blocker for live deployment:** existing important Control journal awaits real Access confirmation; user asked to finish Internet check only, no new switch. Source/tests continue independently. No Primary/Control/sync direction changes or SQL/DB writer actions are authorized for CF-OPT.
+- **One next task:** implement and instrument the selected non-safety request reductions while preserving lease/CAS/fencing/P4 and original Panel authentication.
+
 ## P4 Lite Auto Primary + Control — IN PROGRESS (29/10/2026)
 
 - **Mốc hiện tại:** SQL self-fencing prerequisite trên Standby11T đã chạy thật; Auto vẫn OFF. Chưa nghiệm thu Auto/offline takeover. Không làm lại P3.3/N1.3/P4.0.
