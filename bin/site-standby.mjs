@@ -1,5 +1,7 @@
 // Original Agent/Panel bridge for one MHC-managed LAB site. No LAN peer or SSH transport.
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import nodeHttp from 'node:http';import {spawn,spawnSync} from 'node:child_process';import {fileURLToPath} from 'node:url';
+import {BackgroundBackoff} from './authority-traffic.mjs';
+import {ControlNode} from './control-node.mjs';
 import {sharedSiteRequest,sharedStatus} from './cluster-authority.mjs';
 import {inspectSqlFence} from './p4-fence.mjs';
 import {installSqlFence} from './p4-fence-install.mjs';
@@ -123,15 +125,17 @@ export async function enqueueSiteJob(action,body,request=sharedSiteRequest,delay
   await delay(400);
  }
 }
-let task=null,nextPoll=0;
+let task=null,polling=null,nextPoll=0;const pollBackoff=new BackgroundBackoff();
 export async function siteAgentTick(){
  if(fs.existsSync(path.join(home(),'.local/state/mhc-source-upgrade/lock')))return;
- if(task||Date.now()<nextPoll)return;nextPoll=Date.now()+2500;
- const c=context(),reply=await sharedSiteRequest('site-poll'),job=reply.site?.job;if(!job)return;
- task=(async()=>{let fields;try{if(job.type==='fence-install'){await installSqlFence(c,job);fields={evidence:await verifyLocalSite(c)};}else if(['backup','sync-backup'].includes(job.type))fields=await backup(c,job);else if(job.type==='sync-apply')fields=await applyStandbySnapshot(c,job,reply.site.snapshot,{read,php,archive,verify:verifyLocalSite,request:(a,b)=>retry(()=>sharedSiteRequest(a,b)),standby:requireStandby});else if(job.type==='restore')fields=await restore(c,job,reply.site.snapshot);else if(job.type==='verify')fields={evidence:await verifyLocalSite(c)};else if(job.type==='manual')fields={request:job.request,envelope:await c.node.accept(job.request)};else fail('SITE_JOB_TYPE_INVALID');}catch(e){fields={errorCode:errorCode(e).startsWith('SITE_')?errorCode(e):'SITE_'+errorCode(e)};}
+ if(task||polling||Date.now()<nextPoll||!pollBackoff.ready())return;
+ const c=context();
+ polling=(async()=>{const reply=await sharedSiteRequest('site-poll',{waitMs:60000}),job=reply.site?.job;pollBackoff.success();if(!job||fs.existsSync(path.join(home(),'.local/state/mhc-source-upgrade/lock')))return;
+ task=(async()=>{let fields;try{if(job.type==='fence-install'){await installSqlFence(c,job);fields={evidence:await verifyLocalSite(c)};}else if(['backup','sync-backup'].includes(job.type))fields=await backup(c,job);else if(job.type==='sync-apply')fields=await applyStandbySnapshot(c,job,reply.site.snapshot,{read,php,archive,verify:verifyLocalSite,request:(a,b)=>retry(()=>sharedSiteRequest(a,b)),standby:requireStandby});else if(job.type==='restore')fields=await restore(c,job,reply.site.snapshot);else if(job.type==='verify')fields={evidence:await verifyLocalSite(c)};else if(job.type==='manual')fields={request:job.request,envelope:job.request.action==='control-ready'?await new ControlNode().proof(job.request.nonce):await c.node.accept(job.request)};else fail('SITE_JOB_TYPE_INVALID');}catch(e){fields={errorCode:errorCode(e).startsWith('SITE_')?errorCode(e):'SITE_'+errorCode(e)};}
   await retry(()=>sharedSiteRequest('site-result',{jobId:job.id,envelope:sign(c,job.id,fields)}));
   if(!fields.errorCode&&['sync-backup','sync-apply'].includes(job.type))pruneSyncCache(c,job,job.type==='sync-backup'?'backup':'apply');
  })().catch(e=>console.error(errorCode(e))).finally(()=>{task=null;});
+ })().catch(e=>{pollBackoff.failure(e);console.error(errorCode(e));}).finally(()=>{polling=null;nextPoll=Date.now()+3000;});
 }
 export async function sitePanelAction(body){
  if(['sync-status','sync-configure','sync-run','sync-resume'].includes(body?.action))return sharedSiteRequest('site-sync',{...body,action:body.action.slice(5)});

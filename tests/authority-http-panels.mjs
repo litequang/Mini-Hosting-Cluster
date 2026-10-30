@@ -76,7 +76,7 @@ try{
   const panel=path.join(n.home,'android-hosting-panel');
   fs.cpSync(path.join(root,'vendor/mini-hosting-warm-standby-v1/mini-hosting-dr-v1/panel'),panel,{recursive:true});
   fs.cpSync(path.join(root,'bin/legacy-panel-src'),panel,{recursive:true});
-  const installed=path.join(n.home,'.local/share/mhc-full-installer/bin');fs.mkdirSync(installed,{recursive:true});fs.copyFileSync(client,path.join(installed,'cluster-authority.mjs'));
+  const installed=path.join(n.home,'.local/share/mhc-full-installer/bin');fs.mkdirSync(installed,{recursive:true});fs.copyFileSync(client,path.join(installed,'cluster-authority.mjs'));for(const f of ['authority-traffic.mjs','authority-usage.mjs'])fs.copyFileSync(path.join(root,'bin',f),path.join(installed,f));
   fs.mkdirSync(path.join(panel,'data'),{recursive:true});const salt=crypto.randomBytes(16).toString('hex');n.password=crypto.randomBytes(24).toString('base64url');
   write(path.join(panel,'data/admin.json'),{salt,hash:crypto.scryptSync(n.password,salt,64).toString('hex')});
   n.port=await port();n.base='http://127.0.0.1:'+n.port;

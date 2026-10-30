@@ -9,7 +9,7 @@ const env={MHC_CLUSTER_ID:cluster,MHC_MEMBERS_JSON:JSON.stringify(members),MHC_P
 let time=Date.now(),cfCalls=0,createCalls=0,putCalls=0,patches=0,created=null,tunnelCfg={config:{ingress:[]}},connected=false,loseCreateReply=true,losePutReply=true,denyToken=false;
 const storage=new Storage(),ctx={storage};let instance=new ClusterAuthority(ctx,env);env.MHC_AUTHORITY={idFromName:()=>cluster,get:()=>({fetch:r=>instance.fetch(r)})};
 const agent=crypto.randomBytes(32).toString('base64url'),panel=crypto.randomBytes(32).toString('base64url');
-const transport=(u,o)=>worker.fetch(new Request(u,o),env),call=(action,body={},role='agent',nodeId=id)=>authorityRequest({url:'https://fixture.test',clusterId:cluster,nodeId,token:nodeId===id?(role==='panel'?panel:agent):members.find(m=>m.nodeId===nodeId)[role+'Key']},action,body,transport);
+let clientCalls=0;const transport=(u,o)=>{clientCalls++;return worker.fetch(new Request(u,o),env);};const call=(action,body={},role='agent',nodeId=id)=>authorityRequest({url:'https://fixture.test',clusterId:cluster,nodeId,token:nodeId===id?(role==='panel'?panel:agent):members.find(m=>m.nodeId===nodeId)[role+'Key']},action,body,transport);
 const current=()=>storage.data.get('state'),manual=()=>storage.data.get('p33'),row=()=>storage.data.get('n1-node:'+id);
 const fresh=()=>({sequence:1,receivedAt:time,metricsAt:time,telemetry:{services:{'amh-panel':'running','mhc-authority-agent':'running','mhc-panel-tunnel':'running'}}});
 storage.data.set('state',{schema:1,revision:9,epoch:5,pending:null,heartbeats:{[a]:fresh(),[b]:fresh()},declaredPrimary:{nodeId:a,scope:'MHC_MANAGED_WORDPRESS_LAB'}});storage.data.set('p32',{revision:2,siteNodeId:a,panelNodeId:a,journal:{status:'VERIFIED'}});storage.data.set('p33',{revision:4,epoch:5,phase:'COMMITTED',operationId:crypto.randomUUID(),primaryNodeId:a,lease:null,journal:{status:'VERIFIED'}});
@@ -50,13 +50,26 @@ try{
  write(path.join(dir,'installed'),'TEST 0.5.0C-REMOTE-PANEL installed on clean Termux');write(path.join(dir,'node-identity.json'),{schema:1,nodeId:id,kind:'new-node-standby'});write(path.join(dir,'authority.json'),{schema:1,clusterId:cluster,nodeId:id});write(path.join(home,'.local/state/mhc-new-node-install/progress.json'),{schema:1,nodeId:id,phase:'INSTALLED'});fs.mkdirSync(path.join(home,'android-hosting-panel/data'),{recursive:true,mode:0o700});fs.mkdirSync(prefix,{recursive:true});
  let tunnelStarted=0,panelRestarted=0;
  const ownNode=new ControlNode({home,fixture:true,now:()=>time,service:()=>true,authority:()=>call('status')});
- const service=new N1SelfService({home,prefix,fixture:true,now:()=>time,status:()=>call('status'),request:call,proof:nonce=>ownNode.proof(nonce),execute:(cmd,args)=>{
+ const service=new N1SelfService({home,prefix,fixture:true,now:()=>time,status:async()=>({...await call('status'),trafficProtocol:0}),request:call,proof:nonce=>ownNode.proof(nonce),execute:(cmd,args)=>{
   if(args.includes('install')){tunnelStarted++;write(path.join(prefix,'var/service/mhc-panel-tunnel/run'),'#!/data/data/com.termux/files/usr/bin/sh\nexec 2>&1\nexec /data/data/com.termux/files/usr/bin/cloudflared tunnel --no-autoupdate run --token-file "$HOME/.config/mhc-full-installer/cloudflare-lab/tunnel-token"\n');}
   if(args[0]==='restart')panelRestarted++;return {status:0,stdout:''};
  }});
  const waiting=await service.tick();assert.equal(waiting.phase,'WAITING_CONNECTOR');assert.equal(tunnelStarted,1);assert.equal(panelRestarted,1);assert.equal(fs.readFileSync(path.join(dir,'cloudflare-lab/tunnel-token'),'utf8').trim(),tunnelToken);if(process.platform!=='win32')assert.equal(fs.statSync(path.join(dir,'cloudflare-lab/tunnel-token')).mode&0o777,0o600);checks++;
  connected=true;advance(46000);const registered=await service.tick();assert.equal(registered.phase,'CONTROL_REGISTERED');assert.equal(tunnelStarted,1);assert.equal(panelRestarted,1);assert.equal(row().phase,'CONTROL_REGISTERED');checks++;
  const status=await call('status',{},'panel',a);assert(status.p33.controlOnlyNodeIds.includes(id));assert(!status.p33.siteNodeIds.includes(id));assert.equal(status.nodes.find(n=>n.nodeId===id).n1.controlRegistered,true);checks++;
+ // Protocol1: no periodic proof publication; management-only node responds on demand.
+ let countBefore=clientCalls;for(let n=0;n<10;n++)await service.tick();assert.equal(clientCalls-countBefore,40);countBefore=clientCalls;
+ const beforeCf=cfCalls;let requests=0,proofs=0;const savedRequest=service.request,savedProof=service.proof;service.request=(...args)=>{requests++;return savedRequest(...args);};service.proof=(...args)=>{proofs++;return savedProof(...args);};
+ for(let n=0;n<10;n++)await service.tick({...status,trafficProtocol:1});assert.equal(requests,0);assert.equal(proofs,0);assert.equal(clientCalls-countBefore,0);assert.equal(cfCalls,beforeCf);service.request=savedRequest;service.proof=savedProof;checks++;
+ storage.data.set('site-nodes',{[id]:{nextCheckAt:Date.now()+120000}});
+ const waitingPoll=call('site-poll',{waitMs:60000},'agent');await new Promise(r=>setTimeout(r,5));
+ const request={action:'control-ready',nodeId:id,nonce:crypto.randomBytes(32).toString('hex'),requestId:crypto.randomUUID(),epoch:manual().epoch,revision:manual().revision,operationId:manual().operationId};
+ const started=Date.now();await call('site-call',{targetNodeId:id,requestId:request.requestId,request},'panel',a);
+ const polled=await waitingPoll;assert.equal(polled.site.job.id,request.requestId);assert.equal(polled.site.job.type,'manual');assert(Date.now()-started<1000);
+ const envelope=await ownNode.proof(request.nonce),outer={schema:1,scope:'MHC_SITE_STANDBY_LAB',siteId:'mhc-p33-wordpress-v1',clusterId:cluster,nodeId:id,jobId:request.requestId,checkedAt:Date.now(),request,envelope};
+ await call('site-result',{jobId:request.requestId,envelope:{proof:outer,signature:crypto.sign(null,Buffer.from(JSON.stringify(outer)),pair.privateKey).toString('base64url')}});
+ const relayed=(await call('site-job',{targetNodeId:id},'panel',a)).site;assert.equal(relayed.publicKey,publicKey);assert.equal(relayed.job.result.envelope.proof.writerGranted,false);assert.equal(relayed.readiness.states.SITE_READY,false);assert.equal(relayed.readiness.states.ELIGIBLE_PRIMARY,false);assert.equal(manual().lease,null);checks++;
+ await assert.rejects(call('site-call',{targetNodeId:id,requestId:crypto.randomUUID(),request:{...request,action:'p33-activate'}},'panel',a),/CANDIDATE_NOT_APPROVED/);checks++;
  const cached=await call('n1-control-proof',{targetNodeId:id},'panel',a);assert.equal(cached.n1.envelope.proof.nodeId,id);assert.equal(cached.n1.envelope.proof.writerGranted,false);checks++;
  const bad=structuredClone(cached.n1.envelope);bad.proof.siteReady=true;await assert.rejects(call('n1-publish',{envelope:bad}),/MISMATCH/);checks++;
  const p33Body=()=>({requestId:crypto.randomUUID(),expectedRevision:current().revision,expectedP33Revision:manual().revision,operationId:manual().operationId});

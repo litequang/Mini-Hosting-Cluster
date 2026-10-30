@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Shared M2 client. All transport/config failures are terminal; no local role fallback.
 import fs from 'node:fs';
+import {HeartbeatSequence,BackgroundBackoff,classifyAuthorityError} from './authority-traffic.mjs';
+import {recordAuthorityAttempt} from './authority-usage.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -81,17 +83,22 @@ function config(role){
  return {...c,token};
 }
 export async function authorityRequest(c,action,body={},fetcher=fetch){
+ try{const result=await rawAuthorityRequest(c,action,body,fetcher);recordAuthorityAttempt(action,'success');return result;}
+ catch(error){recordAuthorityAttempt(action,classifyAuthorityError(error));throw error;}
+}
+async function rawAuthorityRequest(c,action,body={},fetcher=fetch){
  const url=new URL(c.url);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('AUTHORITY_HTTPS_ORIGIN_REQUIRED');
  if(!UUID.test(c.clusterId)||!UUID.test(c.nodeId)||!['status','heartbeat','begin','abort','route','route-resume','complete','history','invite','join','p32-status','p32-route','p32-resume','p32-confirm','p32-rollback',...P33_ACTIONS,...N1_ACTIONS,...SITE_ACTIONS].includes(action))throw Error('AUTHORITY_REQUEST_INVALID');
  const nonce=crypto.randomUUID();url.pathname='/v1/clusters/'+c.clusterId+'/'+action;
  let response;
  try{response=await fetcher(url,{method:['status','history','p32-status'].includes(action)?'GET':'POST',headers:{authorization:'Bearer '+c.token,'x-mhc-node':c.nodeId,'x-mhc-nonce':nonce,'content-type':'application/json',...(action==='history'?{'x-mhc-target':body.targetNodeId}:{})},
-  body:['status','history','p32-status'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout((action==='n1-provision'||action.startsWith('p32-')&&action!=='p32-status'||action.startsWith('p33-')&&action!=='p33-renew')?45000:5000),cache:'no-store'});}catch{throw Error('AUTHORITY_UNREACHABLE');}
+  body:['status','history','p32-status'].includes(action)?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(action==='site-poll'&&body.waitMs===60000?65000:(action==='n1-provision'||action.startsWith('p32-')&&action!=='p32-status'||action.startsWith('p33-')&&action!=='p33-renew')?45000:5000),cache:'no-store'});}catch(e){const error=Error(e?.name==='TimeoutError'||e?.name==='AbortError'?'AUTHORITY_TIMEOUT':'AUTHORITY_UNREACHABLE');throw error;}
  const reader=response.body?.getReader();let raw='';const decoder=new TextDecoder();let size=0;
  if(!reader)throw Error('AUTHORITY_REPLY_INVALID');
  while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>524288){await reader.cancel();throw Error('AUTHORITY_REPLY_TOO_LARGE');}raw+=decoder.decode(value,{stream:true});}raw+=decoder.decode();
- let v;try{v=JSON.parse(raw);}catch{throw Error('AUTHORITY_REPLY_INVALID');}
- if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(v.error)?v.error:'REQUEST_REJECTED';throw Error('AUTHORITY_'+code);}
+ let v;try{v=JSON.parse(raw);}catch{const error=Object.assign(Error(!response.ok&&/\b1027\b/.test(raw)?'AUTHORITY_QUOTA_EXCEEDED':'AUTHORITY_REPLY_INVALID'),{status:response.status});throw error;}
+ if(!response.ok&&Array.isArray(v.errors)&&v.errors.some(e=>e.code===1027))throw Object.assign(Error('AUTHORITY_QUOTA_EXCEEDED'),{status:response.status});
+ if(!response.ok){const code=typeof v.error==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(v.error)?v.error:'REQUEST_REJECTED';const error=Object.assign(Error('AUTHORITY_'+code),{status:response.status});throw error;}
  if(v.mode!==MODE||v.clusterId!==c.clusterId||v.nonce!==nonce||!Number.isSafeInteger(v.revision)||v.revision<0||!Number.isSafeInteger(v.epoch)||v.epoch<0||!Array.isArray(v.nodes)||v.nodes.length>200||typeof v.writeLeaseGranted!=='boolean'||v.writeLeaseGranted&&!(v.p33?.enabled===true&&v.p33.scope==='MHC_MANAGED_WORDPRESS_LAB'&&v.p33.writerLeaseGranted===true&&v.p33.lease?.scope==='MHC_MANAGED_WORDPRESS_LAB')||v.canComplete!==false)throw Error('AUTHORITY_REPLY_MISMATCH');
  return v;
 }
@@ -168,9 +175,9 @@ export async function sharedAction(body){
   ...(action==='begin'?{targetNodeId:body.id}:{operationId:body.id}),
   ...Object.fromEntries(flags.map(k=>[k,true]))});
 }
-let lastTelemetryWarning=0;
+let lastTelemetryWarning=0;const heartbeatSequence=new HeartbeatSequence();
 async function heartbeat(){
- const c=config('agent'),s=await authorityRequest(c,'status');
+ const c=config('agent');
  let telemetry=null;
  try{
   // This module is deployed to Termux with the agent; no raw files or PII sent.
@@ -184,7 +191,7 @@ async function heartbeat(){
    lastTelemetryWarning=Date.now();
   }
  }
- return authorityRequest(c,'heartbeat',{sequence:s.callerSequence+1,sentAt:Date.now(),...(telemetry?{telemetry}:{})});
+ return heartbeatSequence.send(c.clusterId+':'+c.nodeId,()=>authorityRequest(c,'status'),sequence=>authorityRequest(c,'heartbeat',{sequence,sentAt:Date.now(),...(telemetry?{telemetry}:{})}));
 }
 
 async function installAuthorityService(){
@@ -233,10 +240,10 @@ async function main(args){
  if(args.length!==1||!['status','heartbeat','watch'].includes(args[0]))throw Error('Usage: cluster-authority status|heartbeat|watch');
  if(args[0]==='status')return sharedStatus();
  if(args[0]==='heartbeat')return heartbeat();
- let lastHeartbeat=0;
+ let lastHeartbeat=0,lastShared=null;const heartbeatBackoff=new BackgroundBackoff({base:30000});
  while(true){
-  try{if(Date.now()-lastHeartbeat>=30000){const s=await heartbeat();lastHeartbeat=Date.now();console.log(JSON.stringify({at:new Date().toISOString(),mode:s.mode,revision:s.revision,epoch:s.epoch,writeLeaseGranted:false}));}}catch(e){console.error(e.message);}
-  let selfService=false;try{const m=await import('./n1-self-service.mjs');selfService=m.n1SelfServiceEligible();if(selfService)await m.n1Reconcile();}catch(e){console.error(/^((AUTHORITY_)?N1_|CONTROL_)[A-Z0-9_]+$/.test(e.message)?e.message:'N1_RECONCILE_FAILED');}
+  try{if(Date.now()-lastHeartbeat>=30000&&heartbeatBackoff.ready()){const s=await heartbeat();lastShared=s;lastHeartbeat=Date.now();heartbeatBackoff.success();console.log(JSON.stringify({at:new Date().toISOString(),mode:s.mode,revision:s.revision,epoch:s.epoch,writeLeaseGranted:false}));}}catch(e){heartbeatBackoff.failure(e);console.error(e.message);}
+  let selfService=false;try{const m=await import('./n1-self-service.mjs');selfService=m.n1SelfServiceEligible();if(selfService)await m.n1Reconcile(Date.now()-lastHeartbeat<45000?lastShared:null);}catch(e){console.error(/^((AUTHORITY_)?N1_|CONTROL_)[A-Z0-9_]+$/.test(e.message)?e.message:'N1_RECONCILE_FAILED');}
   try{await (await import('./site-standby.mjs')).siteAgentTick();}catch(e){console.error(/^((AUTHORITY_)?SITE_|P33_)[A-Z0-9_]+$/.test(e.message)?e.message:'SITE_AGENT_RETRY');}
   await new Promise(r=>setTimeout(r,3000));
  }

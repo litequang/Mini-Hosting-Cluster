@@ -16,15 +16,23 @@ async function sharedClient(){return import(pathToFileURL(path.join(BIN,'cluster
 function controlPeerConfigured(){return ['control-node.json','control-self-service.json'].some(f=>fs.existsSync(path.join(HOME,'.config/mhc-full-installer',f)));}
 function p31Configured(){return fs.existsSync(path.join(HOME,'.config/mhc-full-installer/p31/config.json'));}
 async function p31Client(){return import(pathToFileURL(path.join(BIN,'p31-control.mjs')).href);}
-async function sharedView(){try{const live=await (await sharedClient()).sharedStatus();return {...live,n1Control:{controllerReady:controlPeerConfigured()||live.n1Enabled===true,siteControllerReady:live.siteRelayEnabled===true||fs.existsSync(path.join(HOME,'.config/mhc-full-installer/control-node.json'))},...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z0-9_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
+let displayValue=null,displayFlight=null,displayAt=0,displayGeneration=0;
+function invalidateDisplay(){displayValue=null;displayAt=0;displayGeneration++;}
+async function sharedView(){
+ if(displayValue&&Date.now()-displayAt<5000)return displayValue;
+ if(displayFlight)return displayFlight;
+ const generation=displayGeneration;
+ displayFlight=readSharedView().then(v=>{if(generation===displayGeneration){displayValue=v;displayAt=Date.now();}return v;}).finally(()=>{displayFlight=null;});return displayFlight;
+}
+async function readSharedView(){try{const live=await (await sharedClient()).sharedStatus();const usage=await import(pathToFileURL(path.join(BIN,'authority-usage.mjs')).href);return {...live,displayAsOf:Date.now(),cloudflareUsage:usage.usageSummary(live,usage.collectAuthorityUsage(HOME),usage.readMetricsSnapshot(HOME)),n1Control:{controllerReady:controlPeerConfigured()||live.n1Enabled===true,siteControllerReady:live.siteRelayEnabled===true||fs.existsSync(path.join(HOME,'.config/mhc-full-installer/control-node.json'))},...(p31Configured()?{p31:{enabled:true,canPromote:false,canChangeRoute:false}}:{})};}catch(e){return {mode:'AUTHORITY_UNAVAILABLE',nodes:[],nodeCount:0,declaredPrimary:null,pending:null,canComplete:false,writeLeaseGranted:false,notice:/^AUTHORITY_[A-Z0-9_]+$/.test(e.message)?e.message:'AUTHORITY_CONFIG_OR_CLIENT_INVALID'};}}
 async function p33Client(){return import(pathToFileURL(path.join(BIN,'p33-control.mjs')).href);}
-export async function mhcStandbyAction(body){return (await import(pathToFileURL(path.join(BIN,'site-standby.mjs')).href)).sitePanelAction(body);}
-export async function mhcP33Action(body,context){return (await p33Client()).p33Action(body,context);}
+export async function mhcStandbyAction(body){invalidateDisplay();return (await import(pathToFileURL(path.join(BIN,'site-standby.mjs')).href)).sitePanelAction(body);}
+export async function mhcP33Action(body,context){invalidateDisplay();return (await p33Client()).p33Action(body,context);}
 export async function mhcP33Readiness(){return (await p33Client()).p33Readiness();}
 export async function mhcP33OriginProof(nonce,context){if(controlPeerConfigured()){const m=await import(pathToFileURL(path.join(BIN,'control-node.mjs')).href);if(m.controlConfig(HOME).keyFlavor==='N1'&&(await (await sharedClient()).sharedStatus()).p33?.journal?.kind!=='both')return new m.ControlNode().proof(nonce,'PUBLIC_PANEL',context);}const {ManagedNode}=await import(pathToFileURL(path.join(BIN,'p33-node.mjs')).href);return new ManagedNode().proof(nonce,'PUBLIC_PANEL',context);}
 export async function mhcP31Readiness(){if(!p31Configured())return {enabled:false,canPromote:false};return (await p31Client()).p31Readiness();}
 export async function mhcP32OriginProof(nonce,context){if(!p31Configured())throw Error('P31_NOT_CONFIGURED');return (await p31Client()).p31OriginProof(nonce,context);}
-export async function mhcP32Action(body,context={}){
+export async function mhcP32Action(body,context={}){invalidateDisplay();
  if(!p31Configured()||!['p32-route','p32-resume','p32-rollback','p32-confirm'].includes(body?.action))throw Error('P32_ACTION_NOT_AVAILABLE');
  const client=await sharedClient(),live=await client.sharedStatus(),lab=live.p32,j=lab?.journal;
  if(!lab?.enabled)throw Error('P32_WORKER_NOT_CONFIGURED');
@@ -368,7 +376,7 @@ export async function mhcPrimarySelection(){
  try{const x=JSON.parse(raw);return {mode:x.mode,nodes:x.nodes||[],declaredPrimary:x.declaredPrimary||null,pending:x.pending||null,notice:x.notice||'',automaticFailover:false,livePrimaryVerified:false};}
  catch{return {mode:'NOT_OBSERVED',nodes:[],declaredPrimary:null,pending:null};}
 }
-export async function mhcPrimaryAction(body){
+export async function mhcPrimaryAction(body){invalidateDisplay();
  if(sharedConfigured()){
   if(p31Configured()&&['route','route-resume','complete'].includes(body?.action))throw Error('P31_CLOUDFLARE_AND_WRITER_CUTOVER_DISABLED');
   if(['p31-prepare','p31-standby','p31-promote'].includes(body?.action)){

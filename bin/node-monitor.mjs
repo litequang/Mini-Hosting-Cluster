@@ -1,5 +1,6 @@
 // MHC Node Monitor v2: read-only, bounded, privacy-preserving device telemetry.
 // No IP, SSID, BSSID, file paths, process arguments, environment or credentials are sent.
+import {collectAuthorityUsage,safeUsage} from './authority-usage.mjs';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -116,7 +117,7 @@ export async function collectNodeMetrics(){
  const ramTotal=os.totalmem()/1048576,ramFree=os.freemem()/1048576;
  const m={
   v:1,at:new Date().toISOString(),device:clean(model||'Android'),android:clean(android||'',12),
-  wifi:wireless,processes,snapshot:snapshot(),
+  cloudflareUsage:collectAuthorityUsage(HOME),wifi:wireless,processes,snapshot:snapshot(),
   memory:{totalMiB:range(Math.round(ramTotal),0,1e8),freeMiB:range(Math.round(ramFree),0,1e8)},
   storage:disk(),network:network(),
   battery:power,uptimeSec:range(Math.round(os.uptime()),0,1e10),
@@ -129,7 +130,7 @@ export function compactTelemetry(m){
  const pct=x=>range(x,0,100),mib=x=>range(x,0,1e9),temp=x=>range(x,-25,100);
  const state=s=>['running','stopped','unknown'].includes(s)?s:'unknown';
  const svc=Object.fromEntries(SERV.map(k=>[k,state(m.services?.[k])]));
- return {v:1,at:typeof m.at==='string'&&/^\d{4}-\d\d-\d\dT/.test(m.at)?m.at:null,
+ return {cloudflareUsage:safeUsage(m.cloudflareUsage),v:1,at:typeof m.at==='string'&&/^\d{4}-\d\d-\d\dT/.test(m.at)?m.at:null,
   device:clean(m.device),android:clean(m.android,12),
   memory:{totalMiB:mib(m.memory?.totalMiB),freeMiB:mib(m.memory?.freeMiB)},
   storage:{totalMiB:mib(m.storage?.totalMiB),freeMiB:mib(m.storage?.freeMiB)},

@@ -1,5 +1,13 @@
 # TROUBLESHOOTING / an toàn vận hành
 
+## CF-OPT budget / stale display / quota
+
+Cluster shows local request attempts (ESTIMATED), reported-node coverage and forecast; actual GraphQL is an explicitly dated MEASURED_SNAPSHOT when installed, otherwise UNAVAILABLE. Other account scripts and missing telemetry members are not silently treated as zero. Refresh may slow60/120/300s at Warning/High/Critical; manual Refresh and visibility return fetch immediately, display cache max5s. Signed readiness, CAS and lease always use fresh Authority state.
+
+AUTHORITY_QUOTA_EXCEEDED, HTTP429, unauthorized, timeout/network and5xx have separate background backoff with jitter capped5minutes. Do not loop CLI calls to evade a hard quota or clear journals. No incoming proof is valid just because local counters are low. If a job is busy, complete/resume its existing journal; no lease/manual blind retry.
+
+Rollback: use checksum-pinned source-upgrade transaction only after fresh Standby proof/no pending site/sync/Control job; do not restore DB, identity, credentials, Tunnel or DO storage. Previous Worker version can be selected after coordinated node-source rollback to preserve legacy periodic Control proof behavior. Never remove SQL guards to force an older runtime.
+
 ## N1 installer bị gián đoạn PC/SSH
 
 Không suy ra script trên Android đã dừng khi PC restart. Kiểm metadata ~/.local/state/mhc-new-node-install/installer.pid, installer.exit, progress.json và install.lock; chỉ đọc các field stage/phase/completed/errorCode, không gửi log thô/credential. Trong bootstrap chưa có Node thì PID/log/source-commit vẫn là checkpoint, chưa có progress.json không tự có nghĩa chưa có process. Nếu launcher/lock còn chạy thì theo dõi, không chạy lại. Khi dừng, retry đúng pinned bootstrap/source ban đầu; changed source/manifest/output phải được điều tra, không xóa journal hoặc rotate identity. Cổng8022 từ chối thì cần mở Termux/chạy sshd cứu hộ; sau cài phải kiểm runit SSH + Boot, không xem standalone daemon là tự phục hồi.

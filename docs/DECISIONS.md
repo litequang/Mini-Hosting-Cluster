@@ -1,5 +1,11 @@
 # DECISIONS — quyết định đã thống nhất
 
+## 30/10/2026 — CF-OPT: reduce waste, preserve safety
+
+Optimize heartbeat redundant GET, empty-job polling, periodic N1 Control publications and Panel refresh using current Worker/DO/relay. No new controller, scheduler, namespace, paid plan, account or secret; no global60s heartbeat. Budget Warning40k/High50k/Critical90k delays only automatic display refresh, never lease/fence/CAS/rollback/manual operations. Quota/network/auth backoff applies to background attempts, and Cloudflare rejection still fails closed.
+
+Accepted limitation: existing guard1Hz and per-HTTP Authority validation make Free-safe active hosting unproven; do not disable/cache/slow safety checks to manufacture a PASS. A fresh authenticated persistent read transport on the same Authority is a proposed follow-up only; DO raw requests, Free enforcement, rows and CPU need proof before claiming benefit. P4 remains pending; no role/sync-direction changes for CF-OPT.
+
 ## 29/10/2026 — Chốt P4 Lite: dữ liệu đã áp dụng, một cặp máy trước
 
 **DESIGN/PLANNED**, không phải Auto runtime đã nghiệm thu. Hoàn tất N1.3 hiện hành trước; sau đó P4.0 → P4 Lite → HP1 → HP2 → HP3. Không đưa scheduler hay Auto vào N1.3.

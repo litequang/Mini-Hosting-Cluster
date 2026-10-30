@@ -1,5 +1,12 @@
 # CODEMAP — MHC
 
+## CF-OPT (30/10/2026)
+
+- bin/authority-traffic.mjs: heartbeat sequence reconciliation and background-only classified bounded backoff; bin/authority-usage.mjs: bounded local counters, sanitizer, explicit estimates and optional read-only historical metric snapshot.
+- reference/cluster-authority/job-wake.mjs: targeted in-memory wakeups for existing site relay; worker site-poll waitMs60000 opts in, no new scheduler/storage. usage-safe.mjs accepts bounded piggyback counters only.
+- n1-self-service.mjs trafficProtocol1: on-demand signed Control proof through existing site-call relay; legacy fallback retained. site-standby.mjs poll promise no longer blocks the Agent heartbeat loop.
+- Original Panel sharedView display-only5s single-flight cache, invalidation on mutations, visible/in-flight/terminal modal polling and budget refresh60/120/300s. Tests/cf-opt.mjs plus N1/Panel regressions. No caching in writer/proof/lease paths.
+
 Đối chiếu source ngày 27/10/2026 trên branch `codex/m1-m2-foundation`, HEAD kiểm kê `da7d67a`; runtime snapshot `f73df61`, updater `764ba51`. Trạng thái đã cài/nghiệm thu chỉ ghi tại [LIVE-PROGRESS.md](LIVE-PROGRESS.md); bảng dưới mô tả source. [Báo cáo tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md) có hash hai LAB và kế hoạch đồng bộ.
 
 ## Control plane và original Panel

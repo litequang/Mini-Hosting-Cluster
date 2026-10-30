@@ -1,3 +1,5 @@
+import {safeUsage} from './usage-safe.mjs';
+import {JobWake} from './job-wake.mjs';
 import {syncPublic} from './site-sync.mjs';
 import {SITE_ACTIONS,siteAction,siteEffectiveEnv,siteReadiness,siteCleanup,siteSyncMaintenance} from './site-standby.mjs';
 import {p33Action,p33View,p33Enabled,P33_ACTIONS} from './p33-manual.mjs';
@@ -22,7 +24,7 @@ function telemetrySafe(v){
  if(!v||v.v!==1||typeof v!=='object'||Array.isArray(v))fail('TELEMETRY_INVALID');
  const safeStr=(v,n)=>typeof v==='string'?Array.from(v).filter(c=>c.charCodeAt(0)>=32&&c.charCodeAt(0)!==127).join('').slice(0,n):'';
  const num=(x,max)=>metricNumber(x,0,max);
- return {v:1,device:safeStr(v.device,55),android:safeStr(v.android,12),
+ return {cloudflareUsage:safeUsage(v.cloudflareUsage),v:1,device:safeStr(v.device,55),android:safeStr(v.android,12),
   memory:{totalMiB:num(v.memory?.totalMiB,1e8),freeMiB:num(v.memory?.freeMiB,1e8)},
   storage:{totalMiB:num(v.storage?.totalMiB,1e9),freeMiB:num(v.storage?.freeMiB,1e9)},
   network:{rxKiBs:num(v.network?.rxKiBs,1e9),txKiBs:num(v.network?.txKiBs,1e9),interfaces:num(v.network?.interfaces,128)},
@@ -123,10 +125,10 @@ export default {
  }catch(e){return reply({error:e.status?e.message:'AUTHORITY_UNAVAILABLE'},e.status||503);}
 }};
 export class ClusterAuthority {
- constructor(ctx,env){this.ctx=ctx;this.env=env;}
+ constructor(ctx,env){this.ctx=ctx;this.env=env;this.jobWake=new JobWake();}
  async fetch(req){
   if(new URL(req.url).pathname==='/p33-maintenance'&&req.method==='POST'){
-   try{await siteCleanup(this.ctx);await siteSyncMaintenance(this.ctx,this.env);return reply({p33:await p33Action({ctx:this.ctx,env:this.env,action:'p33-recover-control',internal:true})});}catch(e){return reply({error:e.status?e.message:'P33_CONTROL_RECOVERY_UNAVAILABLE'},e.status||503);}
+   try{await siteCleanup(this.ctx);for(const id of await siteSyncMaintenance(this.ctx,this.env)||[])this.jobWake.notify(id);return reply({p33:await p33Action({ctx:this.ctx,env:this.env,action:'p33-recover-control',internal:true})});}catch(e){return reply({error:e.status?e.message:'P33_CONTROL_RECOVERY_UNAVAILABLE'},e.status||503);}
   }
   if(new URL(req.url).pathname==='/maintenance'&&req.method==='POST')return this.recoverPanel();
   if(new URL(req.url).pathname==='/p32-maintenance'&&req.method==='POST'){
@@ -140,7 +142,17 @@ export class ClusterAuthority {
    const staticList=members(this.env);
    const now=Date.now();
    if(SITE_ACTIONS.includes(action)){
-    const site=await siteAction({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now});
+    const observed=this.jobWake.version(nodeId),invoke=time=>siteAction({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now:time});
+    let site=await invoke(now);
+    if(action==='site-poll'&&!site.job&&body.waitMs===60000){
+     const row=await this.ctx.storage.transaction(async tx=>(await tx.get('site-nodes')||{})[nodeId]),job=row?.job;
+     const dormant=job?.status==='WAITING'||job?.status==='FAILED'&&['restore','fence-install','sync-apply'].includes(job.type);
+     const due=!dormant&&row?.nextCheckAt>Date.now()?row.nextCheckAt-Date.now():60000;
+     await this.jobWake.wait(nodeId,observed,Math.min(60000,due));site=await invoke(Date.now());
+    }
+    if(['site-start','site-call'].includes(action))this.jobWake.notify(body.targetNodeId);
+    if(action==='site-sync'&&body.action==='run'){this.jobWake.notify(site.sync?.run?.sourceNodeId);this.jobWake.notify(site.sync?.run?.targetNodeId);}
+    if(action==='site-result'&&site.job?.type==='sync-backup'&&site.job.status==='DONE')this.jobWake.notify(site.job.sync?.targetNodeId);
     const status=await this.fetch(new Request('https://authority.internal/status',{method:'POST',body:JSON.stringify({action:'status',body:{},nodeId,role,nonce,clusterId,dynamicToken})}));
     if(!status.ok)return status;return reply({...await status.json(),site});
    }
@@ -273,7 +285,7 @@ export class ClusterAuthority {
      metricsAt:s.heartbeats[n.nodeId]?.metricsAt?new Date(s.heartbeats[n.nodeId].metricsAt).toISOString():null,
      telemetry:s.heartbeats[n.nodeId]?.telemetry||null,n1:n1PublicView(await tx.get('n1-node:'+n.nodeId)),standby:siteReadiness(effective,s,n.nodeId,(await tx.get('site-nodes')||{})[n.nodeId],await tx.get('n1-node:'+n.nodeId),now),role:p33.enabled&&p33.lease?.nodeId===n.nodeId?'PRIMARY_MANAGED_SCOPE':'STANDBY_NO_WRITER_GRANT'})));
     const history=action==='history'?await tx.get('monitor-history:'+body.targetNodeId)||[]:null;
-    return {serverNow:now,p33,siteRelayEnabled:true,n1Enabled:this.env.MHC_N1_ENABLED==='LAB_SELF_SERVICE',mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:p33.enabled?'MHC-P33-MANUAL-20261028':P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
+    return {trafficProtocol:1,serverNow:now,p33,siteRelayEnabled:true,n1Enabled:this.env.MHC_N1_ENABLED==='LAB_SELF_SERVICE',mode:MODE,clusterId,revision:s.revision,epoch:s.epoch,workerBuild:p33.enabled?'MHC-P33-MANUAL-20261028':P32_BUILD,sourceCommit:/^[a-f0-9]{40}$/.test(this.env.MHC_SOURCE_COMMIT||'')?this.env.MHC_SOURCE_COMMIT:null,p32:p32View(this.env,await tx.get('p32')),
      nodes:action==='history'?[]:nodes,nodeCount:nodes.length,
      ...(action==='history'?{history:{nodeId:body.targetNodeId,points:Array.isArray(history)?history.slice(-144):[]}}:{}),
      declaredPrimary:s.declaredPrimary||null,retiredPrimaries:s.retiredPrimaries||[],

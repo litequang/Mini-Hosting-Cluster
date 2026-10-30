@@ -42,7 +42,7 @@ async function cleanup(tx,now){
 export async function siteCleanup(ctx,now=Date.now()){await ctx.storage.transaction(tx=>cleanup(tx,now));}
 export async function siteSyncMaintenance(ctx,env,now=Date.now()){
  if(env.MHC_P33_ENABLED!=='MANUAL_MANAGED_SITE')return;
- await ctx.storage.transaction(async tx=>{const effective=await siteEffectiveEnv(env,tx),profiles=siteProfiles(effective);await syncTimer(tx,{s:await tx.get('state'),r:await tx.get('p33'),rows:await tx.get('site-nodes')||{},known:id=>profiles.keys[id],fresh,now});});
+ return ctx.storage.transaction(async tx=>{const effective=await siteEffectiveEnv(env,tx),profiles=siteProfiles(effective),before=(await tx.get('site-sync'))?.run?.id;await syncTimer(tx,{s:await tx.get('state'),r:await tx.get('p33'),rows:await tx.get('site-nodes')||{},known:id=>profiles.keys[id],fresh,now});const after=(await tx.get('site-sync'))?.run;return after?.id!==before&&after?.status==='CREATING'?[after.sourceNodeId,after.targetNodeId]:[];});
 }
 export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Date.now(),fetcher=fetch}){
  if(env.MHC_P33_ENABLED!=='MANUAL_MANAGED_SITE')fail('SITE_LAB_NOT_ENABLED',403);
@@ -72,8 +72,8 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
    }
    let request=null;
    if(type==='manual'){
-    request=body.request;if(!request||!['p33-ready','p33-fence','p33-activate','p33-active'].includes(request.action)||request.nodeId!==target||!hex.test(request.nonce||'')||request.epoch!==r?.epoch||request.revision!==r?.revision||request.operationId!==r?.operationId)fail('SITE_MANUAL_REQUEST_INVALID');
-    if(!siteProfiles(env).keys[target])fail('SITE_CANDIDATE_NOT_APPROVED');
+    request=body.request;if(!request||!['p33-ready','p33-fence','p33-activate','p33-active','control-ready'].includes(request.action)||request.nodeId!==target||!hex.test(request.nonce||'')||request.epoch!==r?.epoch||request.revision!==r?.revision||request.operationId!==r?.operationId)fail('SITE_MANUAL_REQUEST_INVALID');
+    if(request.action==='control-ready'?!management[target]:!siteProfiles(env).keys[target])fail('SITE_CANDIDATE_NOT_APPROVED');
    }
    if(type==='backup'){
     const clean=await cleanup(tx,now);if(clean.uploads.length>=2)fail('SITE_TWO_BACKUPS_IN_PROGRESS');

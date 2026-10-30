@@ -1,6 +1,7 @@
 // Agent-owned, resumable management setup. Own Tunnel token only; never DNS/SQL/site data.
 import fs from 'node:fs';import path from 'node:path';import os from 'node:os';import crypto from 'node:crypto';import {spawnSync} from 'node:child_process';
 import {sharedStatus,sharedN1Request} from './cluster-authority.mjs';import {ControlNode} from './control-node.mjs';
+import {BackgroundBackoff,classifyAuthorityError} from './authority-traffic.mjs';
 import {waitForSupervisor} from './new-node-install.mjs';
 const home=()=>process.env.HOME||os.homedir(),fail=c=>{throw Error(c);};
 function safe(root,file){let at=path.resolve(root);if(fs.lstatSync(at).isSymbolicLink())fail('N1_SETUP_SYMLINK_DENIED');const rel=path.relative(at,file);if(rel.startsWith('..')||path.isAbsolute(rel))fail('N1_SETUP_PATH_DENIED');for(const p of rel.split(path.sep)){at=path.join(at,p);if(fs.lstatSync(at,{throwIfNoEntry:false})?.isSymbolicLink())fail('N1_SETUP_SYMLINK_DENIED');}return file;}
@@ -36,23 +37,27 @@ export class N1SelfService{
   if(state.restartPanel){this.run(path.join(this.prefix,'bin/sv'),['restart',path.join(this.prefix,'var/service/amh-panel')]);state.restartPanel=false;}
  }
  save(state){atomic(this.home,this.stateFile,JSON.stringify(state)+'\n');}
- async tick(){
+ async tick(observed=null){
   const own=this.gate();let state=fs.existsSync(this.stateFile)?read(this.home,this.stateFile,{fixture:this.fixture}):{schema:1,nodeId:own.nodeId,phase:'JOINED',lastProvisionAt:0,errorCode:null};
   if(state.schema!==1||state.nodeId!==own.nodeId)fail('N1_SETUP_STATE_INVALID');
-  const shared=await this.status();if(shared.n1Enabled!==true)return {enabled:false};
   if(state.retryAfter&&state.retryAfter>this.now())return {phase:state.phase,errorCode:state.errorCode,writerGranted:false};
   try{
+  const shared=observed||await this.status();if(shared.n1Enabled!==true)return {enabled:false};
+  if(shared.trafficProtocol===1&&state.lastProvisionAt&&this.now()-state.lastProvisionAt<45000)return {phase:state.phase,tunnelId:state.tunnelId,writerGranted:false};
    if(!state.lastProvisionAt||this.now()-state.lastProvisionAt>=45000){
     const reply=await this.request('n1-provision'),v=reply.n1;if(!v)fail('N1_SETUP_REPLY_INVALID');
-    await this.configure(v,state);state={...state,phase:v.phase,tunnelId:v.tunnelId,lastProvisionAt:this.now(),retryAfter:null,errorCode:null};this.save(state);
+    await this.configure(v,state);state={...state,phase:v.phase,tunnelId:v.tunnelId,lastProvisionAt:this.now(),retryAfter:null,failures:0,errorCode:null};this.save(state);
    }
-   if(state.phase==='CONTROL_REGISTERED'){
+   if(state.phase==='CONTROL_REGISTERED'&&shared.trafficProtocol!==1){
     const envelope=await this.proof(crypto.randomBytes(32).toString('hex'));
     await this.request('n1-publish',{envelope});state.lastProofAt=this.now();state.errorCode=null;this.save(state);
    }
    return {phase:state.phase,tunnelId:state.tunnelId,writerGranted:false};
-  }catch(e){const code=/^((AUTHORITY_)?N1_|CONTROL_)[A-Z0-9_]+$/.test(e.message)?e.message:'N1_SETUP_FAILED';state.errorCode=code;state.retryAfter=this.now()+(/PERMISSION|SETUP_|PROVISION_IN_PROGRESS/.test(code)?45000:5000);this.save(state);throw Error(code);}
+  }catch(e){const backoff=new BackgroundBackoff({base:5000,now:this.now});backoff.failures=Math.min(state.failures||0,8);backoff.failure(e);state.failures=backoff.failures;const code=/^((AUTHORITY_)?N1_|CONTROL_)[A-Z0-9_]+$/.test(e.message)?e.message:'N1_SETUP_AUTHORITY_'+classifyAuthorityError(e).toUpperCase();state.errorCode=code;state.retryAfter=Math.max(backoff.nextAt,this.now()+(/PERMISSION|SETUP_|PROVISION_IN_PROGRESS/.test(code)?45000:5000));this.save(state);throw Error(code);}
  }
 }
-let reconciler;export async function n1Reconcile(){reconciler ||=new N1SelfService();return reconciler.tick();}
-export async function n1ControlEnvelope(nodeId){for(let i=0;i<4;i++){try{const r=await sharedN1Request('n1-control-proof',{targetNodeId:nodeId});if(!r.n1?.envelope||!r.n1.publicKey)fail('N1_CONTROL_PROOF_PENDING');return r.n1;}catch(e){if(i===3||!/^AUTHORITY_(N1_CONTROL_PROOF_PENDING|CONTROL_PROOF_STALE_OR_MISMATCH)$/.test(e.message))throw e;await new Promise(r=>setTimeout(r,2000));}}}
+let reconciler;export async function n1Reconcile(observed=null){reconciler ||=new N1SelfService();return reconciler.tick(observed);}
+export async function n1ControlEnvelope(nodeId){
+ const state=await sharedStatus();
+ if(state.trafficProtocol===1){const {siteManualEnvelope}=await import('./site-standby.mjs');return siteManualEnvelope(nodeId,{action:'control-ready',nodeId,nonce:crypto.randomBytes(32).toString('hex'),requestId:crypto.randomUUID(),epoch:state.p33.epoch,revision:state.p33.revision,operationId:state.p33.operationId});}
+for(let i=0;i<4;i++){try{const r=await sharedN1Request('n1-control-proof',{targetNodeId:nodeId});if(!r.n1?.envelope||!r.n1.publicKey)fail('N1_CONTROL_PROOF_PENDING');return r.n1;}catch(e){if(i===3||!/^AUTHORITY_(N1_CONTROL_PROOF_PENDING|CONTROL_PROOF_STALE_OR_MISMATCH)$/.test(e.message))throw e;await new Promise(r=>setTimeout(r,2000));}}}

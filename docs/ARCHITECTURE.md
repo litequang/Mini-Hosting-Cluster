@@ -1,5 +1,11 @@
 # ARCHITECTURE — MHC
 
+## CF-OPT transport boundary
+
+Same Worker, SQLite DO, membership, secrets, cron and site storage. Empty site-poll may wait at most60s, releases its storage transaction while waiting, wakes only the target after a committed existing job, and re-authorizes/re-reads state at response. Eviction/lost reply uses existing idempotent job recovery. Fresh Control proof is generated on demand with existing context/pins/15s TTL. Heartbeat still30s; sequence GET occurs on bootstrap/ambiguous reply, never by assuming a mutation succeeded.
+
+Budget counters are bounded local files, piggybacked in existing heartbeat telemetry; no per-request analytics network call. Display cache is isolated from mutation/proof/lease reads. An estimate is neither billing nor a quota bypass. Primary1Hz guard and per-managed-HTTP fresh Authority calls remain unchanged, so current active hosting cannot be promised below50k/day or Free100k at scale. See CF-OPT-RESULT.md.
+
 Kiến trúc hướng đích và ranh giới source/runtime đối chiếu 27/10/2026. Bằng chứng triển khai nằm ở [LIVE-PROGRESS.md](LIVE-PROGRESS.md); [audit tiếp nhận](CODEX-RESUME-AUDIT-2026-10-27.md) ghi các khoảng trống.
 
 ```text
