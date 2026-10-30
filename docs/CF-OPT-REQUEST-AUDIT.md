@@ -72,4 +72,4 @@ If the active guard still prevents the Free budget, report the remaining gap rat
 
 ## Checkpoint cross-reference
 
-B source a8ce706 implements the selected reductions with controlled fixture before/after counts. C native tests and a short physical optimized-protocol observation are in CF-OPT-RESULT.md. Full deployment is blocked by confirmedVsmartPanel9090/production-origin overlap; Vsmart/Worker reverted for compatibility pending explicit scope choice. The optimized tables are projections for a uniformly upgraded cluster, not current mixed runtime measurements. Latest execution state is only LIVE-PROGRESS.md.
+Bphonea8ce706 and finalbackend ed3fab8 implement selected reductions. Cnative/live proof/rollback/authorization evidence is inCF-OPT-RESULT.md; all3namedLABs now upgraded under explicit sharedVsmartPanel permission. The optimized tables are cadence projections, not a24haftermeasurement. OriginalAstate is historical. Latest execution status is onlyLIVE-PROGRESS.md.
