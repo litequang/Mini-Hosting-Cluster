@@ -157,7 +157,17 @@ export class ClusterAuthority {
     if(!status.ok)return status;return reply({...await status.json(),site});
    }
    if(N1_ACTIONS.includes(action)){
-    const value=await n1Action({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now});
+    let value;try{value=await n1Action({ctx:this.ctx,env:this.env,action,body,nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now});}
+    catch(error){
+     if(action!=='n1-control-proof'||!['N1_CONTROL_PROOF_PENDING','CONTROL_PROOF_STALE_OR_MISMATCH'].includes(error.message))throw error;
+     const context=await this.ctx.storage.transaction(async tx=>({n:await tx.get('n1-node:'+body.targetNodeId),r:await tx.get('p33'),job:(await tx.get('site-nodes')||{})[body.targetNodeId]?.job}));
+     const r=context.r,n=context.n;if(n?.phase!=='CONTROL_REGISTERED'||!n.verifiedAt||Date.now()-n.verifiedAt>90000||!['IDLE','COMMITTED','CANCELLED'].includes(r?.phase)||r.journal&&r.journal.status!=='VERIFIED')throw error;
+     const old=context.job,existing=old?.type==='manual'&&old.request?.action==='control-ready'&&['QUEUED','RUNNING'].includes(old.status)&&old.request.epoch===r.epoch&&old.request.revision===r.revision&&old.request.operationId===r.operationId;
+     const request=existing?old.request:{action:'control-ready',nodeId:body.targetNodeId,nonce:Array.from(crypto.getRandomValues(new Uint8Array(32))).map(v=>v.toString(16).padStart(2,'0')).join(''),requestId:crypto.randomUUID(),epoch:r.epoch,revision:r.revision,operationId:r.operationId};
+     try{await siteAction({ctx:this.ctx,env:this.env,action:'site-call',body:{targetNodeId:body.targetNodeId,requestId:request.requestId,request},nodeId,authorize:s=>authorizedRole(s,staticList,nodeId,role,dynamicToken),now:Date.now()});}
+     catch(e){if(!['SITE_NODE_BUSY','SITE_SYNC_BUSY','SITE_FENCE_INSTALL_RESUME_REQUIRED'].includes(e.message))throw e;}
+     this.jobWake.notify(body.targetNodeId);fail('N1_CONTROL_PROOF_PENDING',409);
+    }
     const status=await this.fetch(new Request('https://authority.internal/status',{method:'POST',body:JSON.stringify({action:'status',body:{},nodeId,role,nonce,clusterId,dynamicToken})}));
     if(!status.ok)return status;return reply({...await status.json(),n1:value});
    }

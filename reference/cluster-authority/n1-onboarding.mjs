@@ -52,9 +52,14 @@ export async function n1Action({ctx,env,action,body={},nodeId,authorize,fetcher=
   if(action==='n1-control-proof'){
    if(!uuid.test(body.targetNodeId||''))fail('N1_TARGET_INVALID');
    const effective=await n1EffectiveEnv(env,tx),entry=controlNodes(effective)[body.targetNodeId],row=await tx.get('n1-node:'+body.targetNodeId),cached=await tx.get('n1-proof:'+body.targetNodeId),r=await tx.get('p33')||{epoch:s.epoch,revision:0,operationId:null};
-   if(!entry||!row||row.phase!=='CONTROL_REGISTERED'||!row.verifiedAt||now-row.verifiedAt>90000||!fresh(s,body.targetNodeId,now)||!cached)fail('N1_CONTROL_PROOF_PENDING');
-   await verifyControlProof(cached,entry,{...s,clusterId:env.MHC_CLUSTER_ID},r,{nodeId:body.targetNodeId,nonce:cached.proof?.nonce,kind:'READY',now});
-   return {value:{envelope:cached,publicKey:entry.publicKey,clusterId:env.MHC_CLUSTER_ID}};
+   if(!entry||!row||row.phase!=='CONTROL_REGISTERED'||!row.verifiedAt||now-row.verifiedAt>90000||!fresh(s,body.targetNodeId,now))fail('N1_CONTROL_PROOF_PENDING');
+   const job=(await tx.get('site-nodes')||{})[body.targetNodeId]?.job;
+   const relayed=job?.status==='DONE'&&job.type==='manual'&&job.request?.action==='control-ready'?job.result?.envelope:null;
+   let lastError;for(const envelope of [cached,relayed].filter(Boolean)){
+    try{await verifyControlProof(envelope,entry,{...s,clusterId:env.MHC_CLUSTER_ID},r,{nodeId:body.targetNodeId,nonce:envelope.proof?.nonce,kind:'READY',now});return {value:{envelope,publicKey:entry.publicKey,clusterId:env.MHC_CLUSTER_ID}};}
+    catch(error){if(error.message!=='CONTROL_PROOF_STALE_OR_MISMATCH')throw error;lastError=error;}
+   }
+   if(lastError)throw lastError;fail('N1_CONTROL_PROOF_PENDING');
   }
   const member=s.dynamicMembers?.find(n=>n.nodeId===nodeId),approved=controlNodes(env)[nodeId],key=member?.controlPublicKey||approved?.publicKey;
   if(!key||!member||!fresh(s,nodeId,now))fail('N1_APPROVED_FRESH_MEMBERSHIP_REQUIRED');
