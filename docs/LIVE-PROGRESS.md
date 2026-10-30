@@ -1,6 +1,6 @@
 # LIVE PROGRESS — nguồn trạng thái thực thi duy nhất
 
-## CF-OPT — BLOCKED (30/10/2026; shared production origin / Free target)
+## CF-OPT — IN PROGRESS (30/10/2026; final C rollout authorized, Free target NOT MET)
 
 - **A DONE**, SHAa851b9a648279a446c49f04eba104502b630bad2: actual UTC29GraphQL149,790Worker/98,906DO MHC, account151,322/99,719. Plan403, duration/rows UNAVAILABLE.
 - **B DONE**, sourceSHA **a8ce706cbb59c346ba4667f16162910046c2acd5** pushed: sequence heartbeat, targeted bounded long-poll, on-demand signedN1Control proof, bounded background backoff, Panel display cache/visibility/single-flight/budget, local bounded piggyback counters. No changes to lease90s/renew,1Hzwriter guard,CAS/epoch/fencing, snapshot chunks/checksums/policy.
@@ -10,7 +10,7 @@
 - **Runtime invariants:** rev78/epoch14, Control11T, PrimaryrecordXZ3 but **no writer lease**, localStandbyall3, AutoOFF, journalVERIFIED; existing sync runVERIFIED/policy11T→XZ3 unchanged. New activehosting/snapshotapply/partition/failoverNOTRUN. ProductionAccess/policy/DNS/nonLAB ingress fingerprints unchanged; do not call initial sharedorigin source update zero-impact.
 - **Free DoD missing:** 24h optimizedCloudflare metrics/duration/rows and activeworkload; model onePrimary+hourlysync+1kHTTP+8hPanel3/5/10 =121,432/138,232/180,232each Worker-conservative/DO/day ESTIMATED, above50k and100k. Idleuniform3/5/10 =22,800/39,600/81,600; currentmixed runtime differs. No safety weakening or Paid upgrade.
 - **Independent completion:** this checkpoint adds a backward-compatible n1-control-proof adapter over the existing relay, so the optimized Worker can serve unchangedVsmartPanel. Windows focused regressionsPASS; native delta/old-client live proof and backend activation pending. No new Android package/source version is needed; phone artifact remainsa8ce706.
-- **Blocker needing user:** explicit choice pending: keep sharedproductionPanel baseline (two isolatedLABs only), or permit source upgrade of sharedVsmartPanel (no DNS/Access/data change). **One next task:** resolve that choice, reuse this pinned package/Worker version for permitted rollout, then measure; do not restartP3.3/N1/P4 or changePrimary/syncdirection to test.
+- **Quyền mới đã có:** user cho phép nâng sourcePanel dùng chungVsmart; không cần hỏi lại. Nâng lại bằng đúng phonepackagea8ce706, backend final có legacyproof adapter/raceguard, không đổiDNS/Access/data/role. **One next task:** fresh preflight/backups→reapplyVsmart→activate finalWorker→verify actualDO and old-client compatibility. Free50k remainsNOTMET; no safety weakening.
 
 ## P4 Lite Auto Primary + Control — IN PROGRESS (29/10/2026)
 

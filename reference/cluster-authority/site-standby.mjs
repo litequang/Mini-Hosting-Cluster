@@ -2,7 +2,7 @@ import {syncAction,syncTimer,syncPublic,syncBusy,syncReceipt} from './site-sync.
 // One explicitly managed LAB site. Authenticated, bounded relay; never arbitrary remote commands.
 import {n1EffectiveEnv,n1EnableSiteRoute} from './n1-onboarding.mjs';
 import {p32Config} from './p32-lab.mjs';
-import {controlNodes} from './control-nodes.mjs';
+import {controlNodes,verifyControlProof} from './control-nodes.mjs';
 export const SITE_ACTIONS=['site-start','site-poll','site-result','site-upload','site-download','site-call','site-job','site-progress','site-sync'];
 export const SITE_ID='mhc-p33-wordpress-v1',CHUNK_BYTES=196608,MAX_BYTES=64*1024*1024;
 const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,hex=/^[a-f0-9]{64}$/;
@@ -118,7 +118,14 @@ export async function siteAction({ctx,env,action,body={},nodeId,authorize,now=Da
   const p=await verifySiteEnvelope(body.envelope,known(nodeId),{clusterId:env.MHC_CLUSTER_ID,nodeId,jobId:job.id,now});
   if(p.errorCode){if(!/^SITE_[A-Z0-9_]{1,80}$/.test(p.errorCode))fail('SITE_ERROR_INVALID');if(job.type==='verify'||job.type==='restore'||job.type==='fence-install'||job.type==='sync-apply'&&p.rollbackVerified!==true)row.evidence={ready:false,checkedAt:now,errorCode:p.errorCode};job={...job,status:'FAILED',errorCode:p.errorCode,updatedAt:now};}
   else if(job.type==='manual'){
-   if(!p.envelope||JSON.stringify(p.request)!==JSON.stringify(job.request))fail('SITE_MANUAL_RESULT_MISMATCH');job={...job,status:'DONE',updatedAt:now,result:{envelope:p.envelope}};
+   if(!p.envelope||JSON.stringify(p.request)!==JSON.stringify(job.request))fail('SITE_MANUAL_RESULT_MISMATCH');
+   if(job.request.action==='control-ready'){
+    const entry=management[nodeId];if(!entry)fail('SITE_CANDIDATE_NOT_APPROVED');
+    await verifyControlProof(p.envelope,entry,{...s,clusterId:env.MHC_CLUSTER_ID},r,{nodeId,nonce:job.request.nonce,kind:'READY',now});
+    // Event-only publication survives the next health job replacing this relay slot.
+    await tx.put('n1-proof:'+nodeId,p.envelope);
+   }
+   job={...job,status:'DONE',updatedAt:now,result:{envelope:p.envelope}};
   }else if(['backup','sync-backup'].includes(job.type)){
    const b=p.backup;if(!b||b.id!==job.id||b.siteId!==SITE_ID||!hex.test(b.sha256||'')||!hex.test(b.manifestSha256||'')||!Number.isSafeInteger(b.bytes)||b.bytes<1||b.bytes>MAX_BYTES||b.chunks!==Math.ceil(b.bytes/CHUNK_BYTES)||b.credentialsIncluded!==false)fail('SITE_BACKUP_INVALID');
    if(job.type==='sync-backup'&&(!Number.isSafeInteger(b.sourceSnapshotAt)||b.sourceSnapshotAt<job.createdAt-2000||b.sourceSnapshotAt>now+2000||b.sourceEpoch!==job.sync.epoch||!hex.test(b.build||'')||!hex.test(b.schema||'')))fail('SITE_SYNC_PROVENANCE_INVALID');

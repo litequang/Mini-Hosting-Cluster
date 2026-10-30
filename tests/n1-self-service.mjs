@@ -80,7 +80,8 @@ try{
  const legacyJob=(await call('site-poll',{},'agent')).site.job;assert.equal(legacyJob.request.action,'control-ready');
  const legacyEnvelope=await ownNode.proof(legacyJob.request.nonce),legacyOuter={schema:1,scope:'MHC_SITE_STANDBY_LAB',siteId:'mhc-p33-wordpress-v1',clusterId:cluster,nodeId:id,jobId:legacyJob.id,checkedAt:Date.now(),request:legacyJob.request,envelope:legacyEnvelope};
  await call('site-result',{jobId:legacyJob.id,envelope:{proof:legacyOuter,signature:crypto.sign(null,Buffer.from(JSON.stringify(legacyOuter)),pair.privateKey).toString('base64url')}});
- const legacyReply=await call('n1-control-proof',{targetNodeId:id},'panel',a);assert.equal(legacyReply.n1.envelope.proof.nonce,legacyJob.request.nonce);assert.equal(legacyReply.n1.envelope.proof.writerGranted,false);checks++;
+ const relayRow=storage.data.get('site-nodes')[id],savedJob=relayRow.job;relayRow.job={...savedJob,type:'verify',request:null,result:null};
+ const legacyReply=await call('n1-control-proof',{targetNodeId:id},'panel',a);assert.equal(legacyReply.n1.envelope.proof.nonce,legacyJob.request.nonce);assert.equal(legacyReply.n1.envelope.proof.writerGranted,false);relayRow.job=savedJob;checks++;
  const latestProof=(await call('n1-control-proof',{targetNodeId:id},'panel',a)).n1.envelope;
  await call('p33-control',{...p33Body(),targetNodeId:id,nonce:latestProof.proof.nonce,envelope:latestProof},'panel',a);assert.equal(patches,1);assert.equal(manual().journal.status,'AWAITING_PUBLIC');assert.equal(current().epoch,baseOwnership.epoch);assert.deepEqual(current().declaredPrimary,baseOwnership.primary);assert.equal(manual().lease,null);checks++;
  await assert.rejects(call('n1-control-proof',{targetNodeId:id},'panel',a),/STALE_OR_MISMATCH/);

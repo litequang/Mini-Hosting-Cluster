@@ -135,3 +135,7 @@ User chọn cả chu kỳ và giờ cố định: chọn một kiểu interval p
 ### 29/10/2026 — P4 prerequisite: bounded managed SQL admission before offline takeover
 
 Keep the existing P3.3 Manual pipeline and Auto OFF. Test an optional root-keeper/BEFORE+AFTER InnoDB trigger gate for the fixed LAB site, reject app explicit transactions, and derive local lease budgets from authoritative server time plus boot uptime. It addresses lingering app grants/old connections when the JavaScript guard cannot revoke promptly; it does not by itself prove all database commit/pause paths or fence privileged writers. Install only through a recoverable, confirmed Standby job. A managed Standby may receive a source-only upgrade beside a different leased Primary only with a fresh pinned signed FENCED proof; active writer upgrades stay forbidden. No replication or second authority is introduced.
+
+## 30/10/2026 — Quyền nâng source Panel dùng chung Vsmart
+
+Người dùng đã xác nhận: “Cho phép nâng source Panel dùng chung Vsmart”. Được tiếp tục CF-OPT source-only trên Vsmart dù Panel9090 cũng là origin panel.giaouoc.com. Quyền này không cho đổi DNS/Access, dữ liệu, credentials hoặc Primary/Control. Gói phonea8ce706 và backend đã kiểm thử được tái sử dụng, không làm lại installer/P3.3.
